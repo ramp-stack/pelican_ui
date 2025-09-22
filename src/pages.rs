@@ -1,7 +1,7 @@
-use pelican_ui::{
-    Align, Area, Component, Context,
-    Drawable, Layout, OnEvent, SizeRequest,
-};
+use pelican_ui::events::OnEvent;
+use pelican_ui::drawable::{Align, Drawable, Component};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
 use crate::layout::{Offset, Stack};
 use crate::components::interface::general::{Page, Content, Header, Bumper};

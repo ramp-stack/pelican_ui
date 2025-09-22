@@ -1,5 +1,9 @@
-use pelican_ui::{resources, ShapeType, Area, Color, Component, Context, Drawable, Image, OnEvent, SizeRequest};
+use pelican_ui::events::OnEvent;
+use pelican_ui::drawable::{Drawable, Component};
+use pelican_ui::layout::{Area, SizeRequest};
+use pelican_ui::drawable::{ShapeType, Image, Color};
 use pelican_ui::maverick_os::ImageOrientation;
+use pelican_ui::{Context, resources};
 use std::io::BufWriter;
 
 use image::codecs::png::PngEncoder;

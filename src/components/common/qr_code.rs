@@ -1,4 +1,7 @@
-use pelican_ui::{Area, Component, Context, Drawable, Image, Layout, OnEvent, SizeRequest, ShapeType};
+use pelican_ui::events::OnEvent;
+use pelican_ui::drawable::{Drawable, Component, ShapeType, Image};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
 use crate::layout::{Padding, Size, Offset, Stack, Bin};
 use crate::components::{Rectangle, AspectRatioImage};

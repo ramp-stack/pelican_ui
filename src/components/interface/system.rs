@@ -1,6 +1,9 @@
-use pelican_ui::{ Align, Area, Color, Component, Context, Drawable, Event, Image, Layout, MouseEvent, MouseState, OnEvent, SizeRequest, TickEvent, KeyboardState, KeyboardEvent, NamedKey, SmolStr};
-use pelican_ui::Key as WinitKey;
+use pelican_ui::events::Key as WinitKey;
 use pelican_ui::maverick_os::ImageOrientation;
+use pelican_ui::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey, SmolStr};
+use pelican_ui::drawable::{Drawable, Component, Align, Image, Color};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
 use crate::components::{Text, TextStyle, Rectangle, Icon, EncodedImage};
 use crate::events::{KeyboardActiveEvent, AttachmentEvent};

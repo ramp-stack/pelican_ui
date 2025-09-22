@@ -1,9 +1,7 @@
-use pelican_ui::{
-    Area, Color, Component, Context,
-    Drawable, Event, Image, Layout,
-    MouseEvent, MouseState, OnEvent,
-    SizeRequest,
-};
+use pelican_ui::events::{MouseState, MouseEvent, OnEvent, Event};
+use pelican_ui::drawable::{Drawable, Component, Image, Color};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
 use crate::utils::Callback;
 use crate::components::{Icon, Rectangle};

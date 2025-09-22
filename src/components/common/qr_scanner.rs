@@ -1,5 +1,7 @@
-use pelican_ui::{ShapeType, Align, Area, Component, Context, Drawable, Event, Image, Layout, OnEvent, SizeRequest, TickEvent};
-
+use pelican_ui::events::{OnEvent, Event, TickEvent};
+use pelican_ui::drawable::{Drawable, Component, ShapeType, Image, Align};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 use pelican_ui::maverick_os::Camera;
 
 use crate::components::{TextStyle, Text, Icon, Rectangle};

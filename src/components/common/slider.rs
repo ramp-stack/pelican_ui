@@ -1,4 +1,7 @@
-use pelican_ui::{ Align, Area, Component, Context, Drawable, Event, Layout, MouseEvent, MouseState, OnEvent, SizeRequest, TickEvent, Shape};
+use pelican_ui::events::{OnEvent, MouseState, Event, MouseEvent, TickEvent};
+use pelican_ui::drawable::{Drawable, Align, Component, Shape};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
 use crate::components::{Text, ExpandableText, TextStyle, Circle, Rectangle};
 use crate::layout::{Column, Stack, Offset, Size, Padding, Bin};

@@ -1,8 +1,7 @@
-use pelican_ui::{
-    Area, Component, Context,
-    Drawable, Event, Layout,
-    OnEvent, SizeRequest,
-};
+use pelican_ui::events::{OnEvent, Event};
+use pelican_ui::drawable::{Drawable, Component};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
 use crate::events::{KeyboardActiveEvent, NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Row, Padding, Offset, Size, Opt, Stack, Bin};

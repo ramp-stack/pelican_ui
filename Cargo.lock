@@ -2949,8 +2949,6 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 [[package]]
 name = "pelican_ui"
 version = "1.1.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16327b66464be15347b087450fc2cb9844ee4371c8c0ca27c8764e82f84cfaa7"
 dependencies = [
  "downcast-rs 2.0.1",
  "image 0.25.6",

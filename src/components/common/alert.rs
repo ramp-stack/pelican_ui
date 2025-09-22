@@ -1,8 +1,7 @@
-use pelican_ui::{
-    Align, Area, Component, Context,
-    Drawable, Image, Layout,
-    OnEvent, SizeRequest
-};
+use pelican_ui::events::OnEvent;
+use pelican_ui::drawable::{Drawable, Component, Align, Image};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
 use crate::components::{Icon, Text, TextStyle};
 use crate::layout::{Offset, Padding, Row, Size};

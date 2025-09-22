@@ -1,5 +1,5 @@
-use pelican_ui::{MouseState, MouseEvent};
-use pelican_ui::ButtonColorScheme;
+use pelican_ui::events::{MouseState, MouseEvent};
+use pelican_ui::theme::ButtonColorScheme;
 use pelican_ui::Context;
 
 #[allow(clippy::module_inception)]
