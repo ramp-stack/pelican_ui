@@ -1,16 +1,16 @@
 use pelican_ui::{Area, Component, Context, Drawable, Event, Image, Layout, OnEvent, SizeRequest};
 
-use crate::elements::{Rectangle, AspectRatioImage};
+use crate::components::{Rectangle, AspectRatioImage};
+use crate::components::button::{Button, ButtonState, IconButton};
 use crate::events::{NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Stack, Bin, Row, Padding, Offset, Size};
-use crate::components::{Button, ButtonState, IconButton};
 // use crate::components::avatar::{Avatar, AvatarContent};
 use crate::utils::ElementID;
 use crate::pages::AppPage;
 use crate::pages::Error;
 
 use std::fmt::Debug;
-use super::{NavigationButton, NavigateInfo, PageBuilder};
+use crate::components::interface::general::{NavigationButton, NavigateInfo, PageBuilder};
 
 #[derive(Component)]
 pub struct WebInterface(Column, Option<WebNavigator>, Option<Box<dyn AppPage>>, Option<WebFooter>, #[skip] PageBuilder);
@@ -95,7 +95,7 @@ impl WebNavigator {
             AspectRatioImage::new(wordmark, (150.0, 35.0)),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::fill(), Size::Static(5.0), Padding::default()), 
-                Rectangle::new(color, 0.0)
+                Rectangle::new(color, 0.0, None)
             ),
             ButtonRow::new(buttons)
         )
@@ -177,7 +177,7 @@ impl WebFooter {
             Row::new(32.0, Offset::Center, Size::Fit, Padding::new(48.0)),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::fill(), Size::Static(5.0), Padding::default()), 
-                Rectangle::new(transparent, 0.0)
+                Rectangle::new(transparent, 0.0, None)
             ),
             ButtonRow::new(buttons)
         )

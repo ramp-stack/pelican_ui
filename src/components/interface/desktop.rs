@@ -4,16 +4,17 @@ use pelican_ui::{
     OnEvent, SizeRequest,
 };
 
-use crate::elements::{Rectangle, AspectRatioImage};
+use crate::components::{Rectangle, AspectRatioImage};
 use crate::events::{NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Stack, Bin, Row, Padding, Offset, Size};
-use crate::components::{Button, ButtonState, Avatar, AvatarContent};
+use crate::components::button::{Button, ButtonState};
+use crate::components::avatar::{Avatar, AvatarContent};
 use crate::utils::ElementID;
 use crate::pages::AppPage;
 use crate::pages::Error;
 
 use std::fmt::Debug;
-use super::{NavigationButton, NavigateInfo, PageBuilder};
+use crate::components::interface::general::{NavigationButton, NavigateInfo, PageBuilder};
 
 #[derive(Component)]
 pub struct DesktopInterface(Row, Option<DesktopNavigator>, Bin<Stack, Rectangle>, Option<Box<dyn AppPage>>, #[skip] PageBuilder);
@@ -33,7 +34,7 @@ impl DesktopInterface {
             navigator,
             Bin(
                 Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fit, Padding::default()), 
-                Rectangle::new(color, 0.0)
+                Rectangle::new(color, 0.0, None)
             ),
             Some(start_page),
             pages
@@ -119,7 +120,7 @@ impl DesktopNavigator {
             ButtonColumn::new(top_col),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::Fill(100.0, 200.0), Size::Fill(0.0, f32::MAX), Padding::default()), 
-                Rectangle::new(color, 0.0)
+                Rectangle::new(color, 0.0, None)
             ),
             ButtonColumn::new(bot_col)
         )

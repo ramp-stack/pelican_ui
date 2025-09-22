@@ -4,7 +4,7 @@ use pelican_ui::{
     OnEvent, SizeRequest
 };
 
-use crate::elements::{Icon, Text, TextStyle};
+use crate::components::{Icon, Text, TextStyle};
 use crate::layout::{Offset, Padding, Row, Size};
 
 /// ## Alert

@@ -2,7 +2,7 @@ use pelican_ui::{ShapeType, Align, Area, Component, Context, Drawable, Event, Im
 
 use pelican_ui::maverick_os::Camera;
 
-use crate::elements::{TextStyle, Text, Icon, RoundedRectangle};
+use crate::components::{TextStyle, Text, Icon, Rectangle};
 use crate::layout::{Column, Padding, Size, Offset, Stack};
 
 use image::{DynamicImage, GrayImage, RgbaImage};
@@ -85,13 +85,13 @@ impl OnEvent for QRCodeScanner {
                     },
                     Err(_) => {
                         let background = ctx.theme.colors.background.secondary;
-                        *self.2.background() = Some(RoundedRectangle::new(0.0, 8.0, background));
+                        *self.2.background() = Some(Rectangle::new(background, 8.0, None));
                         *self.2.message() = Some(Message::new(ctx, "camera", "Waiting for raw camera frame."));
                     }
                 }
             } else {
                 let background = ctx.theme.colors.background.secondary;
-                *self.2.background() = Some(RoundedRectangle::new(0.0, 8.0, background));
+                *self.2.background() = Some(Rectangle::new(background, 8.0, None));
                 *self.2.message() = Some(Message::new(ctx, "settings", "Camera not available."));
             }
         }
@@ -100,7 +100,7 @@ impl OnEvent for QRCodeScanner {
 }
 
 #[derive(Debug, Component)]
-struct QRGuide(Stack, Option<RoundedRectangle>, RoundedRectangle, Option<Message>);
+struct QRGuide(Stack, Option<Rectangle>, Rectangle, Option<Message>);
 impl OnEvent for QRGuide {}
 
 impl QRGuide {
@@ -109,14 +109,14 @@ impl QRGuide {
         let outline = ctx.theme.colors.outline.secondary;
         QRGuide(
             Stack(Offset::Center, Offset::Center, Size::Static(308.0), Size::Static(308.0), Padding::default()), 
-            Some(RoundedRectangle::new(0.0, 8.0, background)), 
-            RoundedRectangle::new(4.0, 8.0, outline), 
+            Some(Rectangle::new(background, 8.0, None)), 
+            Rectangle::new(outline, 8.0, Some((4.0, background))), 
             Some(Message::new(ctx, "camera", "Accessing device camera."))
         )
     }
 
     pub fn message(&mut self) -> &mut Option<Message> {&mut self.3}
-    pub fn background(&mut self) -> &mut Option<RoundedRectangle> {&mut self.1}
+    pub fn background(&mut self) -> &mut Option<Rectangle> {&mut self.1}
 }
 
 #[derive(Debug, Component)]

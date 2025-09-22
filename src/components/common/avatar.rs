@@ -1,6 +1,6 @@
 use pelican_ui::{resources, ShapeType, Area, Color, Component, Context, Drawable, Event, Image, Layout, MouseEvent, MouseState, OnEvent, SizeRequest, Shape};
 
-use crate::elements::{Icon, Outline, Circle};
+use crate::components::{Icon, Circle};
 use crate::layout::{Stack, Offset, Size, Padding};
 use crate::utils::Callback;
 
@@ -88,7 +88,7 @@ impl PrimaryAvatar {
 
         PrimaryAvatar(
             Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding::default()),
-            circle_icon, image, outline.then(|| Outline::circle(size, black)), size
+            circle_icon, image, outline.then(|| Circle::new(size, black, true)), size
         )
     }
 
@@ -156,7 +156,7 @@ impl AvatarIcon {
         let (background, icon_color) = style.get(ctx);
         AvatarIcon(
             Stack::center(),
-            Circle::new(size - 2.0, background), 
+            Circle::new(size - 2.0, background, false), 
             Icon::new(ctx, name, icon_color, icon_size)
         )
     }
@@ -174,7 +174,7 @@ impl Flair {
         Flair(
             Stack::center(),
             AvatarIcon::new(ctx, name, style, size / 3.0),
-            Outline::circle(size / 3.0, black)
+            Circle::new(size / 3.0, black, true)
         )
     }
 

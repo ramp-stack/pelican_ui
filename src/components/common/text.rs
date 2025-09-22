@@ -2,7 +2,7 @@ use pelican_ui::{resources, Key, NamedKey, Align, Area, Color, Component, Contex
 use pelican_ui::Text as BasicText;
 
 use crate::layout::{Stack, Offset, Size, Padding, Opt, Row, Column};
-use crate::elements::shapes::{Rectangle, Circle};
+use crate::components::{Rectangle, Circle};
 
 /// # Text Style
 ///
@@ -203,7 +203,7 @@ impl TextCursor {
         let (color, _) = style.get(ctx);
         TextCursor(
             Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()), 
-            Opt::new(Rectangle::new(color, 0.0), false)
+            Opt::new(Rectangle::new(color, 0.0, None), false)
         )
     }
 
@@ -250,7 +250,7 @@ impl BulletedTextContent {
     fn new(ctx: &mut Context, text: &str, color: Color, style: TextStyle, size: f32) -> Self {
         BulletedTextContent(
             Row::new(size*0.75, Offset::Center, Size::Fit, Padding::default()), // change this offset to be line_height - circle size / 2
-            Circle::new(size*0.2, color),
+            Circle::new(size*0.2, color, false),
             ExpandableText::new(ctx, text, style, size, Align::Left, None)
         )
     }

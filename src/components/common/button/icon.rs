@@ -6,7 +6,7 @@ use pelican_ui::{
 };
 
 use crate::utils::Callback;
-use crate::elements::{Icon, OutlinedRectangle};
+use crate::components::{Icon, Rectangle};
 use crate::layout::{Offset, Padding, Size, Stack, Opt};
 use super::{ButtonSize, ButtonState, ButtonStyle};
 
@@ -36,8 +36,8 @@ impl IconButton {
     pub fn color(&mut self, ctx: &mut Context, state: ButtonState) {
         let colors = state.color(ctx, self.1.3);
         *self.1.1.background() = colors.background;
-        *self.1.1.outline() = colors.outline;
         self.1.2.color = Some(colors.label);
+        if let Some(c) = self.1.1.outline() { *c = colors.outline; }
     }
 
     pub fn show_flair(&mut self, hide: bool) {if let Some(i) = self.2.as_mut() {i.display(hide);}}
@@ -67,7 +67,7 @@ impl OnEvent for IconButton {
 }
 
 #[derive(Component)]
-pub struct IconButtonContent(Stack, OutlinedRectangle, Image, #[skip] ButtonStyle, #[skip] ButtonState, #[skip] pub Box<dyn FnMut(&mut Context)>);
+pub struct IconButtonContent(Stack, Rectangle, Image, #[skip] ButtonStyle, #[skip] ButtonState, #[skip] pub Box<dyn FnMut(&mut Context)>);
 impl OnEvent for IconButtonContent {}
 impl IconButtonContent {
     pub fn new(
@@ -88,7 +88,7 @@ impl IconButtonContent {
         };
 
         let icon = Icon::new(ctx, icon, colors.label, icon_size);
-        let background = OutlinedRectangle::new(colors.background, colors.outline, radius, 1.0);
+        let background = Rectangle::new(colors.background, radius, Some((1.0, colors.outline)));
 
 
         IconButtonContent(

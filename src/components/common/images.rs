@@ -32,7 +32,6 @@ use base64::{engine::general_purpose, Engine};
 /// ```
 #[derive(Clone, Debug)]
 pub struct Icon;
-impl OnEvent for Icon {}
 impl Icon {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(ctx: &mut Context, name: &'static str, color: Color, size: f32) -> Image {
@@ -132,7 +131,16 @@ impl EncodedImage {
     }
 }
 
-
+/// # ExpandableImage
+///
+/// A wrapper around an [`Image`] that optionally supports custom dimensions.  
+/// If no size is provided, the image defaults to `(0.0, 0.0)` and will expand according to its container.
+///
+/// ## Example
+/// ```rust
+/// let img = resources::Image::load("logo.png");
+/// let expandable = ExpandableImage::new(img, Some((100.0, 100.0)));
+/// ```
 #[derive(Debug)]
 pub struct ExpandableImage(Image, Option<(f32, f32)>);
 
@@ -143,6 +151,7 @@ impl ExpandableImage {
     }
 
     pub fn image(&mut self) -> &mut Image { &mut self.0 }
+    pub fn dimensions(&mut self) -> &mut Option<(f32, f32)> {&mut self.1}
 }
 
 impl OnEvent for ExpandableImage {}

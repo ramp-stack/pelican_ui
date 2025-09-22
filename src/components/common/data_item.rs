@@ -1,7 +1,7 @@
 use pelican_ui::{Shape, Align, Area, Component, Context, Drawable, Layout, OnEvent, SizeRequest};
 
-use crate::elements::{Text, ExpandableText, TextStyle, Circle, Rectangle};
-use crate::components::Button;
+use crate::components::{Text, ExpandableText, TextStyle, Circle, Rectangle};
+use crate::components::button::Button;
 use crate::layout::{Column, Bin, Row, Stack, Padding, Offset, Size};
 
 /// ## Data Item
@@ -70,7 +70,7 @@ impl Number {
         let (color, font_size) = (theme.colors.background.secondary, theme.fonts.size.h5);
         Number(
             Stack::center(),
-            Circle::new(32.0, color),
+            Circle::new(32.0, color, false),
             Text::new(ctx, txt, TextStyle::Heading, font_size, Align::Left), 
         )
     }
@@ -128,7 +128,7 @@ impl Tabular {
             Text::new(ctx, name, TextStyle::Primary, font_size, Align::Left),
             Bin(
                 Stack(Offset::Center, Offset::Center, Size::Fit, Size::Static(1.0), Padding::default()),
-                Rectangle::new(color, 0.0),
+                Rectangle::new(color, 0.0, None),
             ),
             Text::new(ctx, data, TextStyle::Primary, font_size, Align::Left),
         )

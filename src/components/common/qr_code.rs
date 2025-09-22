@@ -1,7 +1,7 @@
 use pelican_ui::{Area, Component, Context, Drawable, Image, Layout, OnEvent, SizeRequest, ShapeType};
 
 use crate::layout::{Padding, Size, Offset, Stack, Bin};
-use crate::elements::{RoundedRectangle, AspectRatioImage};
+use crate::components::{Rectangle, AspectRatioImage};
 
 use image::{Rgb, RgbImage, DynamicImage};
 use imageproc::drawing::{draw_filled_circle_mut, draw_filled_rect_mut};
@@ -21,7 +21,7 @@ use qrcode::{QrCode, EcLevel};
 /// let qr = QRCode::new(ctx, "https://ramp-stack.com/pelican_ui");
 /// ```
 #[derive(Debug, Component)]
-pub struct QRCode(Stack, Bin<Stack, RoundedRectangle>, Image, Image);
+pub struct QRCode(Stack, Bin<Stack, Rectangle>, Image, Image);
 impl OnEvent for QRCode {}
 
 impl QRCode {
@@ -37,7 +37,7 @@ impl QRCode {
             Stack::center(),
             Bin(
                 Stack(Offset::Center, Offset::Center, Size::Static(qr_size), Size::Static(qr_size), Padding::default()),
-                RoundedRectangle::new(0.0, 8.0, color),
+                Rectangle::new(color, 8.0, None),
             ),
             Image{shape: ShapeType::RoundedRectangle(0.0, (qr_size - 16.0, qr_size - 16.0), 8.0, 0.0), image: ctx.assets.add_image(img), color: None},
             // QRModules::new(ctx, data, qr_size, logo_size),  - NO CUSTOM STYLIZATION FOR THIS RELEASE

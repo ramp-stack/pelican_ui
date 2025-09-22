@@ -2,9 +2,9 @@ use pelican_ui::{ Align, Area, Color, Component, Context, Drawable, Event, Image
 use pelican_ui::Key as WinitKey;
 use pelican_ui::maverick_os::ImageOrientation;
 
-use crate::elements::{Text, TextStyle, Rectangle, RoundedRectangle, Icon, EncodedImage};
+use crate::components::{Text, TextStyle, Rectangle, Icon, EncodedImage};
 use crate::events::{KeyboardActiveEvent, AttachmentEvent};
-use crate::components::{IconButton, ButtonState};
+use crate::components::button::{IconButton, ButtonState};
 use crate::layout::{Stack, Bin, Column, Row, Offset, Size, Padding};
 
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -18,7 +18,7 @@ impl MobileKeyboard {
         let height = Size::custom(|heights: Vec<(f32, f32)>| heights[1]);
         MobileKeyboard(
             Stack(Offset::Start, Offset::Start, Size::Fill(200.0, f32::MAX), height, Padding::default()), 
-            Rectangle::new(ctx.theme.colors.background.secondary, 0.0),
+            Rectangle::new(ctx.theme.colors.background.secondary, 0.0, None),
             KeyboardContent::new(ctx, actions)
         )
     }
@@ -34,7 +34,7 @@ impl KeyboardHeader {
         KeyboardHeader(
             Column::new(0.0, Offset::Start, Size::Fit, Padding::default()),
             KeyboardIcons::new(ctx, actions),
-            Bin(layout, Rectangle::new(ctx.theme.colors.outline.secondary, 0.0))
+            Bin(layout, Rectangle::new(ctx.theme.colors.outline.secondary, 0.0, None))
         )
     }
 }
@@ -62,7 +62,7 @@ impl KeyboardIcons {
             icons.then(|| KeyboardActions(Stack::default(), actions)),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::Fill(1.0, f32::MAX), Size::Static(1.0),  Padding::default()), 
-                Rectangle::new(color, 0.0)
+                Rectangle::new(color, 0.0, None)
             ),
             IconButton::keyboard(ctx, "down_arrow", |ctx: &mut Context| ctx.trigger_event(KeyboardActiveEvent(None))),
             receiver
@@ -371,19 +371,19 @@ impl OnEvent for Paginator {
 }
 
 #[derive(Component, Debug)]
-struct KeyContent(Stack, RoundedRectangle, KeyCharacter);
+struct KeyContent(Stack, Rectangle, KeyCharacter);
 impl OnEvent for KeyContent {}
 
 impl KeyContent {
     fn new(ctx: &mut Context, size: f32, offset: Offset, content: KeyCharacter) -> Self {
         KeyContent(
             Stack(Offset::Center, offset, Size::Fill(20.0, size), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
-            RoundedRectangle::new(0.0, 4.0, ctx.theme.colors.shades.lighten),
+            Rectangle::new(ctx.theme.colors.shades.lighten, 4.0, None),
             content
         )
     }
 
-    fn background(&mut self) -> &mut Color {&mut self.1.shape().color}
+    fn background(&mut self) -> &mut Color {self.1.background()}
     fn character(&mut self) -> &mut KeyCharacter {&mut self.2}
 }
 

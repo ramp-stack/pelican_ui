@@ -3,9 +3,10 @@ use pelican_ui::{
     Drawable, Layout, OnEvent, SizeRequest,
 };
 
-use crate::components::{Page, Content, Header, Bumper, Button};
 use crate::layout::{Offset, Stack};
-use crate::elements::{TextStyle, Text, AspectRatioImage};
+use crate::components::interface::general::{Page, Content, Header, Bumper};
+use crate::components::button::Button;
+use crate::components::{TextStyle, Text, AspectRatioImage};
 use crate::events::NavigateEvent;
 
 /// This trait is used to define pages in the application.
