@@ -22,7 +22,7 @@ use pelican_ui::Context;
 ///
 /// ## Example
 /// ```rust
-/// let background = ctx.theme.colors.brand.primary;
+/// let background = ctx.theme.colors.brand;
 /// let outline = ctx.theme.colors.outline.primary;
 /// let rect = Rectangle::new(background, outline, 8.0, Some(8.0));
 /// let layout = Stack(Offset::Center, Offset::Center, Size::Static(100.0), Size::Static(100.0), Padding::default());
@@ -80,7 +80,7 @@ impl Component for Rectangle {
 ///
 /// ## Example
 /// ```rust
-/// let color = ctx.theme.colors.brand.primary;
+/// let color = ctx.theme.colors.brand;
 /// let circle = Circle::new(100.0, color, true); 
 /// ```
 pub struct Circle;

@@ -52,7 +52,6 @@ struct KeyboardIcons(Row, Option<KeyboardActions>, Bin<Stack, Rectangle>, IconBu
 impl KeyboardIcons {
     fn new(ctx: &mut Context, icons: bool) -> Self {
         let (sender, receiver) = mpsc::channel();
-        let color = ctx.theme.colors.shades.transparent;
         let actions = vec![
             // IconButton::keyboard(ctx, "emoji", |_ctx: &mut Context| ()),
             // IconButton::keyboard(ctx, "gif", |_ctx: &mut Context| ()),
@@ -65,7 +64,7 @@ impl KeyboardIcons {
             icons.then(|| KeyboardActions(Stack::default(), actions)),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::Fill(1.0, f32::MAX), Size::Static(1.0),  Padding::default()), 
-                Rectangle::new(color, 0.0, None)
+                Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
             IconButton::keyboard(ctx, "down_arrow", |ctx: &mut Context| ctx.trigger_event(KeyboardActiveEvent(None))),
             receiver
@@ -237,12 +236,11 @@ impl OnEvent for Key {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
-            let colors = &ctx.theme.colors;
 
             *self.1.background() = match self.2 {
-                ButtonState::Default => colors.shades.lighten,
-                ButtonState::Pressed => colors.shades.lighten2,
-                _ => colors.shades.lighten,
+                ButtonState::Default => Color::from_hex("ffffff", 110),
+                ButtonState::Pressed => Color::from_hex("ffffff", 180),
+                _ => Color::from_hex("ffffff", 110),
             };
 
             if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
@@ -284,12 +282,11 @@ impl OnEvent for Capslock {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
-            let colors = &ctx.theme.colors;
 
             *self.1.background() = match self.2 {
-                ButtonState::Default => colors.shades.lighten,
-                ButtonState::Pressed => colors.shades.lighten2,
-                _ => colors.shades.lighten,
+                ButtonState::Default => Color::from_hex("ffffff", 110),
+                ButtonState::Pressed => Color::from_hex("ffffff", 180),
+                _ => Color::from_hex("ffffff", 110),
             };
 
             if event.state == MouseState::Pressed && event.position.is_some() {
@@ -335,12 +332,11 @@ impl OnEvent for Paginator {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
-            let colors = &ctx.theme.colors;
 
             *self.1.background() = match self.2 {
-                ButtonState::Default => colors.shades.lighten,
-                ButtonState::Pressed => colors.shades.lighten2,
-                _ => colors.shades.lighten,
+                ButtonState::Default => Color::from_hex("ffffff", 110),
+                ButtonState::Pressed => Color::from_hex("ffffff", 180),
+                _ => Color::from_hex("ffffff", 110),
             };
 
             if event.state == MouseState::Pressed && event.position.is_some() {
@@ -378,10 +374,10 @@ struct KeyContent(Stack, Rectangle, KeyCharacter);
 impl OnEvent for KeyContent {}
 
 impl KeyContent {
-    fn new(ctx: &mut Context, size: f32, offset: Offset, content: KeyCharacter) -> Self {
+    fn new(_ctx: &mut Context, size: f32, offset: Offset, content: KeyCharacter) -> Self {
         KeyContent(
             Stack(Offset::Center, offset, Size::Fill(20.0, size), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
-            Rectangle::new(ctx.theme.colors.shades.lighten, 4.0, None),
+            Rectangle::new(Color::from_hex("ffffff", 110), 4.0, None),
             content
         )
     }

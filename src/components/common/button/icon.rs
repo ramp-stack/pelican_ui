@@ -282,7 +282,7 @@ impl IconButton {
         selected: bool,
         on_click: impl FnMut(&mut Context) + 'static,
     ) -> Self {
-        let color = ctx.theme.colors.brand.primary;
+        let color = ctx.theme.colors.brand;
         let state = if selected {ButtonState::Selected} else {ButtonState::UnSelected};
         IconButton::new(
             ctx,

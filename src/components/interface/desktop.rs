@@ -1,5 +1,5 @@
 use pelican_ui::events::{OnEvent, Event};
-use pelican_ui::drawable::{Drawable, Component, Image};
+use pelican_ui::drawable::{Color, Drawable, Component, Image};
 use pelican_ui::layout::{Area, SizeRequest, Layout};
 use pelican_ui::{Context, Component};
 
@@ -110,8 +110,7 @@ impl DesktopNavigator {
             index += 1;
         }
 
-        let theme = &ctx.theme;
-        let (wordmark, color) = (theme.brand.wordmark.clone(), theme.colors.shades.transparent);
+        let wordmark = ctx.theme.brand.wordmark.clone();
 
         DesktopNavigator(
             Column::new(32.0, Offset::Center, Size::Fill(100.0, 200.0), Padding(16.0, 32.0, 16.0, 32.0)),
@@ -119,7 +118,7 @@ impl DesktopNavigator {
             ButtonColumn::new(top_col),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::Fill(100.0, 200.0), Size::Fill(0.0, f32::MAX), Padding::default()), 
-                Rectangle::new(color, 0.0, None)
+                Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
             ButtonColumn::new(bot_col)
         )

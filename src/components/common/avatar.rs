@@ -82,7 +82,6 @@ impl OnEvent for PrimaryAvatar {}
 
 impl PrimaryAvatar {
     fn new(ctx: &mut Context, content: AvatarContent, outline: bool, size: f32) -> Self {
-        let black = ctx.theme.colors.shades.black;
 
         let (circle_icon, image) = match content {
             AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (size, size), 0.0), image, color: None})),
@@ -91,7 +90,7 @@ impl PrimaryAvatar {
 
         PrimaryAvatar(
             Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding::default()),
-            circle_icon, image, outline.then(|| Circle::new(size, black, true)), size
+            circle_icon, image, outline.then(|| Circle::new(size, Color::BLACK, true)), size
         )
     }
 
@@ -140,10 +139,10 @@ impl AvatarIconStyle {
         match self {
             AvatarIconStyle::Primary => (colors.text.heading, colors.background.primary),
             AvatarIconStyle::Secondary => (colors.background.secondary, colors.text.secondary),
-            AvatarIconStyle::Brand => (colors.brand.primary, colors.brand.secondary),
-            AvatarIconStyle::Success => (colors.status.success, colors.shades.white),
-            AvatarIconStyle::Warning => (colors.status.warning, colors.shades.white),
-            AvatarIconStyle::Danger => (colors.status.danger, colors.shades.white),
+            AvatarIconStyle::Brand => (colors.brand, Color::WHITE),
+            AvatarIconStyle::Success => (colors.status.success, Color::WHITE),
+            AvatarIconStyle::Warning => (colors.status.warning, Color::WHITE),
+            AvatarIconStyle::Danger => (colors.status.danger, Color::WHITE),
             AvatarIconStyle::Custom(background, icon) => (*background, *icon)
         }
     }
@@ -173,11 +172,10 @@ impl OnEvent for Flair {}
 
 impl Flair {
     pub fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: f32) -> Self {
-        let black = ctx.theme.colors.shades.black;
         Flair(
             Stack::center(),
             AvatarIcon::new(ctx, name, style, size / 3.0),
-            Circle::new(size / 3.0, black, true)
+            Circle::new(size / 3.0,  Color::BLACK, true)
         )
     }
 

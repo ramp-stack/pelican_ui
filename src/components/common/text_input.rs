@@ -283,10 +283,10 @@ impl InputState {
     fn get_color(&self, ctx: &mut Context) -> (Color, Color) { // background, outline
         let colors = &ctx.theme.colors;
         match self {
-            InputState::Default => (colors.shades.transparent, colors.outline.secondary),
+            InputState::Default => (Color::TRANSPARENT, colors.outline.secondary),
             InputState::Hover => (colors.background.secondary, colors.outline.secondary),
-            InputState::Focus => (colors.shades.transparent, colors.outline.primary),
-            InputState::Error => (colors.shades.transparent, colors.status.danger)
+            InputState::Focus => (Color::TRANSPARENT, colors.outline.primary),
+            InputState::Error => (Color::TRANSPARENT, colors.status.danger)
         }
     }
 }

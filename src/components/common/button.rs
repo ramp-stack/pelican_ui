@@ -70,26 +70,26 @@ impl ButtonState {
     pub fn color(&self, ctx: &mut Context, style: ButtonStyle) -> ButtonColorScheme {
         let schemes = &ctx.theme.colors.button;
         match (style, self) {
-            (ButtonStyle::Primary, ButtonState::Default) => schemes.primary_default,
-            (ButtonStyle::Primary, ButtonState::Disabled) => schemes.primary_disabled,
-            (ButtonStyle::Primary, ButtonState::Hover) => schemes.primary_hover,
-            (ButtonStyle::Primary, ButtonState::Pressed) => schemes.primary_pressed,
-            (ButtonStyle::Primary, ButtonState::Selected) => schemes.primary_selected,
-            (ButtonStyle::Primary, ButtonState::UnSelected) => schemes.ghost_disabled,
+            (ButtonStyle::Primary, ButtonState::Default) => schemes.primary.default,
+            (ButtonStyle::Primary, ButtonState::Disabled) => schemes.primary.disabled,
+            (ButtonStyle::Primary, ButtonState::Hover) => schemes.primary.hover,
+            (ButtonStyle::Primary, ButtonState::Pressed) => schemes.primary.pressed,
+            (ButtonStyle::Primary, ButtonState::Selected) => schemes.primary.pressed,
+            (ButtonStyle::Primary, ButtonState::UnSelected) => schemes.ghost.disabled,
 
-            (ButtonStyle::Secondary, ButtonState::Default) => schemes.secondary_default,
-            (ButtonStyle::Secondary, ButtonState::Disabled) => schemes.secondary_disabled,
-            (ButtonStyle::Secondary, ButtonState::Hover) => schemes.secondary_hover,
-            (ButtonStyle::Secondary, ButtonState::Pressed) => schemes.secondary_pressed,
-            (ButtonStyle::Secondary, ButtonState::Selected) => schemes.secondary_selected,
-            (ButtonStyle::Secondary, ButtonState::UnSelected) => schemes.ghost_disabled,
+            (ButtonStyle::Secondary, ButtonState::Default) => schemes.secondary.default,
+            (ButtonStyle::Secondary, ButtonState::Disabled) => schemes.secondary.disabled,
+            (ButtonStyle::Secondary, ButtonState::Hover) => schemes.secondary.hover,
+            (ButtonStyle::Secondary, ButtonState::Pressed) => schemes.secondary.pressed,
+            (ButtonStyle::Secondary, ButtonState::Selected) => schemes.secondary.pressed,
+            (ButtonStyle::Secondary, ButtonState::UnSelected) => schemes.ghost.disabled,
 
-            (ButtonStyle::Ghost, ButtonState::Default) => schemes.ghost_default,
-            (ButtonStyle::Ghost, ButtonState::Disabled) => schemes.ghost_disabled,
-            (ButtonStyle::Ghost, ButtonState::Hover) => schemes.ghost_hover,
-            (ButtonStyle::Ghost, ButtonState::Pressed) => schemes.ghost_pressed,
-            (ButtonStyle::Ghost, ButtonState::Selected) => schemes.ghost_selected,
-            (ButtonStyle::Ghost, ButtonState::UnSelected) => schemes.ghost_disabled,
+            (ButtonStyle::Ghost, ButtonState::Default) => schemes.ghost.default,
+            (ButtonStyle::Ghost, ButtonState::Disabled) => schemes.ghost.disabled,
+            (ButtonStyle::Ghost, ButtonState::Hover) => schemes.ghost.hover,
+            (ButtonStyle::Ghost, ButtonState::Pressed) => schemes.ghost.pressed,
+            (ButtonStyle::Ghost, ButtonState::Selected) => schemes.ghost.pressed,
+            (ButtonStyle::Ghost, ButtonState::UnSelected) => schemes.ghost.disabled,
         }
     }
 }

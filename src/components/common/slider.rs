@@ -1,5 +1,5 @@
 use pelican_ui::events::{OnEvent, MouseState, Event, MouseEvent, TickEvent};
-use pelican_ui::drawable::{Drawable, Align, Component, Shape};
+use pelican_ui::drawable::{Color, Drawable, Align, Component, Shape};
 use pelican_ui::layout::{Area, SizeRequest, Layout};
 use pelican_ui::{Context, Component};
 
@@ -76,12 +76,11 @@ impl SliderContent {
         let track = Stack(Offset::Start, Offset::Center, width, Size::Static(6.0), Padding::default());
         let fill = Stack(Offset::Start, Offset::Start, Size::Static(30.0), Size::Static(6.0), Padding::default());
         let layout = Stack(Offset::Start, Offset::Center, Size::Fit, Size::Fit, Padding::default());
-        let color = ctx.theme.colors.brand.primary;
-        let white = ctx.theme.colors.shades.white;
+        let color = ctx.theme.colors.brand;
 
         SliderContent(
             layout,
-            Bin(track, Rectangle::new(white, 3.0, None)),
+            Bin(track, Rectangle::new(Color::WHITE, 3.0, None)),
             Bin(fill, Rectangle::new(color, 3.0, None)),
             SliderKnob::new(ctx),
             start, 
@@ -160,7 +159,7 @@ impl OnEvent for SliderKnob {}
 
 impl SliderKnob {
     pub fn new(ctx: &mut Context) -> Self {
-        let color = ctx.theme.colors.brand.primary;
+        let color = ctx.theme.colors.brand;
         SliderKnob(Stack::default(), Circle::new(18.0, color, false))
     }
 

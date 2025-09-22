@@ -1,5 +1,5 @@
 use pelican_ui::events::OnEvent;
-use pelican_ui::drawable::{Drawable, Component, ShapeType, Image};
+use pelican_ui::drawable::{Color, Drawable, Component, ShapeType, Image};
 use pelican_ui::layout::{Area, SizeRequest, Layout};
 use pelican_ui::{Context, Component};
 
@@ -30,7 +30,7 @@ impl OnEvent for QRCode {}
 impl QRCode {
     pub fn new(ctx: &mut Context, data: &str) -> Self {
         let theme = &ctx.theme;
-        let (app_icon, color) = (theme.brand.app_icon.clone(), theme.colors.shades.white);
+        let app_icon = theme.brand.app_icon.clone();
         let qr_size = 300.0;
         let logo_size = 64.0;
 
@@ -40,7 +40,7 @@ impl QRCode {
             Stack::center(),
             Bin(
                 Stack(Offset::Center, Offset::Center, Size::Static(qr_size), Size::Static(qr_size), Padding::default()),
-                Rectangle::new(color, 8.0, None),
+                Rectangle::new(Color::TRANSPARENT, 8.0, None),
             ),
             Image{shape: ShapeType::RoundedRectangle(0.0, (qr_size - 16.0, qr_size - 16.0), 8.0, 0.0), image: ctx.assets.add_image(img), color: None},
             // QRModules::new(ctx, data, qr_size, logo_size),  - NO CUSTOM STYLIZATION FOR THIS RELEASE

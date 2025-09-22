@@ -1,5 +1,5 @@
 use pelican_ui::events::{OnEvent, Event};
-use pelican_ui::drawable::{Drawable, Component, Image};
+use pelican_ui::drawable::{Color, Drawable, Component, Image};
 use pelican_ui::layout::{Area, SizeRequest, Layout};
 use pelican_ui::{Context, Component};
 
@@ -91,14 +91,13 @@ impl WebNavigator {
         });
 
         let wordmark = ctx.theme.brand.wordmark.clone();
-        let color = ctx.theme.colors.shades.transparent;
 
         WebNavigator(
             Row::new(32.0, Offset::Center, Size::Fit, Padding::new(48.0)),
             AspectRatioImage::new(wordmark, (150.0, 35.0)),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::fill(), Size::Static(5.0), Padding::default()), 
-                Rectangle::new(color, 0.0, None)
+                Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
             ButtonRow::new(buttons)
         )
@@ -171,7 +170,6 @@ impl WebFooter {
         }).collect();
 
         // let wordmark = ctx.theme.brand.wordmark.clone();
-        let transparent = ctx.theme.colors.shades.transparent;
         // let white = ctx.theme.colors.shades.white;
         // let mut logo = AspectRatioImage::new(wordmark, (150.0, 35.0));
         // logo.color = Some(white);
@@ -180,7 +178,7 @@ impl WebFooter {
             Row::new(32.0, Offset::Center, Size::Fit, Padding::new(48.0)),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::fill(), Size::Static(5.0), Padding::default()), 
-                Rectangle::new(transparent, 0.0, None)
+                Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
             ButtonRow::new(buttons)
         )

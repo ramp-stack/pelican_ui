@@ -348,7 +348,7 @@ impl Button {
         selected: bool,
         on_click: impl FnMut(&mut Context) + 'static,
     ) -> Self {
-        let color = ctx.theme.colors.brand.primary;
+        let color = ctx.theme.colors.brand;
         let icon = (!crate::config::IS_WEB).then_some((icon, Some(("notification", color, false))));
         let offset = if crate::config::IS_WEB {Offset::Center} else {Offset::Start};
         let size = if crate::config::IS_WEB {ButtonWidth::Hug} else {ButtonWidth::Expand};

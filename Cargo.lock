@@ -4741,8 +4741,6 @@ dependencies = [
 [[package]]
 name = "wgpu_canvas"
 version = "4.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1c1fba5eda6b0fe9af105f63fccad62eca0bed18c11cca42cbf1a0bc7e1c735"
 dependencies = [
  "bytemuck",
  "fast_image_resize",

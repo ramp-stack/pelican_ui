@@ -1,5 +1,5 @@
 use pelican_ui::events::{OnEvent, Event, TickEvent};
-use pelican_ui::drawable::{Drawable, Component, ShapeType, Image, Align};
+use pelican_ui::drawable::{Color, Drawable, Component, ShapeType, Image, Align};
 use pelican_ui::layout::{Area, SizeRequest, Layout};
 use pelican_ui::{Context, Component};
 use pelican_ui::maverick_os::hardware::Camera;
@@ -127,10 +127,9 @@ impl OnEvent for Message {}
 
 impl Message {
     pub fn new(ctx: &mut Context, icon: &'static str, msg: &str) -> Self {
-        let theme = &ctx.theme;
-        let (color, font_size) = (theme.colors.shades.lighten, theme.fonts.size.sm);
+        let font_size = ctx.theme.fonts.size.sm;
         Message(Column::center(4.0), 
-            Icon::new(ctx, icon, color, 48.0),
+            Icon::new(ctx, icon, Color::WHITE, 48.0),
             Text::new(ctx, msg, TextStyle::Secondary, font_size, Align::Left)
         )
     }
