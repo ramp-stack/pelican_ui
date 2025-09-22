@@ -1,6 +1,9 @@
-use pelican_ui::{ Align, Area, Component, Context, Drawable, Event, Layout, MouseEvent, MouseState, OnEvent, SizeRequest, TickEvent, Shape};
+use pelican_ui::events::{OnEvent, MouseState, Event, MouseEvent, TickEvent};
+use pelican_ui::drawable::{Color, Drawable, Align, Component, Shape};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
-use crate::elements::{Text, ExpandableText, TextStyle, Circle, RoundedRectangle};
+use crate::components::{Text, ExpandableText, TextStyle, Circle, Rectangle};
 use crate::layout::{Column, Stack, Offset, Size, Padding, Bin};
 
 /// ## Slider
@@ -65,7 +68,7 @@ impl OnEvent for Slider {
 type SliderClosure = Box<dyn FnMut(&mut Context, f32)>;
 
 #[derive(Component)]
-pub struct SliderContent(Stack, Bin<Stack, RoundedRectangle>, Bin<Stack, RoundedRectangle>, SliderKnob, #[skip] f32, #[skip] SliderClosure, #[skip] bool);
+pub struct SliderContent(Stack, Bin<Stack, Rectangle>, Bin<Stack, Rectangle>, SliderKnob, #[skip] f32, #[skip] SliderClosure, #[skip] bool);
 
 impl SliderContent {
     pub fn new(ctx: &mut Context, start: f32, on_release: impl FnMut(&mut Context, f32) + 'static) -> Self {
@@ -73,13 +76,12 @@ impl SliderContent {
         let track = Stack(Offset::Start, Offset::Center, width, Size::Static(6.0), Padding::default());
         let fill = Stack(Offset::Start, Offset::Start, Size::Static(30.0), Size::Static(6.0), Padding::default());
         let layout = Stack(Offset::Start, Offset::Center, Size::Fit, Size::Fit, Padding::default());
-        let color = ctx.theme.colors.brand.primary;
-        let white = ctx.theme.colors.shades.white;
+        let color = ctx.theme.colors.brand;
 
         SliderContent(
             layout,
-            Bin(track, RoundedRectangle::new(0.0, 3.0, white)),
-            Bin(fill, RoundedRectangle::new(0.0, 3.0, color)),
+            Bin(track, Rectangle::new(Color::WHITE, 3.0, None)),
+            Bin(fill, Rectangle::new(color, 3.0, None)),
             SliderKnob::new(ctx),
             start, 
             Box::new(on_release),
@@ -88,7 +90,7 @@ impl SliderContent {
     }
 
     pub fn track_width(&mut self) -> f32 {
-        self.1.inner().shape().shape.size().0
+        self.1.inner().size().0
     }
 
     pub fn percentage(&self) -> f32 {
@@ -157,8 +159,8 @@ impl OnEvent for SliderKnob {}
 
 impl SliderKnob {
     pub fn new(ctx: &mut Context) -> Self {
-        let color = ctx.theme.colors.brand.primary;
-        SliderKnob(Stack::default(), Circle::new(18.0, color))
+        let color = ctx.theme.colors.brand;
+        SliderKnob(Stack::default(), Circle::new(18.0, color, false))
     }
 
     pub fn adjust_position(&mut self, x: f32, track_width: f32) {

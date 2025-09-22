@@ -1,16 +1,19 @@
-use pelican_ui::{Area, Component, Context, Drawable, Event, Image, Layout, OnEvent, SizeRequest};
+use pelican_ui::events::{OnEvent, Event};
+use pelican_ui::drawable::{Color, Drawable, Component, Image};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
-use crate::elements::{Rectangle, AspectRatioImage};
+use crate::components::{Rectangle, AspectRatioImage};
+use crate::components::button::{Button, ButtonState, IconButton};
 use crate::events::{NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Stack, Bin, Row, Padding, Offset, Size};
-use crate::components::{Button, ButtonState, IconButton};
 // use crate::components::avatar::{Avatar, AvatarContent};
 use crate::utils::ElementID;
 use crate::pages::AppPage;
 use crate::pages::Error;
 
 use std::fmt::Debug;
-use super::{NavigationButton, NavigateInfo, PageBuilder};
+use crate::components::interface::general::{NavigationButton, NavigateInfo, PageBuilder};
 
 #[derive(Component)]
 pub struct WebInterface(Column, Option<WebNavigator>, Option<Box<dyn AppPage>>, Option<WebFooter>, #[skip] PageBuilder);
@@ -88,14 +91,13 @@ impl WebNavigator {
         });
 
         let wordmark = ctx.theme.brand.wordmark.clone();
-        let color = ctx.theme.colors.shades.transparent;
 
         WebNavigator(
             Row::new(32.0, Offset::Center, Size::Fit, Padding::new(48.0)),
             AspectRatioImage::new(wordmark, (150.0, 35.0)),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::fill(), Size::Static(5.0), Padding::default()), 
-                Rectangle::new(color, 0.0)
+                Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
             ButtonRow::new(buttons)
         )
@@ -168,7 +170,6 @@ impl WebFooter {
         }).collect();
 
         // let wordmark = ctx.theme.brand.wordmark.clone();
-        let transparent = ctx.theme.colors.shades.transparent;
         // let white = ctx.theme.colors.shades.white;
         // let mut logo = AspectRatioImage::new(wordmark, (150.0, 35.0));
         // logo.color = Some(white);
@@ -177,7 +178,7 @@ impl WebFooter {
             Row::new(32.0, Offset::Center, Size::Fit, Padding::new(48.0)),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::fill(), Size::Static(5.0), Padding::default()), 
-                Rectangle::new(transparent, 0.0)
+                Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
             ButtonRow::new(buttons)
         )

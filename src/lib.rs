@@ -16,7 +16,7 @@
 //!
 //! Beyond individual components, Pelican UI Standard ships with a few ready-to-use **pages** built entirely from its own system, including [`PelicanHome`], [`Error`], and [`Splash`]. These can be used directly or serve as references when creating custom pages.
 //!
-//! ### Example
+//! ### App Page Example
 //!
 //! ```rust
 //! #[derive(Debug, Component)]
@@ -47,90 +47,90 @@
 //!```
 //!
 
-mod events;
-pub use events::{
-    NavigateEvent,
-    KeyboardActiveEvent,
-    ClearActiveInput,
-    SetActiveInput,
-    TextInputSelect,
-    ListItemSelect,
-    NavigatorSelect,
-    NavigatorEvent,
-    SearchEvent,
-    InputEditedEvent,
-    AdjustScrollEvent,
-    QRCodeScannedEvent,
-    AttachmentEvent,
-};
+pub mod events;
+// pub use events::{
+//     NavigateEvent,
+//     KeyboardActiveEvent,
+//     ClearActiveInput,
+//     SetActiveInput,
+//     TextInputSelect,
+//     ListItemSelect,
+//     NavigatorSelect,
+//     NavigatorEvent,
+//     SearchEvent,
+//     InputEditedEvent,
+//     AdjustScrollEvent,
+//     QRCodeScannedEvent,
+//     AttachmentEvent,
+// };
 
 mod config;
 pub use config::{IS_MOBILE, IS_WEB};
 
-mod layout;
-pub use layout::{
-    Offset, 
-    Size, 
-    Padding, 
-    Column, 
-    Row, 
-    Wrap, 
-    Scroll, 
-    Stack, 
-    ScrollAnchor, 
-    Bin, 
-    Opt, 
-    EitherOr,
-    UniformExpand
-};
+pub mod layout;
+// pub use layout::{
+//     Offset, 
+//     Size, 
+//     Padding, 
+//     Column, 
+//     Row, 
+//     Wrap, 
+//     Scroll, 
+//     Stack, 
+//     ScrollAnchor, 
+//     Bin, 
+//     Opt, 
+//     EitherOr,
+//     UniformExpand
+// };
 
-mod elements;
-pub use elements::{
-    Text, 
-    ExpandableText, 
-    TextStyle, 
-    BulletedText,
-    ExpandableImage, 
-    EncodedImage,
-    AspectRatioImage, 
-    Icon, 
-    Circle, 
-    Rectangle,
-    RoundedRectangle, 
-    OutlinedRectangle,
-    Outline,
-};
+// mod elements;
+// pub use elements::{
+//     Text, 
+//     ExpandableText, 
+//     TextStyle, 
+//     BulletedText,
+//     ExpandableImage, 
+//     EncodedImage,
+//     AspectRatioImage, 
+//     Icon, 
+//     Circle, 
+//     Rectangle,
+//     RoundedRectangle, 
+//     OutlinedRectangle,
+//     Outline,
+// };
 
-mod components;
-pub use components::{
-    Button,
-    ButtonStyle,
-    ButtonSize,
-    ButtonState,
-    ButtonWidth,
-    IconButton,
-    QuickActions,
-    Alert,
-    Avatar,
-    AvatarContent,
-    AvatarIconStyle,
-    DataItem,
-    ListItem,
-    ListItemGroup,
-    ListItemSelector,
-    TextInput,
-    Searchbar,
-    QRCode,
-    QRCodeScanner,
-    Slider,
-    Interface,
-    Page,
-    Header,
-    Bumper,
-    Content,
-    HeaderIcon,
-    HeaderContent
-};
+pub mod components;
+// pub use components::{
+//     Button,
+//     ButtonStyle,
+//     ButtonSize,
+//     ButtonState,
+//     ButtonWidth,
+//     IconButton,
+//     QuickActions,
+//     Alert,
+//     Avatar,
+//     AvatarContent,
+//     AvatarIconStyle,
+//     DataItem,
+//     ListItem,
+//     ListItemGroup,
+//     ListItemSelector,
+//     TextInput,
+//     Searchbar,
+//     QRCode,
+//     QRCodeScanner,
+//     Slider,
+//     Interface,
+//     Page,
+//     Header,
+//     Bumper,
+//     Content,
+//     HeaderIcon,
+//     HeaderContent
+// };
 
 mod utils;
 pub use utils::{

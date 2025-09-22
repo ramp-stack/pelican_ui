@@ -1,7 +1,10 @@
-use pelican_ui::{Align, Area, Color, Component, Context, Drawable, Event, Layout, MouseEvent, MouseState, OnEvent, SizeRequest, TickEvent, KeyboardState, KeyboardEvent};
+use pelican_ui::events::{OnEvent, TickEvent, MouseState, MouseEvent, Event, KeyboardState, KeyboardEvent};
+use pelican_ui::drawable::{Drawable, Component, Align, Color};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
-use crate::elements::{OutlinedRectangle, ExpandableText, Text, TextStyle, TextEditor};
-use crate::components::IconButton;
+use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
+use crate::components::button::IconButton;
 use crate::events::{SearchEvent, InputEditedEvent, KeyboardActiveEvent, SetActiveInput, TextInputSelect, ClearActiveInput};
 use crate::layout::{EitherOr, Padding, Column, Stack, Offset, Size, Row, Bin};
 use crate::utils::ElementID;
@@ -97,7 +100,7 @@ impl OnEvent for TextInput {
 }
 
 #[derive(Debug, Component)]
-struct InputField(Stack, OutlinedRectangle, InputContent, #[skip] InputState, #[skip] bool, #[skip] ElementID, #[skip] bool);
+struct InputField(Stack, Rectangle, InputContent, #[skip] InputState, #[skip] bool, #[skip] ElementID, #[skip] bool);
 
 impl InputField {
     pub fn new(
@@ -109,7 +112,7 @@ impl InputField {
     ) -> Self {
         let (background, outline) = InputState::Default.get_color(ctx);
         let content = InputContent::new(ctx, value, placeholder, icon_button);
-        let background = OutlinedRectangle::new(background, outline, 8.0, 1.0);
+        let background = Rectangle::new(background, 8.0, Some((1.0, outline)));
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, widths[0].1));            
         let height = Size::custom(|heights: Vec<(f32, f32)>| (heights[1].0.max(48.0), heights[1].1.max(48.0)));
 
@@ -136,7 +139,7 @@ impl OnEvent for InputField {
 
             let (background, outline) = self.3.get_color(ctx);
             *self.1.background() = background;
-            *self.1.outline() = outline;
+            if let Some(c) = self.1.outline() { *c = outline; }
             *self.2.focus() = self.3 == InputState::Focus;
         } else if let Some(ClearActiveInput) = event.downcast_ref::<ClearActiveInput>() {
             // self.3 = if *self.error() { InputState::Error } else { InputState::Default };
@@ -280,10 +283,10 @@ impl InputState {
     fn get_color(&self, ctx: &mut Context) -> (Color, Color) { // background, outline
         let colors = &ctx.theme.colors;
         match self {
-            InputState::Default => (colors.shades.transparent, colors.outline.secondary),
+            InputState::Default => (Color::TRANSPARENT, colors.outline.secondary),
             InputState::Hover => (colors.background.secondary, colors.outline.secondary),
-            InputState::Focus => (colors.shades.transparent, colors.outline.primary),
-            InputState::Error => (colors.shades.transparent, colors.status.danger)
+            InputState::Focus => (Color::TRANSPARENT, colors.outline.primary),
+            InputState::Error => (Color::TRANSPARENT, colors.status.danger)
         }
     }
 }

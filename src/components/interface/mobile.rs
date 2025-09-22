@@ -1,19 +1,19 @@
-use pelican_ui::{
-    Area, Component, Context,
-    Drawable, Event, Layout,
-    OnEvent, SizeRequest,
-};
+use pelican_ui::events::{OnEvent, Event};
+use pelican_ui::drawable::{Drawable, Component};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
 use crate::events::{KeyboardActiveEvent, NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Row, Padding, Offset, Size, Opt, Stack, Bin};
-use crate::components::{IconButton, ButtonState};
-use crate::elements::Rectangle;
+use crate::components::button::{IconButton, ButtonState};
+use crate::components::Rectangle;
 use crate::utils::ElementID;
 use crate::pages::AppPage;
 use crate::pages::Error;
 
 use std::fmt::Debug;
-use super::{NavigationButton, NavigateInfo, MobileKeyboard, PageBuilder};
+use crate::components::interface::general::{NavigationButton, NavigateInfo, PageBuilder};
+use crate::components::interface::system::MobileKeyboard;
 
 #[derive(Component)]
 pub struct MobileInterface(Column, Bin<Stack, Rectangle>, Option<Box<dyn AppPage>>, Option<MobileKeyboard>, Option<Opt<MobileNavigator>>, Bin<Stack, Rectangle>,  #[skip] PageBuilder);
@@ -28,7 +28,7 @@ impl MobileInterface {
         let pages = navigation.as_mut().map(|nav| nav.1.iter_mut().map(|n| n.3.take().unwrap()).collect::<Vec<_>>());
         let navigator = navigation.map(|n| Opt::new(MobileNavigator::new(ctx, n), true));
         let insets = ctx.hardware.safe_area_insets();
-        let inset = |h: f32| Bin(Stack(Offset::Center, Offset::Center, Size::fill(), Size::Static(h), Padding::default()), Rectangle::new(background, 0.0));
+        let inset = |h: f32| Bin(Stack(Offset::Center, Offset::Center, Size::fill(), Size::Static(h), Padding::default()), Rectangle::new(background, 0.0, None));
         MobileInterface(
             Column::new(0.0, Offset::Center, Size::Fit, Padding::default()), 
             inset(insets.0),
@@ -88,7 +88,7 @@ impl MobileNavigator {
 
         MobileNavigator(
             Stack(Offset::Center, Offset::Start, width, height, Padding::default()), 
-            Rectangle::new(background, 0.0),
+            Rectangle::new(background, 0.0, None),
             MobileNavigatorContent::new(ctx, navigation)
         )
     }

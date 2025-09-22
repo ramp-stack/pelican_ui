@@ -1,43 +1,49 @@
 /// ## Common
 ///
-/// Standard UI components such as buttons, text inputs, and other  
-/// building blocks frequently used across applications.
+/// Reusable building blocks like text, buttons, inputs, and sliders.  
+/// These provide standard interaction patterns across applications.
 ///
-mod common;
-pub use common::{
-    Button,
-    ButtonStyle,
-    ButtonSize,
-    ButtonState,
-    ButtonWidth,
-    IconButton,
-    QuickActions,
-    Alert,
-    Avatar,
-    AvatarContent,
-    AvatarIconStyle,
-    DataItem,
-    ListItem,
-    ListItemGroup,
-    ListItemSelector,
-    TextInput,
-    Searchbar,
-    QRCode,
-    QRCodeScanner,
-    Slider,
-};
+pub mod common;
+pub use common::*;
 
 /// ## Interface
 ///
-/// Page-level components like headers, bumpers, and more.
+/// Higher-level, page-structuring components such as headers,  
+/// bumpers, and platform-specific setups.
 ///
 pub mod interface;
-pub use interface::{
-    Interface, 
-    Page,
-    Bumper,
-    Content, 
-    Header, 
-    HeaderIcon,
-    HeaderContent,
-};
+
+// pub use common::{
+//     Button,
+//     ButtonStyle,
+//     ButtonSize,
+//     ButtonState,
+//     ButtonWidth,
+//     IconButton,
+//     QuickActions,
+//     Alert,
+//     Avatar,
+//     AvatarContent,
+//     AvatarIconStyle,
+//     DataItem,
+//     ListItem,
+//     ListItemGroup,
+//     ListItemSelector,
+//     TextInput,
+//     Searchbar,
+//     QRCode,
+//     QRCodeScanner,
+//     Slider,
+// };
+
+
+// pub mod interface;
+// pub use interface::{
+//     Interface, 
+//     Page,
+//     Bumper,
+//     Content, 
+//     Header, 
+//     HeaderIcon,
+//     HeaderContent,
+// };

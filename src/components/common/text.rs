@@ -1,8 +1,11 @@
-use pelican_ui::{resources, Key, NamedKey, Align, Area, Color, Component, Context, Drawable, Event, Layout, MouseEvent, MouseState, OnEvent, SizeRequest, TickEvent, Span, Cursor, Shape};
-use pelican_ui::Text as BasicText;
+use pelican_ui::events::{MouseState, MouseEvent, OnEvent, Event, TickEvent, Key, NamedKey};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::drawable::{Drawable, Component, Shape, Color, Align, Span, Cursor};
+use pelican_ui::drawable::Text as BasicText;
+use pelican_ui::{Context, Component, resources};
 
 use crate::layout::{Stack, Offset, Size, Padding, Opt, Row, Column};
-use crate::elements::shapes::{Rectangle, Circle};
+use crate::components::{Rectangle, Circle};
 
 /// # Text Style
 ///
@@ -34,7 +37,7 @@ impl TextStyle {
             TextStyle::Primary => (theme.colors.text.primary, theme.fonts.fonts.text.clone()),
             TextStyle::Secondary => (theme.colors.text.secondary, theme.fonts.fonts.text.clone()),
             TextStyle::Error => (theme.colors.status.danger, theme.fonts.fonts.text.clone()),
-            TextStyle::White => (theme.colors.shades.white, theme.fonts.fonts.text.clone()),
+            TextStyle::White => (Color::WHITE, theme.fonts.fonts.text.clone()),
             TextStyle::Keyboard => (theme.colors.text.heading, theme.fonts.fonts.keyboard.clone()),
             TextStyle::Label(color) => (*color, theme.fonts.fonts.label.clone()),
         }
@@ -203,7 +206,7 @@ impl TextCursor {
         let (color, _) = style.get(ctx);
         TextCursor(
             Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()), 
-            Opt::new(Rectangle::new(color, 0.0), false)
+            Opt::new(Rectangle::new(color, 0.0, None), false)
         )
     }
 
@@ -250,7 +253,7 @@ impl BulletedTextContent {
     fn new(ctx: &mut Context, text: &str, color: Color, style: TextStyle, size: f32) -> Self {
         BulletedTextContent(
             Row::new(size*0.75, Offset::Center, Size::Fit, Padding::default()), // change this offset to be line_height - circle size / 2
-            Circle::new(size*0.2, color),
+            Circle::new(size*0.2, color, false),
             ExpandableText::new(ctx, text, style, size, Align::Left, None)
         )
     }

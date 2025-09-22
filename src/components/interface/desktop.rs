@@ -1,19 +1,19 @@
-use pelican_ui::{
-    Area, Component, Context,
-    Drawable, Event, Image, Layout,
-    OnEvent, SizeRequest,
-};
+use pelican_ui::events::{OnEvent, Event};
+use pelican_ui::drawable::{Color, Drawable, Component, Image};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
-use crate::elements::{Rectangle, AspectRatioImage};
+use crate::components::{Rectangle, AspectRatioImage};
 use crate::events::{NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Stack, Bin, Row, Padding, Offset, Size};
-use crate::components::{Button, ButtonState, Avatar, AvatarContent};
+use crate::components::button::{Button, ButtonState};
+use crate::components::avatar::{Avatar, AvatarContent};
 use crate::utils::ElementID;
 use crate::pages::AppPage;
 use crate::pages::Error;
 
 use std::fmt::Debug;
-use super::{NavigationButton, NavigateInfo, PageBuilder};
+use crate::components::interface::general::{NavigationButton, NavigateInfo, PageBuilder};
 
 #[derive(Component)]
 pub struct DesktopInterface(Row, Option<DesktopNavigator>, Bin<Stack, Rectangle>, Option<Box<dyn AppPage>>, #[skip] PageBuilder);
@@ -33,7 +33,7 @@ impl DesktopInterface {
             navigator,
             Bin(
                 Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fit, Padding::default()), 
-                Rectangle::new(color, 0.0)
+                Rectangle::new(color, 0.0, None)
             ),
             Some(start_page),
             pages
@@ -110,8 +110,7 @@ impl DesktopNavigator {
             index += 1;
         }
 
-        let theme = &ctx.theme;
-        let (wordmark, color) = (theme.brand.wordmark.clone(), theme.colors.shades.transparent);
+        let wordmark = ctx.theme.brand.wordmark.clone();
 
         DesktopNavigator(
             Column::new(32.0, Offset::Center, Size::Fill(100.0, 200.0), Padding(16.0, 32.0, 16.0, 32.0)),
@@ -119,7 +118,7 @@ impl DesktopNavigator {
             ButtonColumn::new(top_col),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::Fill(100.0, 200.0), Size::Fill(0.0, f32::MAX), Padding::default()), 
-                Rectangle::new(color, 0.0)
+                Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
             ButtonColumn::new(bot_col)
         )

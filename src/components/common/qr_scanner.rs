@@ -1,8 +1,10 @@
-use pelican_ui::{ShapeType, Align, Area, Component, Context, Drawable, Event, Image, Layout, OnEvent, SizeRequest, TickEvent};
+use pelican_ui::events::{OnEvent, Event, TickEvent};
+use pelican_ui::drawable::{Color, Drawable, Component, ShapeType, Image, Align};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
+use pelican_ui::maverick_os::hardware::Camera;
 
-use pelican_ui::maverick_os::Camera;
-
-use crate::elements::{TextStyle, Text, Icon, RoundedRectangle};
+use crate::components::{TextStyle, Text, Icon, Rectangle};
 use crate::layout::{Column, Padding, Size, Offset, Stack};
 
 use image::{DynamicImage, GrayImage, RgbaImage};
@@ -85,13 +87,13 @@ impl OnEvent for QRCodeScanner {
                     },
                     Err(_) => {
                         let background = ctx.theme.colors.background.secondary;
-                        *self.2.background() = Some(RoundedRectangle::new(0.0, 8.0, background));
+                        *self.2.background() = Some(Rectangle::new(background, 8.0, None));
                         *self.2.message() = Some(Message::new(ctx, "camera", "Waiting for raw camera frame."));
                     }
                 }
             } else {
                 let background = ctx.theme.colors.background.secondary;
-                *self.2.background() = Some(RoundedRectangle::new(0.0, 8.0, background));
+                *self.2.background() = Some(Rectangle::new(background, 8.0, None));
                 *self.2.message() = Some(Message::new(ctx, "settings", "Camera not available."));
             }
         }
@@ -100,7 +102,7 @@ impl OnEvent for QRCodeScanner {
 }
 
 #[derive(Debug, Component)]
-struct QRGuide(Stack, Option<RoundedRectangle>, RoundedRectangle, Option<Message>);
+struct QRGuide(Stack, Option<Rectangle>, Rectangle, Option<Message>);
 impl OnEvent for QRGuide {}
 
 impl QRGuide {
@@ -109,14 +111,14 @@ impl QRGuide {
         let outline = ctx.theme.colors.outline.secondary;
         QRGuide(
             Stack(Offset::Center, Offset::Center, Size::Static(308.0), Size::Static(308.0), Padding::default()), 
-            Some(RoundedRectangle::new(0.0, 8.0, background)), 
-            RoundedRectangle::new(4.0, 8.0, outline), 
+            Some(Rectangle::new(background, 8.0, None)), 
+            Rectangle::new(outline, 8.0, Some((4.0, background))), 
             Some(Message::new(ctx, "camera", "Accessing device camera."))
         )
     }
 
     pub fn message(&mut self) -> &mut Option<Message> {&mut self.3}
-    pub fn background(&mut self) -> &mut Option<RoundedRectangle> {&mut self.1}
+    pub fn background(&mut self) -> &mut Option<Rectangle> {&mut self.1}
 }
 
 #[derive(Debug, Component)]
@@ -125,10 +127,9 @@ impl OnEvent for Message {}
 
 impl Message {
     pub fn new(ctx: &mut Context, icon: &'static str, msg: &str) -> Self {
-        let theme = &ctx.theme;
-        let (color, font_size) = (theme.colors.shades.lighten, theme.fonts.size.sm);
+        let font_size = ctx.theme.fonts.size.sm;
         Message(Column::center(4.0), 
-            Icon::new(ctx, icon, color, 48.0),
+            Icon::new(ctx, icon, Color::WHITE, 48.0),
             Text::new(ctx, msg, TextStyle::Secondary, font_size, Align::Left)
         )
     }

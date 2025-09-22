@@ -1,13 +1,12 @@
-use pelican_ui::{
-    Align, Area, Color, Component, Context,
-    Drawable, Event, Image, Layout,
-    MouseEvent, MouseState, OnEvent,
-    SizeRequest,
-};
+use pelican_ui::events::{OnEvent, MouseState, MouseEvent, Event};
+use pelican_ui::drawable::{Drawable, Component, Align, Color, Image};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
 use crate::events::ListItemSelect;
-use crate::elements::{Rectangle, Icon, Text, ExpandableText, TextStyle};
-use crate::components::{ButtonState, Avatar, AvatarContent};
+use crate::components::{Rectangle, Icon, Text, ExpandableText, TextStyle};
+use crate::components::avatar::{Avatar, AvatarContent};
+use crate::components::button::ButtonState;
 use crate::layout::{Column, Stack, Row, Padding, Offset, Size, Opt};
 use crate::utils::ElementID;
 
@@ -72,7 +71,7 @@ impl ListItem {
             Padding(0.0, 16.0, 0.0, 16.0)
         );
 
-        ListItem(layout, Rectangle::new(color, 0.0), content, ButtonState::Default, Box::new(on_click), element_id, false)
+        ListItem(layout, Rectangle::new(color, 0.0, None), content, ButtonState::Default, Box::new(on_click), element_id, false)
     }
 
     pub fn title(&mut self) -> &mut TitleRow {self.2.data().left().title()}

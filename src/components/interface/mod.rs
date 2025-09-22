@@ -1,10 +1,34 @@
+/// ## General
+///
+/// Core interface components shared across all platforms,  
+/// such as headers, bumpers, and content containers.
+///
 pub mod general;
-pub use general::*;
+
+/// ## Mobile
+///
+/// Components tailored for mobile platforms,  
+/// for example the [`MobileNavigator`].
+///
 pub mod mobile;
-pub use mobile::*;
+
+/// ## Desktop
+///
+/// Components designed specifically for desktop platforms,  
+/// such as the [`DesktopNavigator`].
+///
 pub mod desktop;
-pub use desktop::*;
+
+/// ## Web
+///
+/// Components optimized for web environments,  
+/// for instance the [`WebNavigator`].
+///
 pub mod web;
-pub use web::*;
-pub mod keyboard;
-pub use keyboard::*;
+
+/// ## System Integration
+///
+/// OS-level integration components that handle  
+/// system input and replacement behaviors.
+///
+pub mod system;

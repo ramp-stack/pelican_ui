@@ -1,7 +1,10 @@
-use pelican_ui::{Shape, Align, Area, Component, Context, Drawable, Layout, OnEvent, SizeRequest};
+use pelican_ui::events::OnEvent;
+use pelican_ui::drawable::{Color, Drawable, Component, Align, Shape};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
-use crate::elements::{Text, ExpandableText, TextStyle, Circle, Rectangle};
-use crate::components::Button;
+use crate::components::{Text, ExpandableText, TextStyle, Circle, Rectangle};
+use crate::components::button::Button;
 use crate::layout::{Column, Bin, Row, Stack, Padding, Offset, Size};
 
 /// ## Data Item
@@ -70,7 +73,7 @@ impl Number {
         let (color, font_size) = (theme.colors.background.secondary, theme.fonts.size.h5);
         Number(
             Stack::center(),
-            Circle::new(32.0, color),
+            Circle::new(32.0, color, false),
             Text::new(ctx, txt, TextStyle::Heading, font_size, Align::Left), 
         )
     }
@@ -121,14 +124,13 @@ impl OnEvent for Tabular {}
 
 impl Tabular {
     fn new(ctx: &mut Context, name: &str, data: &str) -> Self {
-        let theme = &ctx.theme;
-        let (font_size, color) = (theme.fonts.size.sm, theme.colors.shades.transparent);
+        let font_size = ctx.theme.fonts.size.sm;
         Tabular (
             Row::new(8.0, Offset::Start, Size::Fit, Padding(0.0, 4.0, 0.0, 4.0)),
             Text::new(ctx, name, TextStyle::Primary, font_size, Align::Left),
             Bin(
                 Stack(Offset::Center, Offset::Center, Size::Fit, Size::Static(1.0), Padding::default()),
-                Rectangle::new(color, 0.0),
+                Rectangle::new(Color::TRANSPARENT, 0.0, None),
             ),
             Text::new(ctx, data, TextStyle::Primary, font_size, Align::Left),
         )

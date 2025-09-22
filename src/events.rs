@@ -1,4 +1,4 @@
-use pelican_ui::Event;
+use pelican_ui::events::Event;
 use pelican_ui::Context;
 use crate::utils::ElementID;
 

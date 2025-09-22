@@ -1,19 +1,23 @@
-use pelican_ui::{
-    Align, Area, Component, Context,
-    Drawable, Event, Layout,
-    MouseEvent, MouseState, OnEvent,
-    SizeRequest,
-};
+use pelican_ui::events::{OnEvent, MouseState, MouseEvent, Event};
+use pelican_ui::drawable::{Drawable, Component, Align};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
-use crate::elements::{Rectangle, TextStyle, Text};
+use crate::components::{Rectangle, TextStyle, Text};
 use crate::events::{TextInputSelect, AdjustScrollEvent};
 use crate::layout::{Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor};
-use crate::components::{AvatarContent, IconButton, Button, TextInput};
+use crate::components::avatar::AvatarContent;
+use crate::components::button::{IconButton, Button};
+use crate::components::TextInput;
 use crate::utils::ElementID;
 use crate::pages::AppPage;
 use std::fmt::Debug;
 
-use super::{DesktopInterface, MobileInterface, WebInterface};
+use crate::components::interface::{
+    desktop::DesktopInterface,
+    mobile::MobileInterface,
+    web::WebInterface,
+};
 
 pub type NavigateInfo = (&'static str, String, Option<AvatarContent>, Option<Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>>);
 pub type PageBuilder = Option<Vec<Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>>>;
@@ -55,7 +59,7 @@ impl Interface {
             false => (None, Some(DesktopInterface::new(ctx, start_page, navigation)), None),
         };
 
-        Interface(Stack::default(), Some(Rectangle::new(color, 0.0)), mobile, desktop, web)
+        Interface(Stack::default(), Some(Rectangle::new(color, 0.0, None)), mobile, desktop, web)
     }
 
     // //move background to pages
@@ -381,7 +385,7 @@ impl Bumper {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
-        Bumper(layout, Rectangle::new(background, 0.0), BumperContent::new(content))
+        Bumper(layout, Rectangle::new(background, 0.0, None), BumperContent::new(content))
     }
 
     /// Creates a `Bumper` from two buttons.

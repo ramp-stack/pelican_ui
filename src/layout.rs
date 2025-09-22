@@ -1,4 +1,7 @@
-use pelican_ui::{Context, Component, OnEvent, Drawable, Layout, Area, SizeRequest};
+use pelican_ui::events::OnEvent;
+use pelican_ui::drawable::{Drawable, Component};
+use pelican_ui::layout::{Layout, Area, SizeRequest};
+use pelican_ui::{Context, Component};
 
 use std::sync::{Arc, Mutex};
 

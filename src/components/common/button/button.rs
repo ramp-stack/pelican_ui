@@ -1,12 +1,10 @@
-use pelican_ui::{
-    Align, Area, Color, Component, Context,
-    Drawable, Event, Image, Layout,
-    MouseEvent, MouseState, OnEvent,
-    SizeRequest, TickEvent,
-};
+use pelican_ui::events::{MouseState, MouseEvent, OnEvent, Event, TickEvent};
+use pelican_ui::drawable::{Drawable, Component, Image, Color, Align};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component};
 
-use crate::components::common::{Avatar, AvatarContent};
-use crate::elements::{Icon, OutlinedRectangle, Text, TextStyle};
+use crate::components::avatar::{Avatar, AvatarContent};
+use crate::components::{Icon, Rectangle, Text, TextStyle};
 use crate::layout::{Offset, Padding, Row, Size, Stack, Wrap, Opt};
 
 use super::{ButtonSize, ButtonState, ButtonStyle};
@@ -21,7 +19,7 @@ use std::time::Instant;
 #[derive(Component)]
 pub struct Button(
     Stack, 
-    OutlinedRectangle, 
+    Rectangle, 
     ButtonContent, 
     #[skip] ButtonStyle, 
     #[skip] ButtonState,
@@ -62,7 +60,7 @@ impl Button {
             ),
         };
 
-        let background = OutlinedRectangle::new(colors.background, colors.outline, height/2.0, 1.0);
+        let background = Rectangle::new(colors.background, height/2.0, Some((1.0, colors.outline)));
         let layout = Stack(offset, Offset::Center, width, Size::Static(height), Padding::default());
 
         Button(layout, background, content, style, state, Box::new(on_click), label.map(|l| l.to_string()), None, active_label, true)
@@ -72,8 +70,8 @@ impl Button {
     pub fn color(&mut self, ctx: &mut Context) {
         let colors = self.4.color(ctx, self.3);
         self.2.set_color(colors.label);
-        *self.1.outline() = colors.outline;
         *self.1.background() = colors.background;
+        if let Some(c) = self.1.outline() { *c = colors.outline; }
     }
 
     /// Update the state of the button based off the current state and two booleans.
@@ -350,7 +348,7 @@ impl Button {
         selected: bool,
         on_click: impl FnMut(&mut Context) + 'static,
     ) -> Self {
-        let color = ctx.theme.colors.brand.primary;
+        let color = ctx.theme.colors.brand;
         let icon = (!crate::config::IS_WEB).then_some((icon, Some(("notification", color, false))));
         let offset = if crate::config::IS_WEB {Offset::Center} else {Offset::Start};
         let size = if crate::config::IS_WEB {ButtonWidth::Hug} else {ButtonWidth::Expand};

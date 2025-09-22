@@ -1,6 +1,9 @@
-use pelican_ui::{resources, ShapeType, Area, Color, Component, Context, Drawable, Event, Image, Layout, MouseEvent, MouseState, OnEvent, SizeRequest, Shape};
+use pelican_ui::events::{OnEvent, MouseState, Event, MouseEvent};
+use pelican_ui::drawable::{Drawable, Component, Image, Color, Shape, ShapeType};
+use pelican_ui::layout::{Area, SizeRequest, Layout};
+use pelican_ui::{Context, Component, resources};
 
-use crate::elements::{Icon, Outline, Circle};
+use crate::components::{Icon, Circle};
 use crate::layout::{Stack, Offset, Size, Padding};
 use crate::utils::Callback;
 
@@ -79,7 +82,6 @@ impl OnEvent for PrimaryAvatar {}
 
 impl PrimaryAvatar {
     fn new(ctx: &mut Context, content: AvatarContent, outline: bool, size: f32) -> Self {
-        let black = ctx.theme.colors.shades.black;
 
         let (circle_icon, image) = match content {
             AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (size, size), 0.0), image, color: None})),
@@ -88,7 +90,7 @@ impl PrimaryAvatar {
 
         PrimaryAvatar(
             Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding::default()),
-            circle_icon, image, outline.then(|| Outline::circle(size, black)), size
+            circle_icon, image, outline.then(|| Circle::new(size, Color::BLACK, true)), size
         )
     }
 
@@ -137,10 +139,10 @@ impl AvatarIconStyle {
         match self {
             AvatarIconStyle::Primary => (colors.text.heading, colors.background.primary),
             AvatarIconStyle::Secondary => (colors.background.secondary, colors.text.secondary),
-            AvatarIconStyle::Brand => (colors.brand.primary, colors.brand.secondary),
-            AvatarIconStyle::Success => (colors.status.success, colors.shades.white),
-            AvatarIconStyle::Warning => (colors.status.warning, colors.shades.white),
-            AvatarIconStyle::Danger => (colors.status.danger, colors.shades.white),
+            AvatarIconStyle::Brand => (colors.brand, Color::WHITE),
+            AvatarIconStyle::Success => (colors.status.success, Color::WHITE),
+            AvatarIconStyle::Warning => (colors.status.warning, Color::WHITE),
+            AvatarIconStyle::Danger => (colors.status.danger, Color::WHITE),
             AvatarIconStyle::Custom(background, icon) => (*background, *icon)
         }
     }
@@ -156,7 +158,7 @@ impl AvatarIcon {
         let (background, icon_color) = style.get(ctx);
         AvatarIcon(
             Stack::center(),
-            Circle::new(size - 2.0, background), 
+            Circle::new(size - 2.0, background, false), 
             Icon::new(ctx, name, icon_color, icon_size)
         )
     }
@@ -170,11 +172,10 @@ impl OnEvent for Flair {}
 
 impl Flair {
     pub fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: f32) -> Self {
-        let black = ctx.theme.colors.shades.black;
         Flair(
             Stack::center(),
             AvatarIcon::new(ctx, name, style, size / 3.0),
-            Outline::circle(size / 3.0, black)
+            Circle::new(size / 3.0,  Color::BLACK, true)
         )
     }
 
