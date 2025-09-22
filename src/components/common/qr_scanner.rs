@@ -2,7 +2,7 @@ use pelican_ui::events::{OnEvent, Event, TickEvent};
 use pelican_ui::drawable::{Drawable, Component, ShapeType, Image, Align};
 use pelican_ui::layout::{Area, SizeRequest, Layout};
 use pelican_ui::{Context, Component};
-use pelican_ui::maverick_os::Camera;
+use pelican_ui::maverick_os::hardware::Camera;
 
 use crate::components::{TextStyle, Text, Icon, Rectangle};
 use crate::layout::{Column, Padding, Size, Offset, Stack};

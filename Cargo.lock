@@ -1978,8 +1978,6 @@ dependencies = [
 [[package]]
 name = "maverick_os"
 version = "0.1.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3bc2df9ac386eb8e22bebbffa56485f2da878f6be0844eddc68595a8b89ee62"
 dependencies = [
  "active_rusqlite",
  "air",
