@@ -1977,7 +1977,9 @@ dependencies = [
 
 [[package]]
 name = "maverick_os"
-version = "0.1.23"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e61f486ad83e11f949af6efa333839d7f1e4ef682dd64b18cd2479b5f37c7b8a"
 dependencies = [
  "active_rusqlite",
  "air",
@@ -2946,7 +2948,9 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pelican_ui"
-version = "1.1.17"
+version = "1.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e96a188b7e7a568eba07546e2427745b92bc2dfb19108d96b076516b0aa8a7e"
 dependencies = [
  "downcast-rs 2.0.1",
  "image 0.25.6",
@@ -2971,7 +2975,7 @@ dependencies = [
 
 [[package]]
 name = "pelican_ui_std"
-version = "0.2.15"
+version = "0.2.16"
 dependencies = [
  "base64",
  "chrono",
@@ -4740,7 +4744,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu_canvas"
-version = "4.1.1"
+version = "4.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b78e11c325e94fe5d9a0e85f9b352749018f558c751f3d7010f650205016f877"
 dependencies = [
  "bytemuck",
  "fast_image_resize",
