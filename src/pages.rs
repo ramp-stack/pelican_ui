@@ -76,10 +76,8 @@ impl AppPage for Error {
 
 impl Error {
     pub fn new(ctx: &mut Context, error: &str, home: Box<dyn AppPage>) -> Self {
-        let theme = &ctx.theme;
-        let illustration = theme.brand.illustrations.get("error").unwrap();
-        let font_size = theme.fonts.size;
-        let illustration = AspectRatioImage::new(illustration, (300.0, 300.0));
+        let font_size = ctx.theme.fonts.size;
+        let illustration = AspectRatioImage::new(ctx.theme.brand.error.clone(), (300.0, 300.0));
         let title = Text::new(ctx, "Something went wrong.", TextStyle::Heading, font_size.h4, Align::Left);
         let text = Text::new(ctx, error, TextStyle::Primary, font_size.md, Align::Center);
         let content = Content::new(ctx, Offset::Center, vec![Box::new(illustration), Box::new(title), Box::new(text)]);
@@ -124,7 +122,7 @@ impl AppPage for PelicanHome {
 impl PelicanHome {
     pub fn new(ctx: &mut Context) -> Self {
         let theme = &ctx.theme;
-        let logo = theme.brand.logomark.clone();
+        let logo = theme.brand.logo.clone();
         let font_size = theme.fonts.size;
         let illustration = AspectRatioImage::new(logo, (150.0, 150.0));
         let title = Text::new(ctx, "Welcome to Pelican UI", TextStyle::Heading, font_size.h4, Align::Center);
