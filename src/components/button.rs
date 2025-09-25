@@ -6,7 +6,7 @@ use mustache::{Context, Component};
 use crate::Callback;
 use crate::components::{Icon, Rectangle, Text, TextStyle};
 use crate::layout::{Offset, Padding, Row, Size, Stack};
-use crate::theme::{ButtonColorScheme, ButtonColorSet};
+use crate::theme::ButtonColorScheme;
 use crate::components::interactions::ButtonState;
 use crate::components::interactions;
 use crate::plugin::PelicanUI;
@@ -19,29 +19,23 @@ impl PrimaryButton {
         let state = if is_disabled {ButtonState::Disabled} else {ButtonState::Default};
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.primary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_button(ctx, label, c));
+        let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
+            let font_size = ButtonSize::Large.font(ctx);
+            let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+            Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
+        });
         PrimaryButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, state))
-    }
-
-    fn _button(ctx: &mut Context, label: &str, colors: ButtonColorScheme) -> Button {
-        let font_size = ButtonSize::Large.font(ctx);
-        let text = Text::new(ctx, label, TextStyle::Label(colors.label), font_size, Align::Left);
-        Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
     }
 }
 
 #[derive(Debug, Component)]
 pub struct SecondaryButton(Stack, interactions::Button);
 impl OnEvent for SecondaryButton {}
-//TODO: Implement the active_label again.
 impl SecondaryButton {
-
-    // * Regular Buttons
-
     pub fn medium(ctx: &mut Context, icon: &'static str, label: &str, active_label: Option<&str>, on_click: Callback) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
-        let [default, hover, pressed, disabled] = buttons.map(|c| Self::_medium(ctx, icon, label, c));
+        let [default, hover, pressed, disabled] = buttons.map(|colors| Self::_medium(ctx, icon, label, colors));
         let selected = Self::_medium(ctx, icon, active_label.unwrap_or(label), colors.pressed);
         SecondaryButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
     }
@@ -49,7 +43,7 @@ impl SecondaryButton {
     fn _medium(ctx: &mut Context, icon: &'static str, label: &str, colors: ButtonColorScheme) -> Button {
         let font_size = ButtonSize::Medium.font(ctx);
         let icon_size = ButtonSize::Medium.icon();
-        let text = Text::new(ctx, label, TextStyle::Label(colors.label), font_size, Align::Left);
+        let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
         let icon = Icon::new(ctx, icon, colors.label, icon_size);
         Button::new(vec![Box::new(icon), Box::new(text)], ButtonSize::Medium, ButtonWidth::Fit, Offset::Center, colors.background, colors.outline)
     }
@@ -57,118 +51,58 @@ impl SecondaryButton {
     pub fn large(ctx: &mut Context, label: &str, on_click: Callback) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_large(ctx, label, c));
+        let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
+            let font_size = ButtonSize::Large.font(ctx);
+            let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+            Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
+        });
         SecondaryButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
     }
+}
 
-    fn _large(ctx: &mut Context, label: &str, colors: ButtonColorScheme) -> Button {
-        let font_size = ButtonSize::Large.font(ctx);
-        let text = Text::new(ctx, label, TextStyle::Label(colors.label), font_size, Align::Left);
-        Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
-    }
-
-    // * Icon Buttons
-    
-    pub fn icon(ctx: &mut Context, icon: &'static str, on_click: Callback) -> Self {
+#[derive(Debug, Component)]
+pub struct SecondaryIconButton(Stack, interactions::Button);
+impl OnEvent for SecondaryIconButton {}
+impl SecondaryIconButton {
+    pub fn new(ctx: &mut Context, icon: &'static str, on_click: Callback) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_icon(ctx, icon, c));
-        SecondaryButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
-    }
-
-    fn _icon(ctx: &mut Context, icon: &'static str, colors: ButtonColorScheme) -> IconButton {
-        IconButton::new(ctx, icon, ButtonStyle::Secondary, ButtonSize::Large, colors.background, colors.outline, colors.label)
+        let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
+            IconButton::new(ctx, icon, true, ButtonSize::Large, colors.background, colors.outline, colors.label)
+        });
+        SecondaryIconButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
     }
 }
 
 #[derive(Debug, Component)]
-pub struct GhostButton(Stack, interactions::Button);
-impl OnEvent for GhostButton {}
-impl GhostButton {
-
-    // * Regular Buttons
-
-    pub fn desktop_navigator(ctx: &mut Context, icon: &'static str, label: &str, on_click: Callback, is_selected: bool) -> Self {
-        let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
+pub struct GhostIconButton(Stack, interactions::Button);
+impl OnEvent for GhostIconButton {}
+impl GhostIconButton {
+    pub fn new(ctx: &mut Context, icon: &'static str, on_click: Callback) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_desktop_navigator(ctx, icon, label, c));
-        GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, state))
-    }
-
-    fn _desktop_navigator(ctx: &mut Context, icon: &'static str, label: &str, colors: ButtonColorScheme) -> Button {
-        let font_size = ButtonSize::Large.font(ctx);
-        let icon_size = ButtonSize::Large.icon();
-        let text = Text::new(ctx, label, TextStyle::Label(colors.label), font_size, Align::Left);
-        let icon = Icon::new(ctx, icon, colors.label, icon_size);
-        Button::new(vec![Box::new(icon), Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
-    }
-
-    pub fn keypad_number(ctx: &mut Context, label: &str, on_click: Callback) -> Self {
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
-        let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_keypad(ctx, None, Some(label), c));
-        GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
-    }
-
-    pub fn keypad_backspace(ctx: &mut Context, on_click: Callback) -> Self {
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
-        let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_keypad(ctx, Some("back"), None, c));
-        GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
-    }
-
-    fn _keypad(ctx: &mut Context, icon: Option<&'static str>, label: Option<&str>, colors: ButtonColorScheme) -> Button {
-        let font_size = ButtonSize::Large.font(ctx);
-        let icon_size = ButtonSize::Large.icon();
-        let mut content: Vec<Box<dyn Drawable>> = Vec::new();
-        if let Some(l) = label {content.push(Box::new(Text::new(ctx, l, TextStyle::Label(colors.label), font_size, Align::Left)));}
-        if let Some(i) = icon {content.push(Box::new(Icon::new(ctx, i, colors.label, icon_size)));}
-        Button::new(content, ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
-    }
-
-    // * Icon Buttons
-
-    pub fn mobile_navigator(ctx: &mut Context, icon: &'static str, on_click: Callback, is_selected: bool) -> Self {
-        let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
-        let buttons = [colors.disabled, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_mobile_navigator(ctx, icon, c));
-        GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, state))
-    }
-
-    fn _mobile_navigator(ctx: &mut Context, icon: &'static str, colors: ButtonColorScheme) -> IconButton {
-        IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
-    }
-
-    pub fn navigation(ctx: &mut Context, icon: &'static str, on_click: Callback) -> Self {
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
-        let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_navigation(ctx, icon, c));
-        GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
-    }
-
-    fn _navigation(ctx: &mut Context, icon: &'static str, colors: ButtonColorScheme) -> IconButton {
-        IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
+        let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
+            IconButton::new(ctx, icon, false, ButtonSize::Large, colors.background, colors.outline, colors.label)
+        });
+        GhostIconButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
     }
 }
 
 #[derive(Debug, Component)]
-pub struct IconButton(Stack, Rectangle, Image);
+struct IconButton(Stack, Rectangle, Image);
 impl OnEvent for IconButton {}
 
 impl IconButton {
-    pub fn new(
+    fn new(
         ctx: &mut Context,
         icon: &'static str,
-        style: ButtonStyle,
+        is_secondary: bool,
         size: ButtonSize,
         background: Color,
         outline: Color,
         label: Color,
     ) -> Self {
-        let (size, icon_size, radius) = size.icon_button(style);
-
+        let (size, icon_size, radius) = size.icon_button(is_secondary);
         let icon = Icon::new(ctx, icon, label, icon_size);
         let background = Rectangle::new(background, radius, Some((1.0, outline)));
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(size), Size::Static(size), Padding::default());
@@ -177,11 +111,11 @@ impl IconButton {
 }
 
 #[derive(Debug, Component)]
-pub struct Button(Stack, Rectangle, ButtonContent);
+struct Button(Stack, Rectangle, ButtonContent);
 impl OnEvent for Button {}
 
 impl Button {
-    pub fn new(
+    fn new(
         content: Vec<Box<dyn Drawable>>,
         size: ButtonSize,
         width: ButtonWidth,
@@ -190,11 +124,9 @@ impl Button {
         outline: Color,
     ) -> Self {
         let (spacing, height, padding) = size.get();
-
         let content = ButtonContent::new(content, padding, spacing);
         let background = Rectangle::new(background, height / 2.0, Some((1.0, outline)));
         let layout = Stack(offset, Offset::Center, width.get(), Size::Static(height), Padding::default());
-
         Button(layout, background, content)
     }
 }
@@ -210,9 +142,9 @@ impl ButtonContent {
 
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
-pub enum ButtonWidth {Fit, Fill}
+enum ButtonWidth {Fit, Fill}
 impl ButtonWidth{
-    pub fn get(&self) -> Size {
+    fn get(&self) -> Size {
         match self {
             ButtonWidth::Fit => Size::Fit,
             ButtonWidth::Fill => Size::Fill,
@@ -221,24 +153,10 @@ impl ButtonWidth{
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
-pub enum ButtonStyle {Primary, Secondary, Ghost}
-
-impl ButtonStyle {
-    pub fn get(&self, ctx: &mut Context) -> ButtonColorSet {
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button;
-        match self {
-            ButtonStyle::Primary => colors.primary,
-            ButtonStyle::Secondary => colors.secondary,
-            ButtonStyle::Ghost => colors.ghost,
-        }
-    }
-}
-
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
-pub enum ButtonSize {Large, Medium}
+enum ButtonSize {Large, Medium}
 impl ButtonSize {
     /// Regular button sizing
-    pub fn get(&self) -> (f32, f32, Padding) {
+    fn get(&self) -> (f32, f32, Padding) {
         match self {
             ButtonSize::Medium => (4.0, 32.0, Padding(12.0, 0.0, 12.0, 0.0)),
             ButtonSize::Large => (12.0, 48.0, Padding(24.0, 0.0, 24.0, 0.0))
@@ -246,7 +164,7 @@ impl ButtonSize {
     }
 
     /// Regular button font size
-    pub fn font(&self, ctx: &mut Context) -> f32 {
+    fn font(&self, ctx: &mut Context) -> f32 {
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         match self {
             ButtonSize::Medium => size.md,
@@ -255,7 +173,7 @@ impl ButtonSize {
     }
 
     /// Regular button icon size
-    pub fn icon(&self) -> f32 {
+    fn icon(&self) -> f32 {
         match self {
             ButtonSize::Medium => 16.0,
             ButtonSize::Large => 24.0,
@@ -263,13 +181,61 @@ impl ButtonSize {
     }
 
     /// Icon button outer size, inner icon size, and corner radius
-    pub fn icon_button(&self, style: ButtonStyle) -> (f32, f32, f32) {
-        #[allow(clippy::wildcard_in_or_patterns)]
-        match (style, self) {
-            (ButtonStyle::Secondary, ButtonSize::Large) => (52.0, 32.0, 12.0),
-            (ButtonStyle::Secondary, ButtonSize::Medium) => (36.0, 20.0, 8.0),
-            (ButtonStyle::Ghost, ButtonSize::Large) => (52.0, 48.0, 12.0),
-            (ButtonStyle::Ghost, ButtonSize::Medium) | _ => (36.0, 32.0, 8.0),
+    fn icon_button(&self, is_secondary: bool) -> (f32, f32, f32) {
+        match (is_secondary, self) {
+            (true, ButtonSize::Large) => (52.0, 32.0, 12.0),
+            (true, ButtonSize::Medium) => (36.0, 20.0, 8.0),
+            (false, ButtonSize::Large) => (52.0, 48.0, 12.0),
+            (false, ButtonSize::Medium) => (36.0, 32.0, 8.0),
         }
     }
 }
+
+// pub fn desktop_navigator(ctx: &mut Context, icon: &'static str, label: &str, on_click: Callback, is_selected: bool) -> Self {
+//     let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
+//     let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
+//     let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
+//     let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
+//         let font_size = ButtonSize::Large.font(ctx);
+//         let icon_size = ButtonSize::Large.icon();
+//         let text = Text::new(ctx, label, TextStyle::Label(colors.label), font_size, Align::Left);
+//         let icon = Icon::new(ctx, icon, colors.label, icon_size);
+//         Button::new(vec![Box::new(icon), Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
+//     });
+//     GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, state))
+// }
+
+// pub fn keypad_number(ctx: &mut Context, label: &str, on_click: Callback) -> Self {
+//     let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
+//     let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
+//     let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_keypad(ctx, None, Some(label), c));
+//     GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
+// }
+
+// pub fn keypad_backspace(ctx: &mut Context, on_click: Callback) -> Self {
+//     let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
+//     let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
+//     let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_keypad(ctx, Some("back"), None, c));
+//     GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
+// }
+
+// fn _keypad(ctx: &mut Context, icon: Option<&'static str>, label: Option<&str>, colors: ButtonColorScheme) -> Button {
+//     let font_size = ButtonSize::Large.font(ctx);
+//     let icon_size = ButtonSize::Large.icon();
+//     let mut content: Vec<Box<dyn Drawable>> = Vec::new();
+//     if let Some(l) = label {content.push(Box::new(Text::new(ctx, l, TextStyle::Label(colors.label), font_size, Align::Left)));}
+//     if let Some(i) = icon {content.push(Box::new(Icon::new(ctx, i, colors.label, icon_size)));}
+//     Button::new(content, ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
+// }
+
+// pub fn mobile_navigator(ctx: &mut Context, icon: &'static str, on_click: Callback, is_selected: bool) -> Self {
+//     let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
+//     let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
+//     let buttons = [colors.disabled, colors.hover, colors.pressed, colors.pressed, colors.disabled];
+//     let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_mobile_navigator(ctx, icon, c));
+//     GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, state))
+// }
+
+// fn _mobile_navigator(ctx: &mut Context, icon: &'static str, colors: ButtonColorScheme) -> IconButton {
+//     IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
+// }
