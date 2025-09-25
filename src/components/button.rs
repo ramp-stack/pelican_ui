@@ -35,6 +35,9 @@ pub struct SecondaryButton(Stack, interactions::Button);
 impl OnEvent for SecondaryButton {}
 //TODO: Implement the active_label again.
 impl SecondaryButton {
+
+    // * Regular Buttons
+
     pub fn medium(ctx: &mut Context, icon: &'static str, label: &str, active_label: Option<&str>, on_click: Callback) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
@@ -62,6 +65,19 @@ impl SecondaryButton {
         let font_size = ButtonSize::Large.font(ctx);
         let text = Text::new(ctx, label, TextStyle::Label(colors.label), font_size, Align::Left);
         Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
+    }
+
+    // * Icon Buttons
+    
+    pub fn icon(ctx: &mut Context, icon: &'static str, on_click: Callback) -> Self {
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
+        let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
+        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_icon(ctx, icon, c));
+        SecondaryButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
+    }
+
+    fn _icon(ctx: &mut Context, icon: &'static str, colors: ButtonColorScheme) -> IconButton {
+        IconButton::new(ctx, icon, ButtonStyle::Secondary, ButtonSize::Large, colors.background, colors.outline, colors.label)
     }
 }
 
