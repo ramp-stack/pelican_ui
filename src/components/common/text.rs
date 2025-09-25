@@ -1,11 +1,12 @@
-use pelican_ui::events::{MouseState, MouseEvent, OnEvent, Event, TickEvent, Key, NamedKey};
-use pelican_ui::layout::{Area, SizeRequest, Layout};
-use pelican_ui::drawable::{Drawable, Component, Shape, Color, Align, Span, Cursor};
-use pelican_ui::drawable::Text as BasicText;
-use pelican_ui::{Context, Component, resources};
+use mustache::events::{MouseState, MouseEvent, OnEvent, Event, TickEvent, Key, NamedKey};
+use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::drawable::{Drawable, Component, Shape, Color, Align, Span, Cursor};
+use mustache::drawable::Text as BasicText;
+use mustache::{Context, Component, resources};
 
 use crate::layout::{Stack, Offset, Size, Padding, Opt, Row, Column};
 use crate::components::{Rectangle, Circle};
+use crate::plugin::PelicanUI;
 
 /// # Text Style
 ///
@@ -31,15 +32,16 @@ pub enum TextStyle {
 
 impl TextStyle {
     pub fn get(&self, ctx: &mut Context) -> (Color, resources::Font) {
-        let theme = &ctx.theme;
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
+        let fonts = ctx.get::<PelicanUI>().get().0.theme().fonts.fonts.clone();
         match self {
-            TextStyle::Heading => (theme.colors.text.heading, theme.fonts.fonts.heading.clone()),
-            TextStyle::Primary => (theme.colors.text.primary, theme.fonts.fonts.text.clone()),
-            TextStyle::Secondary => (theme.colors.text.secondary, theme.fonts.fonts.text.clone()),
-            TextStyle::Error => (theme.colors.status.danger, theme.fonts.fonts.text.clone()),
-            TextStyle::White => (Color::WHITE, theme.fonts.fonts.text.clone()),
-            TextStyle::Keyboard => (theme.colors.text.heading, theme.fonts.fonts.keyboard.clone()),
-            TextStyle::Label(color) => (*color, theme.fonts.fonts.label.clone()),
+            TextStyle::Heading => (colors.text.heading, fonts.heading.clone()),
+            TextStyle::Primary => (colors.text.primary, fonts.text.clone()),
+            TextStyle::Secondary => (colors.text.secondary, fonts.text.clone()),
+            TextStyle::Error => (colors.status.danger, fonts.text.clone()),
+            TextStyle::White => (Color::WHITE, fonts.text.clone()),
+            TextStyle::Keyboard => (colors.text.heading, fonts.keyboard.clone()),
+            TextStyle::Label(color) => (*color, fonts.label.clone()),
         }
     }
 }

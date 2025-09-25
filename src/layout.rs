@@ -1,7 +1,7 @@
-use pelican_ui::events::OnEvent;
-use pelican_ui::drawable::{Drawable, Component};
-use pelican_ui::layout::{Layout, Area, SizeRequest};
-use pelican_ui::{Context, Component};
+use mustache::events::OnEvent;
+use mustache::drawable::{Drawable, Component};
+use mustache::layout::{Layout, Area, SizeRequest};
+use mustache::{Context, Component};
 
 use std::sync::{Arc, Mutex};
 
@@ -49,7 +49,7 @@ pub enum Size {
     /// # Parameters
     /// - `min` (`f32`): Minimum size.
     /// - `max` (`f32`): Maximum size.
-    Fill(f32, f32),
+    Fill,
     /// Layout uses a fixed, static size.
     ///
     /// # Parameters
@@ -64,7 +64,6 @@ pub enum Size {
 
 
 impl Size {
-    pub fn fill() -> Self {Size::Fill(0.0, f32::MAX)}
     pub fn custom(func: impl Fn(Vec<(f32, f32)>) -> (f32, f32) + 'static) -> Self {
         Size::Custom(Box::new(func))
     }
@@ -72,7 +71,7 @@ impl Size {
     pub fn get(&self, items: Vec<(f32, f32)>, fit: FitFunc) -> (f32, f32) {
         match self {
             Size::Fit => fit(items),
-            Size::Fill(min, max) => (*min, *max),
+            Size::Fill => (items.iter().fold(f32::MIN, |a, b| a.max(b.0)), f32::MAX),
             Size::Static(s) => (*s, *s),
             Size::Custom(f) => f(items)
         }
@@ -91,7 +90,7 @@ impl std::fmt::Debug for Size {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Size::Fit => write!(f, "Size::Fit"),
-            Size::Fill(min, max) => write!(f, "Size::Fill(min: {min}, max: {max})"),
+            Size::Fill => write!(f, "Size::Fill"),
             Size::Static(val) => write!(f, "Size::Static({val})"),
             Size::Custom(_) => write!(f, "Size::Custom(<function>)"),
         }
@@ -300,7 +299,7 @@ impl Stack {
     }
 
     pub fn fill() -> Self {
-        Stack(Offset::Center, Offset::Center, Size::fill(), Size::fill(), Padding::default())
+        Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default())
     }
 }
 

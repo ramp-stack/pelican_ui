@@ -1,11 +1,12 @@
-use pelican_ui::events::{OnEvent, MouseState, Event, MouseEvent};
-use pelican_ui::drawable::{Drawable, Component, Image, Color, Shape, ShapeType};
-use pelican_ui::layout::{Area, SizeRequest, Layout};
-use pelican_ui::{Context, Component, resources};
+use mustache::events::{OnEvent, MouseState, Event, MouseEvent};
+use mustache::drawable::{Drawable, Component, Image, Color, Shape, ShapeType};
+use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::{Context, Component, resources};
 
 use crate::components::{Icon, Circle};
 use crate::layout::{Stack, Offset, Size, Padding};
 use crate::utils::Callback;
+use crate::plugin::PelicanUI;
 
 /// ## Avatar
 ///
@@ -97,11 +98,12 @@ impl PrimaryAvatar {
     pub fn set_content(&mut self, content: AvatarContent) {
         match content {
             AvatarContent::Image(image) => {
-                if let Some(avatar_image) = &mut self.2 {
-                    avatar_image.image = image;
-                } else {
-                    let size = self.1.as_mut().unwrap().1.shape.size().0 + 2.0;
-                    self.2 = Some(Image{shape: ShapeType::Ellipse(0.0, (size, size), 0.0), image, color: None});
+                match &mut self.2 {
+                    Some(avatar_image) => {avatar_image.image = image;},
+                    None => {
+                        let size = self.1.as_mut().unwrap().1.shape.size().0 + 2.0;
+                        self.2 = Some(Image{shape: ShapeType::Ellipse(0.0, (size, size), 0.0), image, color: None});
+                    }
                 }
 
                 self.1 = None;
@@ -135,7 +137,7 @@ pub enum AvatarIconStyle {
 
 impl AvatarIconStyle {
     fn get(&self, ctx: &mut Context) -> (Color, Color) {
-        let colors = &ctx.theme.colors;
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
         match self {
             AvatarIconStyle::Primary => (colors.text.heading, colors.background.primary),
             AvatarIconStyle::Secondary => (colors.background.secondary, colors.text.secondary),

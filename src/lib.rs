@@ -4,15 +4,16 @@
 //!
 //! Checkout the [website](<http://ramp-stack.com/pelican_ui>) for additional information, our [Quick Start Guide](<http://ramp-stack.com/pelican_ui/getting_started>) for setting up your first app, and interact with the [community](<https://discord.gg/cTRaRbUZ>) if you have any questions!
 //!
+//! You must add the Pelican plugin to your application's plugins. 
 //!
-//! At its core, Pelican UI Standard revolves around **components**, which are composed from layouts and elements. Every structure implementing the [`Component`](pelican_ui::Component) trait must meet a few requirements:
-//! - Its first element must implement [`Layout`](pelican_ui::layout::Layout), ensuring correct management of positioning, sizing, and nested layouts.
-//! - It must implement [`OnEvent`](pelican_ui::events::OnEvent) and derive [`Debug`].
+//! At its core, Pelican UI Standard revolves around **components**, which are composed from layouts and elements. Every structure implementing the [`Component`](mustache::Component) trait must meet a few requirements:
+//! - Its first element must implement [`Layout`](mustache::layout::Layout), ensuring correct management of positioning, sizing, and nested layouts.
+//! - It must implement [`OnEvent`](mustache::events::OnEvent) and derive [`Debug`].
 //!
 //! Components are built from **elements**, the lowest-level primitives such as [`Text`], [`AspectRatioImage`], and [`Circle`], and can use different **layouts** like [`Column`], [`Row`], and [`Stack`] to arrange them.
 //! Components are also often built from combining components.
 //!
-//! Pelican UI Standard includes multiple [`Events`](pelican_ui::events::Event) used and triggered by its components, as well as configuration variables for platform detection such as [`IS_MOBILE`] and [`IS_WEB`]. Additional utilities like [`Timestamp`] and [`ElementID`] are also provided.
+//! Pelican UI Standard includes multiple [`Events`](mustache::events::Event) used and triggered by its components, as well as configuration variables for platform detection such as [`IS_MOBILE`] and [`IS_WEB`]. Additional utilities like [`Timestamp`] and [`ElementID`] are also provided.
 //!
 //! Beyond individual components, Pelican UI Standard ships with a few ready-to-use **pages** built entirely from its own system, including [`PelicanHome`], [`Error`], and [`Splash`]. These can be used directly or serve as references when creating custom pages.
 //!
@@ -47,7 +48,7 @@
 //!```
 //!
 
-pub mod events;
+// pub mod events;
 // pub use events::{
 //     NavigateEvent,
 //     KeyboardActiveEvent,
@@ -134,18 +135,21 @@ pub mod components;
 
 mod utils;
 pub use utils::{
-    Timestamp, 
-    ElementID,
+    // Timestamp, 
+    // ElementID,
     Callback
 };
 
-mod pages;
-pub use pages::{
-    AppPage, 
-    Error, 
-    Splash, 
-    PelicanHome
-};
+pub mod plugin;
+pub mod theme;
+
+// mod pages;
+// pub use pages::{
+//     AppPage, 
+//     Error, 
+//     Splash, 
+//     PelicanHome
+// };
 
 // mod themes;
 // pub use themes::{

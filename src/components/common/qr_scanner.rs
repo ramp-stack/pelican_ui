@@ -1,8 +1,8 @@
-use pelican_ui::events::{OnEvent, Event, TickEvent};
-use pelican_ui::drawable::{Color, Drawable, Component, ShapeType, Image, Align};
-use pelican_ui::layout::{Area, SizeRequest, Layout};
-use pelican_ui::{Context, Component};
-use pelican_ui::maverick_os::hardware::Camera;
+use mustache::events::{OnEvent, Event, TickEvent};
+use mustache::drawable::{Color, Drawable, Component, ShapeType, Image, Align};
+use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::{Context, Component};
+use mustache::maverick_os::hardware::Camera;
 
 use crate::components::{TextStyle, Text, Icon, Rectangle};
 use crate::layout::{Column, Padding, Size, Offset, Stack};

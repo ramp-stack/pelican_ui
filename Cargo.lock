@@ -2097,6 +2097,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mustache"
+version = "1.1.19"
+dependencies = [
+ "downcast-rs 2.0.1",
+ "image 0.25.6",
+ "include_dir",
+ "maverick_os",
+ "nsvg",
+ "pelican_ui_proc",
+ "serde",
+ "wgpu",
+ "wgpu_canvas",
+]
+
+[[package]]
 name = "naga"
 version = "25.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2947,19 +2962,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
-name = "pelican_ui"
-version = "1.1.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e96a188b7e7a568eba07546e2427745b92bc2dfb19108d96b076516b0aa8a7e"
+name = "pelican"
+version = "0.2.17"
 dependencies = [
+ "base64",
+ "chrono",
  "downcast-rs 2.0.1",
+ "dyn-clone",
+ "fast_image_resize",
  "image 0.25.6",
+ "imageproc",
  "include_dir",
- "maverick_os",
- "nsvg",
- "pelican_ui_proc",
- "wgpu",
- "wgpu_canvas",
+ "mustache",
+ "png 0.18.0",
+ "qrc",
+ "qrcode 0.14.1",
+ "quircs",
+ "serde",
+ "uuid",
 ]
 
 [[package]]
@@ -2971,26 +2991,6 @@ dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
  "syn 2.0.106",
-]
-
-[[package]]
-name = "pelican_ui_std"
-version = "0.2.16"
-dependencies = [
- "base64",
- "chrono",
- "downcast-rs 2.0.1",
- "dyn-clone",
- "fast_image_resize",
- "image 0.25.6",
- "imageproc",
- "pelican_ui",
- "png 0.18.0",
- "qrc",
- "qrcode 0.14.1",
- "quircs",
- "serde",
- "uuid",
 ]
 
 [[package]]
@@ -4744,9 +4744,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu_canvas"
-version = "4.1.2"
+version = "4.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b78e11c325e94fe5d9a0e85f9b352749018f558c751f3d7010f650205016f877"
+checksum = "5da9d9037903beff3cc7484327d4c10ffa170ba1d358c96745e0f949cb3a8e89"
 dependencies = [
  "bytemuck",
  "fast_image_resize",

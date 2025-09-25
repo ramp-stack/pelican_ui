@@ -1,7 +1,7 @@
-use pelican_ui::events::OnEvent;
-use pelican_ui::drawable::{Drawable, Component, Align, Image};
-use pelican_ui::layout::{Area, SizeRequest, Layout};
-use pelican_ui::{Context, Component};
+use mustache::events::OnEvent;
+use mustache::drawable::{Drawable, Component, Align, Image};
+use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::{Context, Component};
 
 use crate::components::{Icon, Text, TextStyle};
 use crate::layout::{Offset, Padding, Row, Size};

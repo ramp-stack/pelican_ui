@@ -1,7 +1,7 @@
-use pelican_ui::events::{OnEvent, MouseState, MouseEvent, Event};
-use pelican_ui::drawable::{Drawable, Component, Align, Color, Image};
-use pelican_ui::layout::{Area, SizeRequest, Layout};
-use pelican_ui::{Context, Component};
+use mustache::events::{OnEvent, MouseState, MouseEvent, Event};
+use mustache::drawable::{Drawable, Component, Align, Color, Image};
+use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::{Context, Component};
 
 use crate::events::ListItemSelect;
 use crate::components::{Rectangle, Icon, Text, ExpandableText, TextStyle};

@@ -1,7 +1,7 @@
-use pelican_ui::events::OnEvent;
-use pelican_ui::drawable::{Drawable, Component, ShapeType, Shape, Color};
-use pelican_ui::layout::{Area, SizeRequest};
-use pelican_ui::Context;
+use mustache::events::OnEvent;
+use mustache::drawable::{Drawable, Component, ShapeType, Shape, Color};
+use mustache::layout::{Area, SizeRequest};
+use mustache::Context;
 
 /// # Rectangle
 ///
@@ -11,7 +11,7 @@ use pelican_ui::Context;
 /// - `background`: background color
 /// - `outline`: outline color
 /// - `radius`: corner radius
-/// - `stroke`: optional outline thickness (`None` → no outline)
+/// - `stroke`: optional outline thickness (`None` == no outline)
 ///
 /// Rectangles expand to fill available space, so wrap them in a [`Bin`]  
 /// with a [`Stack`] layout to control the size.

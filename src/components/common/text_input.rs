@@ -1,7 +1,7 @@
-use pelican_ui::events::{OnEvent, TickEvent, MouseState, MouseEvent, Event, KeyboardState, KeyboardEvent};
-use pelican_ui::drawable::{Drawable, Component, Align, Color};
-use pelican_ui::layout::{Area, SizeRequest, Layout};
-use pelican_ui::{Context, Component};
+use mustache::events::{OnEvent, TickEvent, MouseState, MouseEvent, Event, KeyboardState, KeyboardEvent};
+use mustache::drawable::{Drawable, Component, Align, Color};
+use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::{Context, Component};
 
 use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
 use crate::components::button::IconButton;

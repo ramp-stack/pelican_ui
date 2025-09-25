@@ -1,9 +1,9 @@
-use pelican_ui::events::OnEvent;
-use pelican_ui::drawable::{Drawable, Component};
-use pelican_ui::layout::{Area, SizeRequest};
-use pelican_ui::drawable::{ShapeType, Image, Color};
-use pelican_ui::maverick_os::hardware::ImageOrientation;
-use pelican_ui::{Context, resources};
+use mustache::events::OnEvent;
+use mustache::drawable::{Drawable, Component};
+use mustache::layout::{Area, SizeRequest};
+use mustache::drawable::{ShapeType, Image, Color};
+use mustache::maverick_os::hardware::ImageOrientation;
+use mustache::{Context, resources};
 use std::io::BufWriter;
 
 use image::codecs::png::PngEncoder;
@@ -16,6 +16,7 @@ use fast_image_resize::images::Image as FirImage;
 use image::GenericImageView;
 use base64::{engine::general_purpose, Engine};
 
+use crate::plugin::PelicanUI;
 
 /// ## Icon
 ///
@@ -23,9 +24,9 @@ use base64::{engine::general_purpose, Engine};
 ///
 /// If an Icon is built with an icon name that doesn't exist, it will default to the Pelican UI logo.
 ///
-/// For all available icons, [`go here`](pelican_ui::IconResources)
+/// For all available icons, [`go here`](mustache::IconResources)
 ///
-/// To learn how to add new icons to the registration, [`go here`](pelican_ui::IconResources)
+/// To learn how to add new icons to the registration, [`go here`](mustache::IconResources)
 ///
 /// ![Icon Example](https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/icon.png)
 ///
@@ -39,7 +40,7 @@ pub struct Icon;
 impl Icon {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(ctx: &mut Context, name: &'static str, color: Color, size: f32) -> Image {
-        let icon = ctx.theme.icons.get(name);
+        let icon = ctx.get::<PelicanUI>().get().0.theme().icons.get(name);
         Image{shape: ShapeType::Rectangle(0.0, (size, size), 0.0), image: icon, color: Some(color)}
     }
 }
@@ -61,7 +62,7 @@ impl Icon {
 /// let image = AspectRatioImage::new(img, (100.0, 100.0));
 /// ```
 ///
-/// For adding a new image to the illustrations go here: [`Illustrations`](pelican_ui::Illustrations)
+/// For adding a new image to the illustrations go here: [`Illustrations`](mustache::Illustrations)
 #[derive(Clone, Debug)]
 pub struct AspectRatioImage;
 impl AspectRatioImage {

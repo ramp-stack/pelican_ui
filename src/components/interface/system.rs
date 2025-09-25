@@ -1,9 +1,9 @@
-use pelican_ui::events::Key as WinitKey;
-use pelican_ui::maverick_os::hardware::ImageOrientation;
-use pelican_ui::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey, SmolStr};
-use pelican_ui::drawable::{Drawable, Component, Align, Image, Color};
-use pelican_ui::layout::{Area, SizeRequest, Layout};
-use pelican_ui::{Context, Component};
+use mustache::events::Key as WinitKey;
+use mustache::maverick_os::hardware::ImageOrientation;
+use mustache::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey, SmolStr};
+use mustache::drawable::{Drawable, Component, Align, Image, Color};
+use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::{Context, Component};
 
 use crate::components::{Text, TextStyle, Rectangle, Icon, EncodedImage};
 use crate::events::{KeyboardActiveEvent, AttachmentEvent};

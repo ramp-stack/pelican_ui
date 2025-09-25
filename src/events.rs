@@ -1,5 +1,5 @@
-use pelican_ui::events::Event;
-use pelican_ui::Context;
+use mustache::events::Event;
+use mustache::Context;
 use crate::utils::ElementID;
 
 /// Event used to navigate between pages of the app.
