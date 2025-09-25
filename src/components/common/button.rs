@@ -1,5 +1,5 @@
 use mustache::events::OnEvent;
-use mustache::drawable::{Drawable, Component, Color, Align};
+use mustache::drawable::{Image, Drawable, Component, Color, Align};
 use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component};
 
@@ -26,16 +26,14 @@ impl PrimaryButton {
     fn _button(ctx: &mut Context, label: &str, colors: ButtonColorScheme) -> Button {
         let font_size = ButtonSize::Large.font(ctx);
         let text = Text::new(ctx, label, TextStyle::Label(colors.label), font_size, Align::Left);
-        Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.label)
+        Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
     }
 }
 
 #[derive(Debug, Component)]
 pub struct SecondaryButton(Stack, interactions::Button);
 impl OnEvent for SecondaryButton {}
-
 //TODO: Implement the active_label again.
-
 impl SecondaryButton {
     pub fn medium(ctx: &mut Context, icon: &'static str, label: &str, active_label: Option<&str>, on_click: Callback) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
@@ -50,7 +48,7 @@ impl SecondaryButton {
         let icon_size = ButtonSize::Medium.icon();
         let text = Text::new(ctx, label, TextStyle::Label(colors.label), font_size, Align::Left);
         let icon = Icon::new(ctx, icon, colors.label, icon_size);
-        Button::new(vec![Box::new(icon), Box::new(text)], ButtonSize::Medium, ButtonWidth::Fit, Offset::Center, colors.background, colors.label)
+        Button::new(vec![Box::new(icon), Box::new(text)], ButtonSize::Medium, ButtonWidth::Fit, Offset::Center, colors.background, colors.outline)
     }
 
     pub fn large(ctx: &mut Context, label: &str, on_click: Callback) -> Self {
@@ -63,7 +61,7 @@ impl SecondaryButton {
     fn _large(ctx: &mut Context, label: &str, colors: ButtonColorScheme) -> Button {
         let font_size = ButtonSize::Large.font(ctx);
         let text = Text::new(ctx, label, TextStyle::Label(colors.label), font_size, Align::Left);
-        Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.label)
+        Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
     }
 }
 
@@ -71,20 +69,23 @@ impl SecondaryButton {
 pub struct GhostButton(Stack, interactions::Button);
 impl OnEvent for GhostButton {}
 impl GhostButton {
-    pub fn navigation(ctx: &mut Context, icon: &'static str, label: &str, on_click: Callback, is_selected: bool) -> Self {
+
+    // * Regular Buttons
+
+    pub fn desktop_navigator(ctx: &mut Context, icon: &'static str, label: &str, on_click: Callback, is_selected: bool) -> Self {
         let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_navigation(ctx, icon, label, c));
+        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_desktop_navigator(ctx, icon, label, c));
         GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, state))
     }
 
-    fn _navigation(ctx: &mut Context, icon: &'static str, label: &str, colors: ButtonColorScheme) -> Button {
+    fn _desktop_navigator(ctx: &mut Context, icon: &'static str, label: &str, colors: ButtonColorScheme) -> Button {
         let font_size = ButtonSize::Large.font(ctx);
         let icon_size = ButtonSize::Large.icon();
         let text = Text::new(ctx, label, TextStyle::Label(colors.label), font_size, Align::Left);
         let icon = Icon::new(ctx, icon, colors.label, icon_size);
-        Button::new(vec![Box::new(icon), Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.label)
+        Button::new(vec![Box::new(icon), Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
     }
 
     pub fn keypad_number(ctx: &mut Context, label: &str, on_click: Callback) -> Self {
@@ -107,7 +108,55 @@ impl GhostButton {
         let mut content: Vec<Box<dyn Drawable>> = Vec::new();
         if let Some(l) = label {content.push(Box::new(Text::new(ctx, l, TextStyle::Label(colors.label), font_size, Align::Left)));}
         if let Some(i) = icon {content.push(Box::new(Icon::new(ctx, i, colors.label, icon_size)));}
-        Button::new(content, ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.label)
+        Button::new(content, ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
+    }
+
+    // * Icon Buttons
+
+    pub fn mobile_navigator(ctx: &mut Context, icon: &'static str, on_click: Callback, is_selected: bool) -> Self {
+        let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
+        let buttons = [colors.disabled, colors.hover, colors.pressed, colors.pressed, colors.disabled];
+        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_mobile_navigator(ctx, icon, c));
+        GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, state))
+    }
+
+    fn _mobile_navigator(ctx: &mut Context, icon: &'static str, colors: ButtonColorScheme) -> IconButton {
+        IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
+    }
+
+    pub fn navigation(ctx: &mut Context, icon: &'static str, on_click: Callback) -> Self {
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
+        let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
+        let [default, hover, pressed, selected, disabled] = buttons.map(|c| Self::_navigation(ctx, icon, c));
+        GhostButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
+    }
+
+    fn _navigation(ctx: &mut Context, icon: &'static str, colors: ButtonColorScheme) -> IconButton {
+        IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
+    }
+}
+
+#[derive(Debug, Component)]
+pub struct IconButton(Stack, Rectangle, Image);
+impl OnEvent for IconButton {}
+
+impl IconButton {
+    pub fn new(
+        ctx: &mut Context,
+        icon: &'static str,
+        style: ButtonStyle,
+        size: ButtonSize,
+        background: Color,
+        outline: Color,
+        label: Color,
+    ) -> Self {
+        let (size, icon_size, radius) = size.icon_button(style);
+
+        let icon = Icon::new(ctx, icon, label, icon_size);
+        let background = Rectangle::new(background, radius, Some((1.0, outline)));
+        let layout = Stack(Offset::Center, Offset::Center, Size::Static(size), Size::Static(size), Padding::default());
+        IconButton(layout, background, icon)
     }
 }
 
@@ -172,6 +221,7 @@ impl ButtonStyle {
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum ButtonSize {Large, Medium}
 impl ButtonSize {
+    /// Regular button sizing
     pub fn get(&self) -> (f32, f32, Padding) {
         match self {
             ButtonSize::Medium => (4.0, 32.0, Padding(12.0, 0.0, 12.0, 0.0)),
@@ -179,6 +229,7 @@ impl ButtonSize {
         }
     }
 
+    /// Regular button font size
     pub fn font(&self, ctx: &mut Context) -> f32 {
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         match self {
@@ -187,10 +238,22 @@ impl ButtonSize {
         }
     }
 
+    /// Regular button icon size
     pub fn icon(&self) -> f32 {
         match self {
             ButtonSize::Medium => 16.0,
             ButtonSize::Large => 24.0,
+        }
+    }
+
+    /// Icon button outer size, inner icon size, and corner radius
+    pub fn icon_button(&self, style: ButtonStyle) -> (f32, f32, f32) {
+        #[allow(clippy::wildcard_in_or_patterns)]
+        match (style, self) {
+            (ButtonStyle::Secondary, ButtonSize::Large) => (52.0, 32.0, 12.0),
+            (ButtonStyle::Secondary, ButtonSize::Medium) => (36.0, 20.0, 8.0),
+            (ButtonStyle::Ghost, ButtonSize::Large) => (52.0, 48.0, 12.0),
+            (ButtonStyle::Ghost, ButtonSize::Medium) | _ => (36.0, 32.0, 8.0),
         }
     }
 }
