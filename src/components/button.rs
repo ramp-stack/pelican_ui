@@ -1,7 +1,7 @@
 use mustache::events::OnEvent;
 use mustache::drawable::{Image, Drawable, Component, Color, Align};
 use mustache::layout::{Area, SizeRequest, Layout};
-use mustache::{Context, Component};
+use mustache::{drawables, Context, Component};
 
 use crate::Callback;
 use crate::components::{Icon, Rectangle, Text, TextStyle};
@@ -22,7 +22,7 @@ impl PrimaryButton {
         let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
             let font_size = ButtonSize::Large.font(ctx);
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-            Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
+            Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
         PrimaryButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, state))
     }
@@ -45,7 +45,7 @@ impl SecondaryButton {
         let icon_size = ButtonSize::Medium.icon();
         let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
         let icon = Icon::new(ctx, icon, colors.label, icon_size);
-        Button::new(vec![Box::new(icon), Box::new(text)], ButtonSize::Medium, ButtonWidth::Fit, Offset::Center, colors.background, colors.outline)
+        Button::new(drawables![icon, text], ButtonSize::Medium, ButtonWidth::Fit, Offset::Center, colors.background, colors.outline)
     }
 
     pub fn large(ctx: &mut Context, label: &str, on_click: Callback) -> Self {
@@ -54,7 +54,7 @@ impl SecondaryButton {
         let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
             let font_size = ButtonSize::Large.font(ctx);
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-            Button::new(vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
+            Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
         SecondaryButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
     }

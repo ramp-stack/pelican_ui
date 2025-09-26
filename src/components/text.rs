@@ -1,4 +1,4 @@
-use mustache::events::OnEvent; //{MouseState, MouseEvent, Event, TickEvent, Key, NamedKey};
+use mustache::events::{OnEvent, Event, TickEvent}; //{MouseState, MouseEvent, Event, TickEvent, Key, NamedKey};
 use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::drawable::{Drawable, Component, Color, Align, Span}; //Shape, Cursor
 use mustache::drawable::Text as BasicText;
@@ -47,7 +47,24 @@ pub struct Text {
     #[skip] pub align: Align,
     #[skip] pub max_lines: Option<u32>,
 }
-impl OnEvent for Text {}
+
+impl OnEvent for Text {
+    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+        if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
+            let (color, font) = self.style.get(ctx);
+            self.inner.align = self.align;
+            self.inner.max_lines = self.max_lines;
+            self.inner.spans[0].text = self.text.to_string();
+            self.inner.spans.iter_mut().for_each(|s| {
+                s.font_size = self.size;
+                s.color = color;
+                s.font = font.clone();
+            });
+        }
+        true
+    }
+}
+
 impl Text {
     pub fn new(ctx: &mut Context, text: &str, size: f32, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         let (color, font) = style.get(ctx);
@@ -56,61 +73,56 @@ impl Text {
     }
 }
 
-// /// # Expandable Text
-// ///
-// /// A text component that expands to take as much horizontal space as possible,  
-// /// enabling automatic line wrapping and custom text alignment.  
-// /// Unlike [`Text`], which only sizes to fit its content.
-// ///
-// /// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/expandable_text.png"
-// ///      alt="Expandable Text Example"
-// ///      width="400">
-// ///
-// /// ## Example
-// /// ```rust
-// /// let text = "Greyhounds are gentle, affectionate dogs that love to run.
-// /// They are known for their incredible speed and calm temperament,
-// /// making them excellent companions.";
-// ///
-// /// let text_size = ctx.theme.fonts.size.md;
-// ///
-// /// let expandable = ExpandableText::new(
-// ///     ctx,
-// ///     text,
-// ///     TextStyle::Primary,
-// ///     text_size,
-// ///     Align::Start,
-// ///     Some(3), // limit to 3 lines before truncation
-// /// );
-// /// ```
-// #[derive(Debug)]
-// pub struct ExpandableText(pub Text);
-// impl OnEvent for ExpandableText {}
+/// # Expandable Text
+///
+/// A text component that expands to take as much horizontal space as possible,  
+/// enabling automatic line wrapping and custom text alignment.  
+/// Unlike [`Text`], which only sizes to fit its content.
+///
+/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/expandable_text.png"
+///      alt="Expandable Text Example"
+///      width="400">
+///
+/// ## Example
+/// ```rust
+/// let text = "Greyhounds are gentle, affectionate dogs that love to run.
+/// They are known for their incredible speed and calm temperament,
+/// making them excellent companions.";
+///
+/// let text_size = ctx.theme.fonts.size.md;
+///
+/// let expandable = ExpandableText::new(
+///     ctx,
+///     text,
+///     text_size,
+///     TextStyle::Primary,
+///     Align::Start,
+///     Some(3), // limit to 3 lines before truncation
+/// );
+/// ```
+#[derive(Debug)]
+pub struct ExpandableText(pub Text);
+impl OnEvent for ExpandableText {}
 
-// impl ExpandableText {
-//     pub fn new(ctx: &mut Context, text: &str, style: TextStyle, size: f32, align: Align, max_lines: Option<u32>) -> Self {
-//         let (color, font) = style.get(ctx);
-//         let text = BasicText::new(vec![Span::new(text.to_string(), size, Some(size*1.25), font, color, 0.0)], None, align, max_lines);
-//         ExpandableText(Text(Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default()), text))
-//     }
+impl ExpandableText {
+    pub fn new(ctx: &mut Context, text: &str, size: f32, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
+        ExpandableText(Text::new(ctx, text, size, style, align, max_lines))
+    }
+}
 
-//     pub fn set_kerning(&mut self, kerning: f32) { self.0.set_kerning(kerning); }
-//     pub fn text(&mut self) -> &mut BasicText { self.0.text() }
-// }
+impl Component for ExpandableText {
+    fn children_mut(&mut self) -> Vec<&mut dyn Drawable> { vec![&mut self.0] }
+    fn children(&self) -> Vec<&dyn Drawable> { vec![&self.0] }
 
-// impl Component for ExpandableText {
-//     fn children_mut(&mut self) -> Vec<&mut dyn Drawable> { vec![&mut self.0] }
-//     fn children(&self) -> Vec<&dyn Drawable> { vec![&self.0] }
+    fn request_size(&self, _ctx: &mut Context, children: Vec<SizeRequest>) -> SizeRequest {
+        SizeRequest::new(0.0, children[0].min_height(), f32::MAX, children[0].max_height())
+    }
 
-//     fn request_size(&self, _ctx: &mut Context, children: Vec<SizeRequest>) -> SizeRequest {
-//         SizeRequest::new(0.0, children[0].min_height(), f32::MAX, children[0].max_height())
-//     }
-
-//     fn build(&mut self, _ctx: &mut Context, size: (f32, f32), _children: Vec<SizeRequest>) -> Vec<Area> {
-//         self.0.text().width = Some(size.0);
-//         vec![Area{offset: (0.0, 0.0), size}]
-//     }
-// }
+    fn build(&mut self, _ctx: &mut Context, size: (f32, f32), _children: Vec<SizeRequest>) -> Vec<Area> {
+        self.0.inner.width = Some(size.0);
+        vec![Area{offset: (0.0, 0.0), size}]
+    }
+}
 
 // #[derive(Component, Debug)]
 // pub struct TextEditor(Stack, ExpandableText, TextCursor);
