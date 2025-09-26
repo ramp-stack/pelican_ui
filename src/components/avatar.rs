@@ -1,4 +1,4 @@
-use mustache::events::{OnEvent, MouseState, Event, MouseEvent};
+use mustache::events::{TickEvent, OnEvent, MouseState, Event, MouseEvent};
 use mustache::drawable::{Drawable, Component, Image, Color, Shape, ShapeType};
 use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component, resources};
@@ -28,7 +28,22 @@ use crate::plugin::PelicanUI;
 /// );
 /// ```
 #[derive(Component)]
-pub struct Avatar(Stack, PrimaryAvatar, Option<Flair>, #[skip] Option<Callback>);
+pub struct Avatar {
+    _layout: Stack,
+    _avatar: PrimaryAvatar,
+    _flair: Option<Flair>,
+    #[skip] _size: f32,
+    #[skip] on_click: Option<Callback>,
+    #[skip] pub content: AvatarContent,
+    #[skip] pub flair: Option<(&'static str, AvatarIconStyle)>,
+    #[skip] pub outline: bool,
+}
+
+impl std::fmt::Debug for Avatar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Avatar...")
+    }
+}
 
 impl Avatar {
     pub fn new(
@@ -39,51 +54,47 @@ impl Avatar {
         size: f32,
         on_click: Option<Callback>
     ) -> Self {
-        Avatar(
-            Stack(Offset::End, Offset::End, Size::Fit, Size::Fit, Padding::default()),
-            PrimaryAvatar::new(ctx, content, outline, size),
-            flair.map(|(name, style)| Flair::new(ctx, name, style, size)),
-            on_click
-        )
+        Avatar {
+            _layout: Stack(Offset::End, Offset::End, Size::Fit, Size::Fit, Padding::default()),
+            _avatar: PrimaryAvatar::new(ctx, content.clone(), outline, size),
+            _flair: flair.map(|(name, style)| Flair::new(ctx, name, style, size)),
+            _size: size,
+            on_click,
+            content,
+            flair,
+            outline,
+        }
     }
-
-    /// Returns the size of the avatar.
-    pub fn size(&self) -> f32 {self.1.size()}
-    /// Sets the content of the avatar
-    pub fn set_content(&mut self, content: AvatarContent)  {self.1.set_content(content)}
-    /// Returns a mutable reference to the optional flair.
-    pub fn flair(&mut self) -> &mut Option<Flair> {&mut self.2}
-    /// Returns a mutable reference to the optional outline.
-    pub fn outline(&mut self) -> &mut Option<Shape> {&mut self.1.3}
-    /// Returns a mutable reference to the primary avatar.
-    pub fn avatar(&mut self) -> &mut PrimaryAvatar {&mut self.1}
 }
 
 impl OnEvent for Avatar {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.as_any_mut().downcast_mut::<MouseEvent>() {
-            if let Some(on_click) = &mut self.3 {
+            if let Some(on_click) = &mut self.on_click {
                 ctx.hardware.haptic();
                 (on_click)(ctx)
             }
+        } else if event.as_any().downcast_ref::<TickEvent>().is_some() {
+            let (circle_icon, image) = match &self.content {
+                AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (self._size, self._size), 0.0), image: image.clone(), color: None})),
+                AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(ctx, name, *style, self._size)), None)
+            };
+            
+            self._avatar.1 = circle_icon;
+            self._avatar.2 = image;
+            self._avatar.3 = self.outline.then(|| Circle::new(self._size, Color::BLACK, true));
+            self._flair = self.flair.map(|(name, style)| Flair::new(ctx, name, style, self._size));
         }
         false
     }
 }
 
-impl std::fmt::Debug for Avatar {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Avatar...")
-    }
-}
-
 #[derive(Component, Debug)]
-pub struct PrimaryAvatar(Stack, Option<AvatarIcon>, Option<Image>, Option<Shape>, #[skip] f32);
+struct PrimaryAvatar(Stack, Option<AvatarIcon>, Option<Image>, Option<Shape>);
 impl OnEvent for PrimaryAvatar {}
 
 impl PrimaryAvatar {
     fn new(ctx: &mut Context, content: AvatarContent, outline: bool, size: f32) -> Self {
-
         let (circle_icon, image) = match content {
             AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (size, size), 0.0), image, color: None})),
             AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(ctx, name, style, size)), None)
@@ -91,30 +102,9 @@ impl PrimaryAvatar {
 
         PrimaryAvatar(
             Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding::default()),
-            circle_icon, image, outline.then(|| Circle::new(size, Color::BLACK, true)), size
+            circle_icon, image, outline.then(|| Circle::new(size, Color::BLACK, true)),
         )
     }
-
-    pub fn set_content(&mut self, content: AvatarContent) {
-        match content {
-            AvatarContent::Image(image) => {
-                match &mut self.2 {
-                    Some(avatar_image) => {avatar_image.image = image;},
-                    None => {
-                        let size = self.1.as_mut().unwrap().1.shape.size().0 + 2.0;
-                        self.2 = Some(Image{shape: ShapeType::Ellipse(0.0, (size, size), 0.0), image, color: None});
-                    }
-                }
-
-                self.1 = None;
-            }
-            AvatarContent::Icon(_name, _style) => {/* to do */}
-        };
-    }
-
-    pub fn size(&self) -> f32 {self.4}
-    pub fn image(&mut self) -> &mut Option<Image> { &mut self.2 }
-    pub fn icon(&mut self) -> &mut Option<AvatarIcon> { &mut self.1 }
 }
 
 
@@ -132,7 +122,6 @@ pub enum AvatarIconStyle {
     Success,
     Warning,
     Danger,
-    Custom(Color, Color)
 }
 
 impl AvatarIconStyle {
@@ -145,17 +134,15 @@ impl AvatarIconStyle {
             AvatarIconStyle::Success => (colors.status.success, Color::WHITE),
             AvatarIconStyle::Warning => (colors.status.warning, Color::WHITE),
             AvatarIconStyle::Danger => (colors.status.danger, Color::WHITE),
-            AvatarIconStyle::Custom(background, icon) => (*background, *icon)
         }
     }
 }
+
 #[derive(Debug, Component)]
-pub struct AvatarIcon(Stack, Shape, Image);
-
+struct AvatarIcon(Stack, Shape, Image);
 impl OnEvent for AvatarIcon {}
-
 impl AvatarIcon {
-    pub fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: f32) -> Self {
+    fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: f32) -> Self {
         let icon_size = size * 0.75;
         let (background, icon_color) = style.get(ctx);
         AvatarIcon(
@@ -164,22 +151,17 @@ impl AvatarIcon {
             Icon::new(ctx, name, icon_color, icon_size)
         )
     }
-    pub fn icon(&mut self) -> &mut Image { &mut self.2 }
 }
 
 #[derive(Debug, Component)]
-pub struct Flair(Stack, AvatarIcon, Shape);
-
+struct Flair(Stack, AvatarIcon, Shape);
 impl OnEvent for Flair {}
-
 impl Flair {
-    pub fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: f32) -> Self {
+    fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: f32) -> Self {
         Flair(
             Stack::center(),
             AvatarIcon::new(ctx, name, style, size / 3.0),
             Circle::new(size / 3.0,  Color::BLACK, true)
         )
     }
-
-    pub fn icon(&mut self) -> &mut Image {self.1.icon()}
 }
