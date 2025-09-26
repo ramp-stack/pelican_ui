@@ -1,11 +1,11 @@
-use mustache::events::{OnEvent, Event, TickEvent}; //{MouseState, MouseEvent, Event, TickEvent, Key, NamedKey};
+use mustache::events::{OnEvent, MouseState, MouseEvent, Event, TickEvent, Key, NamedKey};
 use mustache::layout::{Area, SizeRequest, Layout};
-use mustache::drawable::{Drawable, Component, Color, Align, Span}; //Shape, Cursor
+use mustache::drawable::{Drawable, Component, Color, Align, Span, Cursor}; //Shape, Cursor
 use mustache::drawable::Text as BasicText;
 use mustache::{Context, Component, resources};
 
-use crate::layout::Stack; //{Offset, Size, Padding, Opt, Row, Column};
-// use crate::components::{Rectangle, Circle};
+use crate::layout::{Stack, Offset, Size, Padding, Opt};
+use crate::components::Rectangle;
 use crate::plugin::PelicanUI;
 
 /// # Text Style
@@ -124,98 +124,98 @@ impl Component for ExpandableText {
     }
 }
 
-// #[derive(Component, Debug)]
-// pub struct TextEditor(Stack, ExpandableText, TextCursor);
+#[derive(Component, Debug)]
+pub struct TextEditor(Stack, ExpandableText, TextCursor);
 
-// impl TextEditor {
-//     pub fn new(ctx: &mut Context, text: &str, style: TextStyle, size: f32, align: Align) -> Self {
-//         let mut text = ExpandableText::new(ctx, text, style, size, align, None);
-//         text.text().cursor = Some(Cursor::default());
-//         TextEditor(Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default()), text, TextCursor::new(ctx, style, size))
-//     }
+impl TextEditor {
+    pub fn new(ctx: &mut Context, text: &str, size: f32, style: TextStyle, align: Align) -> Self {
+        let mut text = ExpandableText::new(ctx, text, size, style, align, None);
+        text.0.inner.cursor = Some(Cursor::default());
+        TextEditor(Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default()), text, TextCursor::new(ctx, style, size))
+    }
 
-//     pub fn text(&mut self) -> &mut BasicText { self.1.text() }
+    pub fn text(&mut self) -> &mut BasicText { &mut self.1.0.inner }
 
-//     pub fn apply_edit(&mut self, _ctx: &mut Context, key: &Key) {
-//         let index = self.text().cursor.unwrap();
-//         match key {
-//             Key::Named(NamedKey::Enter) => {
-//                 match index >= self.text().spans[0].text.len() {
-//                     true => self.text().spans[0].text.push('\n'),
-//                     false => self.text().spans[0].text.insert(index, '\n'),
-//                 };
-//                 if let Some(c) = self.text().cursor.as_mut() {*c += 1};
-//             },
-//             Key::Named(NamedKey::Space) => {
-//                 match index >= self.text().spans[0].text.len() {
-//                     true => self.text().spans[0].text.push(' '),
-//                     false => self.text().spans[0].text.insert(index, ' '),
-//                 };
-//                 if let Some(c) = self.text().cursor.as_mut() {*c += 1};
-//             },
-//             Key::Named(NamedKey::Delete | NamedKey::Backspace) => {
-//                 self.text().spans[0].text = {
-//                     let mut chars: Vec<char> = self.text().spans[0].text.chars().collect();
+    pub fn apply_edit(&mut self, _ctx: &mut Context, key: &Key) {
+        let index = self.text().cursor.unwrap();
+        match key {
+            Key::Named(NamedKey::Enter) => {
+                match index >= self.text().spans[0].text.len() {
+                    true => self.text().spans[0].text.push('\n'),
+                    false => self.text().spans[0].text.insert(index, '\n'),
+                };
+                if let Some(c) = self.text().cursor.as_mut() {*c += 1};
+            },
+            Key::Named(NamedKey::Space) => {
+                match index >= self.text().spans[0].text.len() {
+                    true => self.text().spans[0].text.push(' '),
+                    false => self.text().spans[0].text.insert(index, ' '),
+                };
+                if let Some(c) = self.text().cursor.as_mut() {*c += 1};
+            },
+            Key::Named(NamedKey::Delete | NamedKey::Backspace) => {
+                self.text().spans[0].text = {
+                    let mut chars: Vec<char> = self.text().spans[0].text.chars().collect();
 
-//                     match chars.len() {
-//                         1 => chars.clear(),
-//                         _ if index >= chars.len() => {chars.pop();},
-//                         _ => {chars.remove(index);}
-//                     }
+                    match chars.len() {
+                        1 => chars.clear(),
+                        _ if index >= chars.len() => {chars.pop();},
+                        _ => {chars.remove(index);}
+                    }
 
-//                     chars.into_iter().collect()
-//                 };
-//                 if let Some(c) = self.text().cursor.as_mut() { *c = c.saturating_sub(1); }
-//             },
-//             Key::Character(c) => {
-//                 match index >= self.text().spans[0].text.len() {
-//                     true => c.chars().next().map(|ch| self.text().spans[0].text.push(ch)),
-//                     false => c.chars().next().map(|ch| self.text().spans[0].text.insert(index, ch)),
-//                 };
-//                 if let Some(c) = self.text().cursor.as_mut() {*c += 1;}
-//             },
-//             _ => {}
-//         };
-//     }
+                    chars.into_iter().collect()
+                };
+                if let Some(c) = self.text().cursor.as_mut() { *c = c.saturating_sub(1); }
+            },
+            Key::Character(c) => {
+                match index >= self.text().spans[0].text.len() {
+                    true => c.chars().next().map(|ch| self.text().spans[0].text.push(ch)),
+                    false => c.chars().next().map(|ch| self.text().spans[0].text.insert(index, ch)),
+                };
+                if let Some(c) = self.text().cursor.as_mut() {*c += 1;}
+            },
+            _ => {}
+        };
+    }
 
-//     pub fn display_cursor(&mut self, display: bool) {
-//         self.2.1.display(display)
-//     }
-// }
+    pub fn display_cursor(&mut self, display: bool) {
+        self.2.1.display(display)
+    }
+}
 
-// impl OnEvent for TextEditor {
-//     fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
-//         if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
-//             let cursor_pos = self.text().cursor_position();
-//             *self.2.x_offset() = Offset::Static(cursor_pos.0);
-//             *self.2.y_offset() = Offset::Static(cursor_pos.1+2.0);
-//         } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
-//             if event.state == MouseState::Pressed && event.position.is_some() {
-//                 self.text().cursor_click(event.position.unwrap().0, event.position.unwrap().1)
-//             }
-//         }
+impl OnEvent for TextEditor {
+    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
+        if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
+            let cursor_pos = self.text().cursor_position();
+            *self.2.x_offset() = Offset::Static(cursor_pos.0);
+            *self.2.y_offset() = Offset::Static(cursor_pos.1+2.0);
+        } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
+            if event.state == MouseState::Pressed && event.position.is_some() {
+                self.text().cursor_click(event.position.unwrap().0, event.position.unwrap().1)
+            }
+        }
         
-//         true
-//     }
-// }
+        true
+    }
+}
 
-// #[derive(Component, Debug)]
-// pub struct TextCursor(Stack, Opt<Rectangle>);
+#[derive(Component, Debug)]
+pub struct TextCursor(Stack, Opt<Rectangle>);
 
-// impl OnEvent for TextCursor {}
+impl OnEvent for TextCursor {}
 
-// impl TextCursor {
-//     pub fn new(ctx: &mut Context, style: TextStyle, size: f32) -> Self {
-//         let (color, _) = style.get(ctx);
-//         TextCursor(
-//             Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()), 
-//             Opt::new(Rectangle::new(color, 0.0, None), false)
-//         )
-//     }
+impl TextCursor {
+    pub fn new(ctx: &mut Context, style: TextStyle, size: f32) -> Self {
+        let (color, _) = style.get(ctx);
+        TextCursor(
+            Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()), 
+            Opt::new(Rectangle::new(color, 0.0, None), false)
+        )
+    }
 
-//     pub fn x_offset(&mut self) -> &mut Offset { &mut self.0.0 }
-//     pub fn y_offset(&mut self) -> &mut Offset { &mut self.0.1 }
-// }
+    pub fn x_offset(&mut self) -> &mut Offset { &mut self.0.0 }
+    pub fn y_offset(&mut self) -> &mut Offset { &mut self.0.1 }
+}
 
 // /// # Bulleted Text
 // ///

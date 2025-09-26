@@ -24,7 +24,7 @@ use crate::Callback;
 /// ```rust
 /// let item = ListItem::new(
 ///     ctx,
-///     true,
+///     Some(AvatarContent::Icon("wifi", AvatarIconStyle::Success)),
 ///     "Wi-Fi",
 ///     None,
 ///     None,
@@ -46,16 +46,36 @@ impl std::fmt::Debug for ListItem {
     }
 }
 
-pub struct ListItemInfoLeft<'a> {
-    title: &'a str,
+pub struct ListItemInfoLeft {
+    title: String,
     flair: Option<(&'static str, Color)>,
-    subtitle: Option<&'a str>,
-    description: Option<&'a str>,
+    subtitle: Option<String>,
+    description: Option<String>,
 }
 
-pub struct ListItemInfoRight<'a> {
-    title: &'a str,
-    subtitle: Option<&'a str>,
+impl ListItemInfoLeft {
+    pub fn new(t: &str, f: Option<(&'static str, Color)>, s: Option<&str>, d: Option<&str>) -> Self {
+        ListItemInfoLeft {
+            title: t.to_string(),
+            flair: f,
+            subtitle: s.map(|text| text.to_string()),
+            description: d.map(|text| text.to_string()),
+        }
+    }
+}
+
+pub struct ListItemInfoRight {
+    title: String,
+    subtitle: Option<String>,
+}
+
+impl ListItemInfoRight {
+    pub fn new(t: &str, s: Option<&str>, ) -> Self {
+        ListItemInfoRight {
+            title: t.to_string(),
+            subtitle: s.map(|text| text.to_string()),
+        }
+    }
 }
 
 impl ListItem {
@@ -131,9 +151,9 @@ impl LeftData {
     pub fn new(ctx: &mut Context, info: ListItemInfoLeft) -> Self {
         let layout = Column::new(4.0, Offset::Start, Size::Fill, Padding::default());
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.xs;
-        let subtitle = info.subtitle.map(|text| ExpandableText::new(ctx, text, size, TextStyle::Secondary, Align::Left, Some(2)));
-        let description = info.description.map(|text| ExpandableText::new(ctx, text, size, TextStyle::Secondary, Align::Left, Some(2)));
-        LeftData(layout, TitleRow::new(ctx, info.title, info.flair), subtitle, description)
+        let subtitle = info.subtitle.map(|text| ExpandableText::new(ctx, &text, size, TextStyle::Secondary, Align::Left, Some(2)));
+        let description = info.description.map(|text| ExpandableText::new(ctx, &text, size, TextStyle::Secondary, Align::Left, Some(2)));
+        LeftData(layout, TitleRow::new(ctx, &info.title, info.flair), subtitle, description)
     }
 }
 
@@ -159,8 +179,8 @@ impl RightData {
     pub fn new(ctx: &mut Context, info: ListItemInfoRight) -> Self {
         let layout = Column::new(4.0, Offset::End, Size::Fit, Padding::default());
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
-        let title = Text::new(ctx, info.title, size.h5, TextStyle::Heading, Align::Left, Some(1));
-        let subtitle = info.subtitle.map(|t| Text::new(ctx, t, size.xs, TextStyle::Secondary, Align::Left, Some(2)));
+        let title = Text::new(ctx, &info.title, size.h5, TextStyle::Heading, Align::Left, Some(1));
+        let subtitle = info.subtitle.map(|t| Text::new(ctx, &t, size.xs, TextStyle::Secondary, Align::Left, Some(2)));
         RightData(layout, title, subtitle)
     }
 }

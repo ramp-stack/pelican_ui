@@ -5,6 +5,7 @@ use mustache::{Context, Component};
 
 use crate::components::{Text, ExpandableText, TextStyle, Circle, Rectangle};
 use crate::layout::{Column, Stack, Offset, Size, Padding, Bin};
+use crate::plugin::PelicanUI;
 
 /// ## Slider
 ///
@@ -35,11 +36,11 @@ impl Slider {
         description: Option<&str>,
         on_release: impl FnMut(&mut Context, f32) + 'static,
     ) -> Self {
-        let font_size = ctx.theme.fonts.size;
+        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         Slider(
             Column::new(8.0, Offset::Start, Size::Fit, Padding::default()),
-            label.map(|l| Text::new(ctx, l, TextStyle::Heading, font_size.h5, Align::Left)),
-            description.map(|t| ExpandableText::new(ctx, t, TextStyle::Primary, font_size.md, Align::Left, None)),
+            label.map(|l| Text::new(ctx, l, size.h5, TextStyle::Heading, Align::Left, None)),
+            description.map(|t| ExpandableText::new(ctx, t, size.md, TextStyle::Primary, Align::Left, None)),
             SliderContent::new(ctx, start, on_release),
             start.clamp(0.0, 1.0),
         )
@@ -76,8 +77,7 @@ impl SliderContent {
         let track = Stack(Offset::Start, Offset::Center, width, Size::Static(6.0), Padding::default());
         let fill = Stack(Offset::Start, Offset::Start, Size::Static(30.0), Size::Static(6.0), Padding::default());
         let layout = Stack(Offset::Start, Offset::Center, Size::Fit, Size::Fit, Padding::default());
-        let color = ctx.theme.colors.brand;
-
+        let color = ctx.get::<PelicanUI>().get().0.theme().colors.brand;
         SliderContent(
             layout,
             Bin(track, Rectangle::new(Color::WHITE, 3.0, None)),
@@ -159,7 +159,7 @@ impl OnEvent for SliderKnob {}
 
 impl SliderKnob {
     pub fn new(ctx: &mut Context) -> Self {
-        let color = ctx.theme.colors.brand;
+        let color = ctx.get::<PelicanUI>().get().0.theme().colors.brand;
         SliderKnob(Stack::default(), Circle::new(18.0, color, false))
     }
 
