@@ -15,7 +15,7 @@ use crate::plugin::PelicanUI;
 pub struct PrimaryButton(Stack, interactions::Button);
 impl OnEvent for PrimaryButton {}
 impl PrimaryButton {
-    pub fn new(ctx: &mut Context, label: &str, on_click: Callback, is_disabled: bool) -> Self {
+    pub fn new(ctx: &mut Context, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_disabled: bool) -> Self {
         let state = if is_disabled {ButtonState::Disabled} else {ButtonState::Default};
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.primary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
@@ -24,20 +24,22 @@ impl PrimaryButton {
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
-        PrimaryButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, state))
+        PrimaryButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, state))
     }
+    
+    pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
 }
 
 #[derive(Debug, Component)]
 pub struct SecondaryButton(Stack, interactions::Button);
 impl OnEvent for SecondaryButton {}
 impl SecondaryButton {
-    pub fn medium(ctx: &mut Context, icon: &'static str, label: &str, active_label: Option<&str>, on_click: Callback) -> Self {
+    pub fn medium(ctx: &mut Context, icon: &'static str, label: &str, active_label: Option<&str>, on_click: impl FnMut(&mut Context) + 'static) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| Self::_medium(ctx, icon, label, colors));
         let selected = Self::_medium(ctx, icon, active_label.unwrap_or(label), colors.pressed);
-        SecondaryButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
+        SecondaryButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, ButtonState::Default))
     }
 
     fn _medium(ctx: &mut Context, icon: &'static str, label: &str, colors: ButtonColorScheme) -> Button {
@@ -48,7 +50,7 @@ impl SecondaryButton {
         Button::new(drawables![icon, text], ButtonSize::Medium, ButtonWidth::Fit, Offset::Center, colors.background, colors.outline)
     }
 
-    pub fn large(ctx: &mut Context, label: &str, on_click: Callback) -> Self {
+    pub fn large(ctx: &mut Context, label: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
         let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
@@ -56,44 +58,50 @@ impl SecondaryButton {
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
-        SecondaryButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
+        SecondaryButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, ButtonState::Default))
     }
+
+    pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
 }
 
 #[derive(Debug, Component)]
 pub struct SecondaryIconButton(Stack, interactions::Button);
 impl OnEvent for SecondaryIconButton {}
 impl SecondaryIconButton {
-    pub fn new(ctx: &mut Context, icon: &'static str, on_click: Callback) -> Self {
+    pub fn new(ctx: &mut Context, icon: &'static str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
         let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
             IconButton::new(ctx, icon, true, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
-        SecondaryIconButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
+        SecondaryIconButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, ButtonState::Default))
     }
+
+    pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
 }
 
 #[derive(Debug, Component)]
 pub struct GhostIconButton(Stack, interactions::Button);
 impl OnEvent for GhostIconButton {}
 impl GhostIconButton {
-    pub fn new(ctx: &mut Context, icon: &'static str, on_click: Callback) -> Self {
+    pub fn new(ctx: &mut Context, icon: &'static str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
         let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
             IconButton::new(ctx, icon, false, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
-        GhostIconButton(Stack::default(), interactions::Button::new(on_click, default, hover, pressed, selected, disabled, ButtonState::Default))
+        GhostIconButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, ButtonState::Default))
     }
+
+    pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
 }
 
 #[derive(Debug, Component)]
-struct IconButton(Stack, Rectangle, Image);
+pub(crate) struct IconButton(Stack, Rectangle, Image);
 impl OnEvent for IconButton {}
 
 impl IconButton {
-    fn new(
+    pub(crate) fn new(
         ctx: &mut Context,
         icon: &'static str,
         is_secondary: bool,
@@ -111,11 +119,11 @@ impl IconButton {
 }
 
 #[derive(Debug, Component)]
-struct Button(Stack, Rectangle, ButtonContent);
+pub(crate) struct Button(Stack, Rectangle, ButtonContent);
 impl OnEvent for Button {}
 
 impl Button {
-    fn new(
+    pub(crate) fn new(
         content: Vec<Box<dyn Drawable>>,
         size: ButtonSize,
         width: ButtonWidth,
@@ -142,9 +150,9 @@ impl ButtonContent {
 
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
-enum ButtonWidth {Fit, Fill}
+pub enum ButtonWidth {Fit, Fill}
 impl ButtonWidth{
-    fn get(&self) -> Size {
+    pub(crate) fn get(&self) -> Size {
         match self {
             ButtonWidth::Fit => Size::Fit,
             ButtonWidth::Fill => Size::Fill,
@@ -153,10 +161,10 @@ impl ButtonWidth{
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
-enum ButtonSize {Large, Medium}
+pub enum ButtonSize {Large, Medium}
 impl ButtonSize {
     /// Regular button sizing
-    fn get(&self) -> (f32, f32, Padding) {
+    pub(crate) fn get(&self) -> (f32, f32, Padding) {
         match self {
             ButtonSize::Medium => (4.0, 32.0, Padding(12.0, 0.0, 12.0, 0.0)),
             ButtonSize::Large => (12.0, 48.0, Padding(24.0, 0.0, 24.0, 0.0))
@@ -164,7 +172,7 @@ impl ButtonSize {
     }
 
     /// Regular button font size
-    fn font(&self, ctx: &mut Context) -> f32 {
+    pub(crate) fn font(&self, ctx: &mut Context) -> f32 {
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         match self {
             ButtonSize::Medium => size.md,
@@ -173,7 +181,7 @@ impl ButtonSize {
     }
 
     /// Regular button icon size
-    fn icon(&self) -> f32 {
+    pub(crate) fn icon(&self) -> f32 {
         match self {
             ButtonSize::Medium => 16.0,
             ButtonSize::Large => 24.0,
@@ -181,7 +189,7 @@ impl ButtonSize {
     }
 
     /// Icon button outer size, inner icon size, and corner radius
-    fn icon_button(&self, is_secondary: bool) -> (f32, f32, f32) {
+    pub(crate) fn icon_button(&self, is_secondary: bool) -> (f32, f32, f32) {
         match (is_secondary, self) {
             (true, ButtonSize::Large) => (52.0, 32.0, 12.0),
             (true, ButtonSize::Medium) => (36.0, 20.0, 8.0),

@@ -143,7 +143,7 @@ pub use utils::{
 pub mod plugin;
 pub mod theme;
 
-// mod pages;
+mod pages;
 // pub use pages::{
 //     AppPage, 
 //     Error, 

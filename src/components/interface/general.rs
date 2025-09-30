@@ -1,26 +1,57 @@
 use mustache::events::{OnEvent, MouseState, MouseEvent, Event};
 use mustache::drawable::{Drawable, Component, Align};
 use mustache::layout::{Area, SizeRequest, Layout};
-use mustache::{Context, Component};
+use mustache::{drawables, Context, Component};
 
 use crate::components::{Rectangle, TextStyle, Text};
 use crate::events::{TextInputSelect, AdjustScrollEvent};
 use crate::layout::{Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor};
-use crate::components::avatar::AvatarContent;
-use crate::components::button::{IconButton, Button};
-use crate::components::TextInput;
+use crate::components::avatar::{AvatarContent, Avatar};
+use crate::components::interactions::{ButtonState, self};
+use crate::components::button::{ButtonSize, ButtonWidth};
+use crate::components::button::GhostIconButton;
+use crate::components::button::IconButton;
+use crate::components::button::Button;
+use crate::components::{TextInput, Icon};
+use crate::events::NavigateEvent;
 use crate::utils::ElementID;
 use crate::pages::AppPage;
-use std::fmt::Debug;
-
+use crate::plugin::PelicanUI;
+use crate::Callback;
 use crate::components::interface::{
     desktop::DesktopInterface,
     mobile::MobileInterface,
     web::WebInterface,
 };
 
-pub type NavigateInfo = (&'static str, String, Option<AvatarContent>, Option<Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>>);
-pub type PageBuilder = Option<Vec<Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>>>;
+pub struct NavigateInfo {
+    pub(crate) icon: &'static str,
+    pub(crate) label: String,
+    pub(crate) avatar: Option<AvatarContent>,
+    pub(crate) get_page: Option<PageBuilder>
+}
+
+impl NavigateInfo {
+    pub fn icon(icon: &'static str, label: &str, get_page: impl FnMut(&mut Context) -> Box<dyn AppPage> + 'static) -> Self {
+        NavigateInfo {
+            icon,
+            label: label.to_string(),
+            avatar: None,
+            get_page: Some(Box::new(get_page))
+        }
+    }
+
+    pub fn avatar(avatar: AvatarContent, label: &str, get_page: impl FnMut(&mut Context) -> Box<dyn AppPage> + 'static) -> Self {
+        NavigateInfo {
+            icon: "profile",
+            label: label.to_string(),
+            avatar: Some(avatar),
+            get_page: Some(Box::new(get_page))
+        }
+    }
+}
+
+pub type PageBuilder = Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>;
 
 /// The top-level interface of an app built with Pelican.
 ///
@@ -48,36 +79,18 @@ impl Interface {
     pub fn new(
         ctx: &mut Context, 
         start_page: Box<dyn AppPage>,
-        navigation: Option<(usize, Vec<NavigateInfo>, Vec<NavigateInfo>)>,
-        socials: Option<Vec<(&'static str, String)>>
+        navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
     ) -> Self {
-        let color = ctx.theme.colors.background.primary;
+        let color = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
 
         let (mobile, desktop, web) = match crate::config::IS_WEB {
-            true => (None, None, Some(WebInterface::new(ctx, start_page, navigation, socials))),
+            true => (None, None, Some(WebInterface::new(ctx, start_page, navigation, None))),
             false if crate::config::IS_MOBILE => (Some(MobileInterface::new(ctx, start_page, navigation)), None, None),
             false => (None, Some(DesktopInterface::new(ctx, start_page, navigation)), None),
         };
 
         Interface(Stack::default(), Some(Rectangle::new(color, 0.0, None)), mobile, desktop, web)
     }
-
-    // //move background to pages
-    // pub fn new_with_background(
-    //     ctx: &mut Context, 
-    //     image: resources::Image,
-    //     start_page: Box<dyn AppPage>,
-    //     navigation: Option<(usize, Vec<NavigateInfo>, Vec<NavigateInfo>)>,
-    //     socials: Option<Vec<(&'static str, String)>>
-    // ) -> Self {
-    //     let background = ExpandableImage::new(image, None);
-    //     let (mobile, desktop, web) = match crate::config::IS_WEB {
-    //         true => (None, None, Some(WebInterface::new(ctx, start_page, navigation, socials))),
-    //         false if crate::config::IS_MOBILE => (Some(MobileInterface::new(ctx, start_page, navigation)), None, None),
-    //         false => (None, Some(DesktopInterface::new(ctx, start_page, navigation)), None),
-    //     };
-    //     Interface(Stack::default(), None, Some(background), mobile, desktop, web)
-    // }
 
     /// Returns the DesktopInterface if on desktop
     pub fn desktop(&mut self) -> &mut Option<DesktopInterface> { &mut self.3 }
@@ -97,7 +110,6 @@ impl Interface {
 /// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/page.png"
 ///      alt="Page Example"
 ///      width="250">
-
 #[derive(Debug, Component)]
 pub struct Page(Column, Option<Header>, Content, Option<Bumper>);
 impl OnEvent for Page {}
@@ -144,15 +156,14 @@ pub struct Content (Scroll, ContentChildren);
 impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
     pub fn new(ctx: &mut Context, offset: Offset, content: Vec<Box<dyn Drawable>>) -> Self {
-        let max = ctx.theme.layout.content_max;
-        let padding = ctx.theme.layout.content_padding;
-        let max = if crate::config::IS_WEB {1200.0} else {max};
+        let layout = ctx.get::<PelicanUI>().get().0.theme().layout.clone();
+        let max = if crate::config::IS_WEB {1200.0} else {layout.content_max};
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |_: Vec<(f32, f32)>|(0.0, f32::MAX));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
-        let layout = Scroll::new(Offset::Center, offset, width, height, Padding::default(), anchor);
+        let scroll = Scroll::new(Offset::Center, offset, width, height, Padding::default(), anchor);
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }
-        Content(layout, ContentChildren::new(content, padding)) 
+        Content(scroll, ContentChildren::new(content, layout.content_padding)) 
     }
 
     /// Find an item in the content. Will return the first instance of the type.
@@ -202,7 +213,7 @@ impl OnEvent for Content {
                 let mut total_height = 0.0;
                 for item in self.items().iter_mut() {
                     match item.as_any_mut().downcast_mut::<TextInput>() {
-                        Some(input) if input.get_id() == *id => {
+                        Some(input) if input.element_id == *id => {
                             self.0.set_scroll(total_height);
                             break;
                         }
@@ -243,100 +254,53 @@ impl ContentChildren {
 ///
 /// Header components can only be used inside [`Page`] components.
 #[derive(Debug, Component)]
-pub struct Header(Row, HeaderIcon, HeaderContent, HeaderIcon);
+pub struct Header(Row, HeaderIcon, Box<dyn Drawable>, HeaderIcon);
 impl OnEvent for Header {}
 
 impl Header {
-    /// Creates `Header` a new  component from a left and right [`HeaderIcon`] and a centered [`HeaderContent`].
-    pub fn new(left: HeaderIcon, content: HeaderContent, right: HeaderIcon) -> Self {
-        Header(
-            Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0)),
-            left, content, right,
-        )
-    }
-
     /// A `Header` preset used for home pages.
     ///
     /// ```rust
     /// let header = Header::home(ctx, "My Account", None);
     /// ```
-    pub fn home(ctx: &mut Context, title: &str, icon: Option<IconButton>) -> Self {
-        Header(
-            Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0)),
-            HeaderIcon::new(None), 
-            HeaderContent::home(ctx, title),
-            HeaderIcon::new(icon)
-        )
+    pub fn home(ctx: &mut Context, title: &str, icon: Option<(&'static str, usize)>) -> Self {
+        let icon = icon.map(|(i,u)| {
+            let c = move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(u));
+            HeaderIcon::new(ctx, i, c)
+        }).unwrap_or_default();
+        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h3;
+        let title = Text::new(ctx, title, size, TextStyle::Heading, Align::Left, None);
+        Header::_new(HeaderIcon::none(), title, icon)
     }
 
     /// A `Header` preset used for in-flow pages.
     ///
     /// ```rust
-    /// let back = IconButton::navigation(ctx, "left", |ctx: &mut Context| println!("Go Back!"));
-    /// let header = Header::stack(ctx, Some(back), "Select role", None);
+    /// let header = Header::stack(ctx, 0, "Select role");
     /// ```
-    pub fn stack(
-        ctx: &mut Context, 
-        left: Option<IconButton>, 
-        title: &str, 
-        right: Option<IconButton>
-    ) -> Self {
-        Header(
-            Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0)),
-            HeaderIcon::new(left), 
-            HeaderContent::stack(ctx, title), 
-            HeaderIcon::new(right)
-        )
+    pub fn stack(ctx: &mut Context, back_index: usize, title: &str) -> Self {
+        let back = HeaderIcon::new(ctx, "left", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(back_index)));
+        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h4;
+        let title = Text::new(ctx, title, size, TextStyle::Heading, Align::Left, None);
+        Header::_new(back, title, HeaderIcon::none())
     }
 
-    pub fn content(&mut self) -> &mut HeaderContent {&mut self.2}
-}
-
-/// # Header Content
-///
-/// Middle portion of a header containing a column of the important
-/// content like Text and an optionally a [`Box<dyn Drawable>`].
-/// 
-/// This is only to be used inside [`Header`] component.
-#[derive(Debug, Component)]
-pub struct HeaderContent(Column, Option<Box<dyn Drawable>>, Text);
-impl OnEvent for HeaderContent {}
-
-impl HeaderContent {
-    /// Creates a new [`HeaderContent`] from an optional [`Box<dyn Drawable>`] and
-    /// [`Text`] component.
-    pub fn new(content: Option<Box<dyn Drawable>>, text: Text) -> Self {
-        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, f32::MAX));
-        HeaderContent(
-            Column::new(10.0, Offset::Center, width, Padding::default()), 
-            content, text
-        )
+    /// A `Header` preset used for end-of-flow pages.
+    ///
+    /// ```rust
+    /// let header = Header::stack_end(ctx, 0, "Select role");
+    /// ```
+    pub fn stack_end(ctx: &mut Context, next_index: usize, title: &str) -> Self {
+        let back = HeaderIcon::new(ctx, "close", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(next_index)));
+        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h4;
+        let title = Text::new(ctx, title, size, TextStyle::Heading, Align::Left, None);
+        Header::_new(back, title, HeaderIcon::none())
     }
 
-    /// HeaderContent preset containing only H3 text.
-    pub fn home(ctx: &mut Context, title: &str) -> Self {
-        let text_size = ctx.theme.fonts.size.h3;
-        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, f32::MAX));
-        HeaderContent(
-            Column::new(10.0, Offset::Center, width, Padding::default()), 
-            None,
-            Text::new(ctx, title, TextStyle::Heading, text_size, Align::Left),
-        )
+    fn _new(left: HeaderIcon, content: impl Drawable, right: HeaderIcon) -> Self {
+        let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0));
+        Header(layout, left, Box::new(content), right)
     }
-
-    /// HeaderContent preset containing only H4 text.
-    pub fn stack(ctx: &mut Context, title: &str) -> Self {
-        let text_size = ctx.theme.fonts.size.h4;
-        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, f32::MAX));
-        HeaderContent(
-            Column::new(10.0, Offset::Center, width, Padding::default()),  
-            None,
-            Text::new(ctx, title, TextStyle::Heading, text_size, Align::Left),
-        )
-    }
-
-    /// Returns the content of the `HeaderContent`
-    pub fn content(&mut self) -> &mut Option<Box<dyn Drawable>> {&mut self.1}
 }
 
 /// # Header Icon
@@ -344,17 +308,22 @@ impl HeaderContent {
 /// Optionally contains an icon, otherwise just reserves the space.
 /// These are only to be used in [`Header`] components.
 #[derive(Debug, Component)]
-pub struct HeaderIcon(Stack, Option<IconButton>);
+pub struct HeaderIcon(Stack, Option<GhostIconButton>);
 impl OnEvent for HeaderIcon {}
+impl Default for HeaderIcon {fn default() -> Self {Self::none()}}
 
 impl HeaderIcon {
-    pub fn new(icon: Option<IconButton>) -> Self {
-        HeaderIcon(
-            Stack(Offset::Center, Offset::Center, Size::Static(48.0), Size::Static(48.0), Padding::default()),
-            icon
-        )
+    pub fn new(ctx: &mut Context, icon: &'static str, closure: impl FnMut(&mut Context) + 'static) -> Self {
+        let layout = Stack(Offset::Center, Offset::Center, Size::Static(48.0), Size::Static(48.0), Padding::default());
+        HeaderIcon(layout, Some(GhostIconButton::new(ctx, icon, closure)))
+    }
+
+    pub fn none() -> Self {
+        let layout = Stack(Offset::Center, Offset::Center, Size::Static(48.0), Size::Static(48.0), Padding::default());
+        HeaderIcon(layout, None)
     }
 }
+
 
 /// # Bumper
 ///
@@ -379,8 +348,8 @@ impl OnEvent for Bumper {}
 impl Bumper {
     /// Creates a new `Bumper` from a vector of boxed [`Drawables`](Drawable)
     pub fn new(ctx: &mut Context, content: Vec<Box<dyn Drawable>>) -> Self {
-        let background = ctx.theme.colors.background.primary;
-        let max = ctx.theme.layout.bumper_max;
+        let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
+        let max = ctx.get::<PelicanUI>().get().0.theme().layout.bumper_max;
         let max = if crate::config::IS_WEB {1200.0} else {max};
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
@@ -388,25 +357,8 @@ impl Bumper {
         Bumper(layout, Rectangle::new(background, 0.0, None), BumperContent::new(content))
     }
 
-    /// Creates a `Bumper` from two buttons.
-    pub fn double_button(ctx: &mut Context, a: Button, b: Button) -> Self {
-        Self::new(ctx, vec![Box::new(a), Box::new(b)])
-    }
-
-    /// Creates a `Bumper` from a single button.
-    pub fn single_button(ctx: &mut Context, a: Button) -> Self {
-        Self::new(ctx, vec![Box::new(a)])
-    }
-
-    /// Creates a `Bumper` from a text input.
-    pub fn input(ctx: &mut Context, input: TextInput) -> Self {
-        Self::new(ctx, vec![Box::new(input)])
-    }
-
     /// Returns the items in the `Bumper`.
-    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {
-        &mut self.2.1
-    }
+    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> { &mut self.2.1 }
 
     /// Find an item in the bumper. Will return the first instance of the type.
     ///
@@ -429,6 +381,7 @@ impl Bumper {
 
 #[derive(Debug, Component)]
 struct BumperContent (Row, Vec<Box<dyn Drawable>>);
+impl OnEvent for BumperContent {}
 
 impl BumperContent {
     fn new(content: Vec<Box<dyn Drawable>>) -> Self {
@@ -436,29 +389,63 @@ impl BumperContent {
     }
 }
 
-impl OnEvent for BumperContent {}
 
 /// Button wrapper used for navigators.
 #[derive(Debug, Component)]
-pub struct NavigationButton(Stack, Option<Button>, Option<IconButton>, #[skip] ElementID);
+pub struct NavigationButton(Stack, NavigatorGhostButton, #[skip] ElementID);
 impl OnEvent for NavigationButton {}
 impl NavigationButton {
-    pub fn new(id: ElementID, button: Option<Button>, icon_button: Option<IconButton>) -> Self {
-        NavigationButton(Stack::default(), button, icon_button, id)
+    pub fn new(id: ElementID, button: NavigatorGhostButton) -> Self {
+        NavigationButton(Stack::default(), button, id)
     }
 
     /// Returns the id of the `NavigationButton`
-    pub fn id(&self) -> ElementID {
-        self.3
+    pub fn id(&self) -> ElementID { self.2 }
+
+    /// Returns the inner [`NavigatorGhostButton`] component.
+    pub fn inner(&mut self) -> &mut NavigatorGhostButton { &mut self.1 }
+}
+
+#[derive(Debug, Component)]
+pub struct NavigatorGhostButton(Stack, interactions::Button);
+impl OnEvent for NavigatorGhostButton {}
+impl NavigatorGhostButton {
+    pub fn desktop_icon(ctx: &mut Context, icon: &'static str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool) -> NavigatorGhostButton {
+        let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
+        let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
+        let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
+            let font_size = ButtonSize::Large.font(ctx);
+            let icon_size = ButtonSize::Large.icon();
+            let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+            let icon = Icon::new(ctx, icon, colors.label, icon_size);
+            Button::new(drawables![icon, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
+        });
+        NavigatorGhostButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, state))
     }
 
-    /// Returns the inner `Button` component if it exists.
-    pub fn button(&mut self) -> &mut Option<Button> {
-        &mut self.1
+    pub fn desktop_avatar(ctx: &mut Context, avatar: AvatarContent, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool) -> NavigatorGhostButton {
+        let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
+        let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
+        let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
+            let font_size = ButtonSize::Large.font(ctx);
+            let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+            let avatar = Avatar::new(ctx, avatar.clone(), None, false, ButtonSize::Large.icon(), None);
+            Button::new(drawables![avatar, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
+        });
+        NavigatorGhostButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, state))
     }
 
-    /// Returns the inner `IconButton` component if it exists.
-    pub fn icon_button(&mut self) -> &mut Option<IconButton> {
-        &mut self.2
+    pub fn mobile(ctx: &mut Context, icon: &'static str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool) -> NavigatorGhostButton {
+        let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
+        let buttons = [colors.disabled, colors.hover, colors.pressed, colors.default, colors.disabled];
+        let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
+            IconButton::new(ctx, icon, false, ButtonSize::Large, colors.background, colors.outline, colors.label)
+        });
+        NavigatorGhostButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, state))
     }
+
+    pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
 }

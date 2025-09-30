@@ -4,34 +4,43 @@ use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component};
 
 use crate::components::{Rectangle, AspectRatioImage};
-use crate::components::button::{Button, ButtonState, IconButton};
 use crate::events::{NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Stack, Bin, Row, Padding, Offset, Size};
 // use crate::components::avatar::{Avatar, AvatarContent};
+use crate::components::interface::general::NavigatorGhostButton;
+use crate::components::button::GhostIconButton;
+use crate::components::interactions::ButtonState;
 use crate::utils::ElementID;
 use crate::pages::AppPage;
 use crate::pages::Error;
+use crate::plugin::PelicanUI;
 
 use std::fmt::Debug;
 use crate::components::interface::general::{NavigationButton, NavigateInfo, PageBuilder};
 
 #[derive(Component)]
-pub struct WebInterface(Column, Option<WebNavigator>, Option<Box<dyn AppPage>>, Option<WebFooter>, #[skip] PageBuilder);
+pub struct WebInterface(Column, Option<WebNavigator>, Option<Box<dyn AppPage>>, Option<WebFooter>, #[skip] Option<Vec<PageBuilder>>);
 
 impl WebInterface {
     pub fn new(
         ctx: &mut Context, 
         start_page: Box<dyn AppPage>,
-        mut navigation: Option<(usize, Vec<NavigateInfo>, Vec<NavigateInfo>)>,
+        mut navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
         socials: Option<Vec<(&'static str, String)>>
     ) -> Self {
         // let color = ctx.theme.colors.outline.secondary;
-        let pages = navigation.as_mut().map(|navi| navi.1.iter_mut().chain(navi.2.iter_mut()).map(|t| t.3.take().unwrap()).collect::<Vec<_>>());
+        let pages = navigation.as_mut().map(|(_, a, b)| {
+            let new: Vec<&mut NavigateInfo> = match b {
+                Some(nav) => a.iter_mut().chain(nav.iter_mut()).collect(),
+                None => a.iter_mut().collect(),
+            };
+            new.into_iter().map(|t| t.get_page.take().unwrap()).collect::<Vec<_>>()
+        });
         let navigator = navigation.map(|n| WebNavigator::new(ctx, n));
         let footer = socials.map(|s| WebFooter::new(ctx, s)); 
 
         WebInterface(
-            Column::new(0.0, Offset::Start, Size::fill(), Padding::default()),
+            Column::new(0.0, Offset::Start, Size::Fill, Padding::default()),
             navigator,
             Some(start_page),
             footer,
@@ -70,33 +79,29 @@ pub struct WebNavigator(Row, Image, Bin<Stack, Rectangle>, ButtonRow);
 impl WebNavigator {
     pub fn new(
         ctx: &mut Context, 
-        navigation: (usize, Vec<NavigateInfo>, Vec<NavigateInfo>),
+        mut navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>),
     ) -> Self {
         let mut buttons = Vec::new();
 
-        let mut index = 0;
-
-        navigation.1.into_iter().chain(navigation.2).for_each(|(icon, name, _, _)| {
+        if let Some(n) = navigation.2 { navigation.1.extend(n); }
+        for (index, info) in navigation.1.into_iter().enumerate() {
             let id = ElementID::new();
             let closure = move |ctx: &mut Context| {
                 ctx.trigger_event(NavigatorSelect(id));
                 ctx.trigger_event(NavigatorEvent(index));
             };
 
+            let button = NavigatorGhostButton::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == index);
+            buttons.push(NavigationButton::new(id, button));
+        }
 
-            let button = Button::navigation(ctx, icon, &name, navigation.0 == index, closure);
-            buttons.push(NavigationButton::new(id, Some(button), None));
-
-            index += 1;
-        });
-
-        let wordmark = ctx.theme.brand.wordmark.clone();
+        let wordmark = ctx.get::<PelicanUI>().get().0.theme().brand.wordmark.clone();
 
         WebNavigator(
             Row::new(32.0, Offset::Center, Size::Fit, Padding::new(48.0)),
             AspectRatioImage::new(wordmark, (150.0, 35.0)),
             Bin (
-                Stack(Offset::Center, Offset::Center, Size::fill(), Size::Static(5.0), Padding::default()), 
+                Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(5.0), Padding::default()), 
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
             ButtonRow::new(buttons)
@@ -123,8 +128,8 @@ impl WebNavigator {
     //     self.4.buttons().iter_mut().flat_map(|nb| nb.button()).flat_map(|button| button.avatar()).next()
     // }
 
-    pub fn buttons(&mut self) -> Vec<&mut Button> {
-        self.3.buttons().iter_mut().flat_map(|nb| nb.button()).collect::<Vec<_>>()
+    pub fn buttons(&mut self) -> Vec<&mut NavigatorGhostButton> {
+        self.3.buttons().iter_mut().map(|nb| nb.inner()).collect()
     }
 }
 
@@ -133,9 +138,9 @@ impl OnEvent for WebNavigator {
         if let Some(NavigatorSelect(id)) = event.downcast_ref::<NavigatorSelect>() {
             let mut buttons: Vec<&mut NavigationButton> = self.3.buttons().iter_mut().collect();
             // buttons.extend(self.4.buttons().iter_mut());
-            buttons.iter_mut().for_each(|button| {
-                *button.button().as_mut().unwrap().status() = if button.id() == *id {ButtonState::Selected} else {ButtonState::Default};
-                button.button().as_mut().unwrap().color(ctx);
+            buttons.iter_mut().for_each(|b| {
+                let is_selected = b.id() == *id;
+                b.inner().inner().selected(is_selected)
             });
         }
         true
@@ -155,7 +160,7 @@ impl ButtonRow {
 }
 
 #[derive(Debug, Component)]
-struct WebFooter(Row, Bin<Stack, Rectangle>, ButtonRow);
+struct WebFooter(Row, Vec<GhostIconButton>);
 impl OnEvent for WebFooter {}
 
 impl WebFooter {
@@ -163,25 +168,15 @@ impl WebFooter {
         ctx: &mut Context, 
         socials: Vec<(&'static str, String)>
     ) -> Self {
-        let buttons = socials.into_iter().map(|(i, _)| {
-            let button = IconButton::ghost(ctx, i, Box::new(move |_ctx: &mut Context| {}));
-            let id = ElementID::new();
-            NavigationButton::new(id, None, Some(button))
-        }).collect();
+        let buttons = socials.into_iter().map(|(i, _)| GhostIconButton::new(ctx, i, |_: &mut Context| {})).collect();
 
         // let wordmark = ctx.theme.brand.wordmark.clone();
         // let white = ctx.theme.colors.shades.white;
         // let mut logo = AspectRatioImage::new(wordmark, (150.0, 35.0));
         // logo.color = Some(white);
 
-        WebFooter(
-            Row::new(32.0, Offset::Center, Size::Fit, Padding::new(48.0)),
-            Bin (
-                Stack(Offset::Center, Offset::Center, Size::fill(), Size::Static(5.0), Padding::default()), 
-                Rectangle::new(Color::TRANSPARENT, 0.0, None)
-            ),
-            ButtonRow::new(buttons)
-        )
+        let layout = Row::new(8.0, Offset::Center, Size::Fit, Padding::new(48.0));
+        WebFooter(layout, buttons)
     }
 
     // fn buttons(&mut self) -> Vec<&mut Button> {

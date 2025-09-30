@@ -1,4 +1,4 @@
-use mustache::events::{MouseState, MouseEvent, OnEvent, Event};
+use mustache::events::{MouseState, MouseEvent, OnEvent, Event, TickEvent};
 use mustache::drawable::{Drawable, Component};
 use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component};
@@ -43,11 +43,25 @@ impl Button{
             state,
         }
     }
+
+    pub fn selected(&mut self, is_selected: bool) {
+        self.state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
+    }
+
+    pub fn disabled(&mut self, is_disabled: bool) {
+        self.state = if is_disabled {ButtonState::Disabled} else {ButtonState::Default};
+    }
 }
 
 impl OnEvent for Button {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if let Some(event) = event.downcast_ref::<MouseEvent>() {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            self.default.display(self.state == ButtonState::Default);
+            self.hover.display(self.state == ButtonState::Hover);
+            self.pressed.display(self.state == ButtonState::Pressed);
+            self.selected.display(self.state == ButtonState::Selected);
+            self.disabled.display(self.state == ButtonState::Disabled);
+        } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
             let state = match self.state {
                 ButtonState::Default if event.position.is_some() => {
                     match event.state {
@@ -76,21 +90,13 @@ impl OnEvent for Button {
             };
 
             if let Some(state) = state { self.state = state; }
-        }
-
-        self.default.display(self.state == ButtonState::Default);
-        self.hover.display(self.state == ButtonState::Hover);
-        self.pressed.display(self.state == ButtonState::Pressed);
-        self.selected.display(self.state == ButtonState::Selected);
-        self.disabled.display(self.state == ButtonState::Disabled);
-
-        if let Some(MouseEvent { state: MouseState::Pressed, position: Some(_) }) = event.downcast_ref::<MouseEvent>() {
-            if matches!(self.state, ButtonState::Default | ButtonState::Hover | ButtonState::Pressed) {
-                ctx.hardware.haptic();
-                (self.on_click)(ctx);
+            if let MouseEvent { state: MouseState::Pressed, position: Some(_) } = event {
+                if matches!(self.state, ButtonState::Default | ButtonState::Hover | ButtonState::Pressed) {
+                    ctx.hardware.haptic();
+                    (self.on_click)(ctx);
+                }
             }
         }
-
         false
     }
 }

@@ -41,7 +41,7 @@ impl TextStyle {
 pub struct Text {
     layout: Stack,
     inner: BasicText,
-    #[skip] pub text: String,
+    #[skip] pub spans: Vec<String>,
     #[skip] pub size: f32,
     #[skip] pub style: TextStyle,
     #[skip] pub align: Align,
@@ -54,8 +54,8 @@ impl OnEvent for Text {
             let (color, font) = self.style.get(ctx);
             self.inner.align = self.align;
             self.inner.max_lines = self.max_lines;
-            self.inner.spans[0].text = self.text.to_string();
-            self.inner.spans.iter_mut().for_each(|s| {
+            self.inner.spans.iter_mut().enumerate().for_each(|(i, s)| {
+                s.text = self.spans[i].to_string();
                 s.font_size = self.size;
                 s.color = color;
                 s.font = font.clone();
@@ -69,7 +69,7 @@ impl Text {
     pub fn new(ctx: &mut Context, text: &str, size: f32, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         let (color, font) = style.get(ctx);
         let inner = BasicText::new(vec![Span::new(text.to_string(), size, Some(size*1.25), font, color, 0.0)], None, align, max_lines);
-        Text {layout: Stack::default(), inner, text: text.to_string(), size, style, align, max_lines}
+        Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size, style, align, max_lines}
     }
 }
 

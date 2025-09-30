@@ -219,7 +219,7 @@ impl InputContent {
     fn new(ctx: &mut Context, value: Option<&str>, placeholder: &str, icon_button: Option<(&'static str, impl FnMut(&mut Context, &mut String) + 'static)>) -> Self {
         let (icon_button, callback) = icon_button.map(|(icon, on_click)| {
             let (sender, receiver) = mpsc::channel();
-            let icon_button = SecondaryIconButton::new(ctx, icon, Box::new(move |_| {sender.send(0).unwrap();}));
+            let icon_button = SecondaryIconButton::new(ctx, icon, move |_| {sender.send(0).unwrap();});
             let callback = (receiver, Box::new(on_click) as SubmitCallback);
             (Some(icon_button), Some(callback))
         }).unwrap_or((None, None));
