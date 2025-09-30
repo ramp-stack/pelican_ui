@@ -1,21 +1,14 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/logo.png")]
 
-//! Pelican UI Standard provides a wide range of components, layouts, elements, utilities, and pages for building beautiful, consistently designed applications. You can download the starter template [here](<https://github.com/EllaCouch20/ramp_template>).
+//! Pelican is a UI design system built on top of [Mustache](<http://ramp-stack.com/mustache>) which provides a wide range of components, layouts, elements, utilities, and pages for building beautiful, consistently designed applications. You can download the starter template [here](<https://github.com/EllaCouch20/ramp_template>).
 //!
-//! Checkout the [website](<http://ramp-stack.com/pelican_ui>) for additional information, our [Quick Start Guide](<http://ramp-stack.com/pelican_ui/getting_started>) for setting up your first app, and interact with the [community](<https://discord.gg/cTRaRbUZ>) if you have any questions!
+//! Checkout the [website](<http://ramp-stack.com/pelican_ui>) for additional information and our [Quick Start Guide](<http://ramp-stack.com/pelican_ui/getting_started>) for setting up your first app.
 //!
 //! You must add the Pelican plugin to your application's plugins. 
 //!
-//! At its core, Pelican UI Standard revolves around **components**, which are composed from layouts and elements. Every structure implementing the [`Component`](mustache::Component) trait must meet a few requirements:
+//! At its core, Pelican revolves around **components**, which are composed from layouts and elements. Every structure implementing the [`Component`](mustache::Component) trait must meet a few requirements:
 //! - Its first element must implement [`Layout`](mustache::layout::Layout), ensuring correct management of positioning, sizing, and nested layouts.
-//! - It must implement [`OnEvent`](mustache::events::OnEvent) and derive [`Debug`].
-//!
-//! Components are built from **elements**, the lowest-level primitives such as [`Text`], [`AspectRatioImage`], and [`Circle`], and can use different **layouts** like [`Column`], [`Row`], and [`Stack`] to arrange them.
-//! Components are also often built from combining components.
-//!
-//! Pelican UI Standard includes multiple [`Events`](mustache::events::Event) used and triggered by its components, as well as configuration variables for platform detection such as [`IS_MOBILE`] and [`IS_WEB`]. Additional utilities like [`Timestamp`] and [`ElementID`] are also provided.
-//!
-//! Beyond individual components, Pelican UI Standard ships with a few ready-to-use **pages** built entirely from its own system, including [`PelicanHome`], [`Error`], and [`Splash`]. These can be used directly or serve as references when creating custom pages.
+//! - It must implement [`OnEvent`](mustache::events::OnEvent).
 //!
 //! ### App Page Example
 //!
@@ -48,136 +41,72 @@
 //!```
 //!
 
-pub mod events;
-// pub use events::{
-//     NavigateEvent,
-//     KeyboardActiveEvent,
-//     ClearActiveInput,
-//     SetActiveInput,
-//     TextInputSelect,
-//     ListItemSelect,
-//     NavigatorSelect,
-//     NavigatorEvent,
-//     SearchEvent,
-//     InputEditedEvent,
-//     AdjustScrollEvent,
-//     QRCodeScannedEvent,
-//     AttachmentEvent,
-// };
-
-mod config;
-pub use config::{IS_MOBILE, IS_WEB};
-
 pub mod layout;
-// pub use layout::{
-//     Offset, 
-//     Size, 
-//     Padding, 
-//     Column, 
-//     Row, 
-//     Wrap, 
-//     Scroll, 
-//     Stack, 
-//     ScrollAnchor, 
-//     Bin, 
-//     Opt, 
-//     EitherOr,
-//     UniformExpand
-// };
-
-// mod elements;
-// pub use elements::{
-//     Text, 
-//     ExpandableText, 
-//     TextStyle, 
-//     BulletedText,
-//     ExpandableImage, 
-//     EncodedImage,
-//     AspectRatioImage, 
-//     Icon, 
-//     Circle, 
-//     Rectangle,
-//     RoundedRectangle, 
-//     OutlinedRectangle,
-//     Outline,
-// };
-
 pub mod components;
-// pub use components::{
-//     Button,
-//     ButtonStyle,
-//     ButtonSize,
-//     ButtonState,
-//     ButtonWidth,
-//     IconButton,
-//     QuickActions,
-//     Alert,
-//     Avatar,
-//     AvatarContent,
-//     AvatarIconStyle,
-//     DataItem,
-//     ListItem,
-//     ListItemGroup,
-//     ListItemSelector,
-//     TextInput,
-//     Searchbar,
-//     QRCode,
-//     QRCodeScanner,
-//     Slider,
-//     Interface,
-//     Page,
-//     Header,
-//     Bumper,
-//     Content,
-//     HeaderIcon,
-//     HeaderContent
-// };
-
 pub mod utils;
-
 pub mod plugin;
 pub mod theme;
-
 pub mod pages;
-pub use pages::AppPage;
-// pub use pages::{
-//     AppPage, 
-//     Error, 
-//     Splash, 
-//     PelicanHome
-// };
 
-// mod themes;
-// pub use themes::{
-//     PelicanColorThemes
-// };
+use mustache::{Context, drawable::Drawable, events::Event};
 
-/*
-How to create an app with Ramp
-How to create a page with Ramp
-How to create a component with Ramp
-How to create a layout with Ramp
-How to create a plugin with Ramp
-How to create a messaging app with Ramp
-How to create a bitcoin wallet with Ramp
-How to create a AIR profile with Ramp
-*/
-/*
-// ! ```rust
-// ! #[derive(Debug, Component)]
-// ! pub struct InfoCard(Column, Text, Text);
-// ! impl OnEvent for InfoCard {}
-// !
-// ! impl InfoCard {
-// !     pub fn new(ctx: &mut Context, title: &str, description: &str) -> Self {
-// !         let font_size = ctx.theme.fonts.size;
-// !
-// !         InfoCard(
-// !             Column::new(8.0, Offset::Center, Size::Fit, Padding::new(16.0)),
-// !             Text::new(ctx, title, TextStyle::Header, font_size.h3, Align::Left),
-// !             Text::new(ctx, description, TextStyle::Primary, font_size.md, Align::Left)
-// !         )
-// !     }
-// ! }
-// ! ```\
-*/
+/// This trait is used to define pages in the application.
+/// 
+/// Every page must implement this trait. 
+///
+/// Every page must implement [`Debug`] and [`Component`].
+///
+///
+/// # Navigation
+/// **'navigate'** is called to navigate away from this page.
+///
+/// The `index` parameter is the index that was triggered. Match on the index to navigate to
+/// the desired page. The returned value must be an `Ok` variant with a boxed `dyn AppPage`.
+///
+/// If the index is not an expected value, return `Err(self)` and the user will be navigated
+/// to an error page where `self` acts as the **"go back"** button.
+///
+/// ```rust
+/// fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) {
+///     match index {
+///         0 => Ok(Box::new(Home::new(ctx))),
+///         1 => Ok(Box::new(Settings::new(ctx))),
+///         2 => Ok(Box::new(Search::new(ctx))),
+///         _ => Err(self),
+///     }
+/// }
+/// ```
+///
+/// # Navigation Example
+/// This is an example of button triggering a [`NavigateEvent`].
+/// According to the example above, this will send the user to the settings page.
+///
+/// ```rust
+/// let button = Button::primary(ctx, "Continue", |ctx: &mut Context| {
+///     ctx.trigger_event(NavigateEvent(1));
+/// })
+/// ```
+///
+/// # Navigator Bar
+///
+/// When creating an [`Interface`], you can optionally pass in navigatable pages to the navigation bar.
+///
+/// The navigation bar is only optional on mobile. On web and desktop, if a navigator was passed into the interface,
+/// it will always be shown.
+pub trait AppPage: Drawable + std::fmt::Debug + 'static {
+    fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) 
+        -> Result<Box<dyn AppPage>, Box<dyn AppPage>>;
+
+    /// Returns whether a navigation bar is visible (mobile specific).
+    fn has_nav(&self) -> bool {true}
+}
+
+/// Event used to navigate between pages of the app.
+#[derive(Debug, Clone)]
+pub struct NavigateEvent(pub usize);
+
+impl Event for NavigateEvent {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+    }
+}

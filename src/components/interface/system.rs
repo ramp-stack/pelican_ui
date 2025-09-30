@@ -1,12 +1,12 @@
 use mustache::events::Key as WinitKey;
-use mustache::maverick_os::hardware::ImageOrientation;
+// use mustache::maverick_os::hardware::ImageOrientation;
 use mustache::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey, SmolStr};
 use mustache::drawable::{Drawable, Component, Align, Image, Color};
 use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component};
 
-use crate::components::{Text, TextStyle, Rectangle, Icon, EncodedImage};
-use crate::events::{KeyboardActiveEvent, AttachmentEvent};
+use crate::components::text_input::TextInputEvent;
+use crate::components::{Text, TextStyle, Rectangle, Icon};
 use crate::layout::{Stack, Bin, Column, Row, Offset, Size, Padding};
 use crate::components::interactions::ButtonState;
 use crate::components::button::GhostIconButton;
@@ -50,11 +50,11 @@ pub struct KeyboardActions(Stack, Vec<GhostIconButton>);
 impl OnEvent for KeyboardActions {}
 
 #[derive(Component, Debug)]
-struct KeyboardIcons(Row, Option<KeyboardActions>, Bin<Stack, Rectangle>, GhostIconButton, #[skip] Receiver<(Vec<u8>, ImageOrientation)>);
+struct KeyboardIcons(Row, Option<KeyboardActions>, Bin<Stack, Rectangle>, GhostIconButton);
 
 impl KeyboardIcons {
     fn new(ctx: &mut Context, icons: bool) -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, _) = mpsc::channel();
         let actions = vec![
             // IconButton::keyboard(ctx, "emoji", |_ctx: &mut Context| ()),
             // IconButton::keyboard(ctx, "gif", |_ctx: &mut Context| ()),
@@ -69,21 +69,20 @@ impl KeyboardIcons {
                 Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(1.0),  Padding::default()), 
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
-            GhostIconButton::new(ctx, "down_arrow", |ctx: &mut Context| ctx.trigger_event(KeyboardActiveEvent(None))),
-            receiver
+            GhostIconButton::new(ctx, "down_arrow", |ctx: &mut Context| ctx.trigger_event(TextInputEvent::ShowKeyboard(false))),
         )
     }
 }
 
 impl OnEvent for KeyboardIcons {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if event.downcast_ref::<TickEvent>().is_some() {
-            if let Ok((bytes, orientation)) = self.4.try_recv() {
-                if let Some(s) = EncodedImage::encode(bytes, orientation) {ctx.trigger_event(AttachmentEvent(s));}
-            }
-        }
-        true
-    }
+    // fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    //     if event.downcast_ref::<TickEvent>().is_some() {
+    //         if let Ok((bytes, orientation)) = self.4.try_recv() {
+    //             if let Some(s) = EncodedImage::encode(bytes, orientation) {ctx.trigger_event(AttachmentEvent(s));}
+    //         }
+    //     }
+    //     true
+    // }
 }
 
 

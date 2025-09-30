@@ -4,7 +4,6 @@ use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component};
 
 use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
-use crate::events::{InputEditedEvent, KeyboardActiveEvent, SetActiveInput, TextInputSelect, ClearActiveInput};
 use crate::layout::{EitherOr, Padding, Column, Stack, Offset, Size, Row, Bin};
 use crate::components::button::SecondaryIconButton;
 use crate::utils::ElementID;
@@ -144,18 +143,17 @@ impl OnEvent for InputField {
             *self.1.background() = background;
             if let Some(c) = self.1.outline() { *c = outline; }
             *self.2.focus() = self.3 == InputState::Focus;
-        } else if let Some(ClearActiveInput) = event.downcast_ref::<ClearActiveInput>() {
-            // self.3 = if *self.error() { InputState::Error } else { InputState::Default };
-            *self.input() = String::new();
-        } else if let Some(SetActiveInput(s)) = event.downcast_ref::<SetActiveInput>() {
-            *self.input() = s.to_string();
-        } else if let Some(TextInputSelect(id)) = event.downcast_ref::<TextInputSelect>() {
-            if *id != self.5 && self.3 == InputState::Focus {
-                if self.4 { self.3 = InputState::Error } else { self.3 = InputState::Default }
-            }
-        } else if let Some(KeyboardActiveEvent(keyboard)) = event.downcast_ref::<KeyboardActiveEvent>() {
-            if keyboard.is_none() && self.3 == InputState::Focus {
-                if self.4 { self.3 = InputState::Error } else { self.3 = InputState::Default }
+        } else if let Some(input_event) = event.downcast_ref::<TextInputEvent>() {
+            match input_event {
+                TextInputEvent::ClearActiveInput => *self.input() = String::new(),
+                TextInputEvent::SetActiveInput(s) => *self.input() = s.to_string(),
+                TextInputEvent::TextInputSelect(id) if *id != self.5 && self.3 == InputState::Focus => {
+                    if self.4 { self.3 = InputState::Error } else { self.3 = InputState::Default }
+                },
+                TextInputEvent::ShowKeyboard(false) if self.3 == InputState::Focus => {
+                    if self.4 { self.3 = InputState::Error } else { self.3 = InputState::Default }
+                }
+                _ => {}
             }
         } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.3 = match self.3 {
@@ -163,8 +161,8 @@ impl OnEvent for InputField {
                     match event {
                         MouseEvent{state: MouseState::Pressed, position: Some(_)} => {
                             ctx.hardware.haptic();
-                            ctx.trigger_event(TextInputSelect(self.5));
-                            ctx.trigger_event(KeyboardActiveEvent(Some(false))); 
+                            ctx.trigger_event(TextInputEvent::TextInputSelect(self.5));
+                            ctx.trigger_event(TextInputEvent::ShowKeyboard(false)); 
                             Some(InputState::Focus)
                         },
                         MouseEvent{state: MouseState::Moved, position: Some(_)} => Some(InputState::Hover),
@@ -174,7 +172,7 @@ impl OnEvent for InputField {
                 InputState::Hover => {
                     match event {
                         MouseEvent{state: MouseState::Pressed, position: Some(_)} => {
-                            ctx.trigger_event(TextInputSelect(self.5));
+                            ctx.trigger_event(TextInputEvent::TextInputSelect(self.5));
                             Some(InputState::Focus)
                         },
                         MouseEvent{state: MouseState::Moved, position: None} if self.4 => Some(InputState::Error),
@@ -184,8 +182,8 @@ impl OnEvent for InputField {
                 },
                 InputState::Focus => {
                     match event {
-                        MouseEvent{state: MouseState::Pressed, position: None} if self.4 && !crate::config::IS_MOBILE => Some(InputState::Error),
-                        MouseEvent{state: MouseState::Pressed, position: None} if !crate::config::IS_MOBILE => Some(InputState::Default),
+                        MouseEvent{state: MouseState::Pressed, position: None} if self.4 && !mustache::IS_MOBILE => Some(InputState::Error),
+                        MouseEvent{state: MouseState::Pressed, position: None} if !mustache::IS_MOBILE => Some(InputState::Default),
                         _ => None
                     }
                 },
@@ -201,7 +199,7 @@ impl OnEvent for InputField {
             if self.3 == InputState::Focus {
                 self.2.text().apply_edit(ctx, key);
             }
-            ctx.trigger_event(InputEditedEvent);
+            ctx.trigger_event(TextInputEvent::InputEditedEvent);
         }
         true
     }
@@ -278,6 +276,27 @@ impl InputState {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub enum TextInputEvent {
+    /// Event used to bring up or hide the keyboard.
+    ShowKeyboard(bool),
+    /// Clears the contents of the active text input.
+    ClearActiveInput,
+    /// Sets the contents of the active [`TextInput`] with the provided `String`
+    SetActiveInput(String),
+    /// Selects the [`TextInput`] with the given [`ElementID`] and deselects all other items.
+    TextInputSelect(ElementID),
+    /// Event trigger by [`TextInput`] when contents are edited. 
+    InputEditedEvent
+}
+
+impl Event for TextInputEvent {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+    }
+}
+
 
 // /// # Searchbar
 // /// 

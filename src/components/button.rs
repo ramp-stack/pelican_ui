@@ -71,7 +71,7 @@ impl SecondaryIconButton {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
         let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
-            IconButton::new(ctx, icon, true, ButtonSize::Large, colors.background, colors.outline, colors.label)
+            IconButton::new(ctx, icon, ButtonStyle::Secondary, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
         SecondaryIconButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, ButtonState::Default))
     }
@@ -87,7 +87,7 @@ impl GhostIconButton {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
         let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
-            IconButton::new(ctx, icon, false, ButtonSize::Medium, colors.background, colors.outline, colors.label)
+            IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
         });
         GhostIconButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, ButtonState::Default))
     }
@@ -103,13 +103,13 @@ impl IconButton {
     pub(crate) fn new(
         ctx: &mut Context,
         icon: &'static str,
-        is_secondary: bool,
+        style: ButtonStyle,
         size: ButtonSize,
         background: Color,
         outline: Color,
         label: Color,
     ) -> Self {
-        let (size, icon_size, radius) = size.icon_button(is_secondary);
+        let (size, icon_size, radius) = size.icon_button(style);
         let icon = Icon::new(ctx, icon, label, icon_size);
         let background = Rectangle::new(background, radius, Some((1.0, outline)));
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(size), Size::Static(size), Padding::default());
@@ -147,6 +147,8 @@ impl ButtonContent {
     }
 }
 
+#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+pub enum ButtonStyle {Primary, Secondary, Ghost}
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum ButtonWidth {Fit, Fill}
@@ -188,12 +190,14 @@ impl ButtonSize {
     }
 
     /// Icon button outer size, inner icon size, and corner radius
-    pub(crate) fn icon_button(&self, is_secondary: bool) -> (f32, f32, f32) {
-        match (is_secondary, self) {
-            (true, ButtonSize::Large) => (52.0, 32.0, 12.0),
-            (true, ButtonSize::Medium) => (36.0, 20.0, 8.0),
-            (false, ButtonSize::Large) => (52.0, 48.0, 12.0),
-            (false, ButtonSize::Medium) => (36.0, 32.0, 8.0),
+    pub(crate) fn icon_button(&self, style: ButtonStyle) -> (f32, f32, f32) {
+        match (style, self) {
+            (ButtonStyle::Secondary, ButtonSize::Large) => (52.0, 32.0, 12.0),
+            (ButtonStyle::Secondary, ButtonSize::Medium) => (36.0, 20.0, 8.0),
+            (ButtonStyle::Ghost, ButtonSize::Large) => (52.0, 48.0, 12.0),
+            (ButtonStyle::Ghost, ButtonSize::Medium) => (36.0, 32.0, 8.0),
+            (ButtonStyle::Primary, ButtonSize::Large) => (52.0, 48.0, 12.0),
+            (ButtonStyle::Primary, ButtonSize::Medium) => (36.0, 32.0, 8.0),
         }
     }
 }

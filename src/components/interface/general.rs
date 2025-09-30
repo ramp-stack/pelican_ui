@@ -1,21 +1,22 @@
 use mustache::events::{OnEvent, MouseState, MouseEvent, Event};
 use mustache::drawable::{Drawable, Component, Align};
 use mustache::layout::{Area, SizeRequest, Layout};
-use mustache::{drawables, Context, Component};
+use mustache::{drawables, Context, Component, IS_MOBILE, IS_WEB};
 
 use crate::components::{Rectangle, TextStyle, ExpandableText, Text};
-use crate::events::{TextInputSelect, AdjustScrollEvent};
-use crate::layout::{Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor};
+use crate::layout::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor};
 use crate::components::avatar::{AvatarContent, Avatar};
 use crate::components::interactions::{ButtonState, self};
+use crate::components::text_input::TextInputEvent;
 use crate::components::button::{ButtonSize, ButtonWidth};
 use crate::components::button::GhostIconButton;
 use crate::components::button::IconButton;
 use crate::components::button::Button;
+use crate::components::button::ButtonStyle;
 use crate::components::{TextInput, Icon};
-use crate::events::NavigateEvent;
 use crate::utils::ElementID;
-use crate::pages::AppPage;
+use crate::layout::ScrollDirection;
+use crate::{AppPage, NavigateEvent};
 use crate::plugin::PelicanUI;
 use crate::components::interface::{
     desktop::DesktopInterface,
@@ -82,9 +83,9 @@ impl Interface {
     ) -> Self {
         let color = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
 
-        let (mobile, desktop, web) = match crate::config::IS_WEB {
+        let (mobile, desktop, web) = match IS_WEB {
             true => (None, None, Some(WebInterface::new(ctx, Box::new(start_page), navigation, None))),
-            false if crate::config::IS_MOBILE => (Some(MobileInterface::new(ctx, Box::new(start_page), navigation)), None, None),
+            false if IS_MOBILE => (Some(MobileInterface::new(ctx, Box::new(start_page), navigation)), None, None),
             false => (None, Some(DesktopInterface::new(ctx, Box::new(start_page), navigation)), None),
         };
 
@@ -156,11 +157,11 @@ impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
     pub fn new(ctx: &mut Context, offset: Offset, content: Vec<Box<dyn Drawable>>) -> Self {
         let layout = ctx.get::<PelicanUI>().get().0.theme().layout.clone();
-        let max = if crate::config::IS_WEB {1200.0} else {layout.content_max};
+        let max = if mustache::IS_WEB {1200.0} else {layout.content_max};
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |_: Vec<(f32, f32)>|(0.0, f32::MAX));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
-        let scroll = Scroll::new(Offset::Center, offset, width, height, Padding::default(), anchor);
+        let scroll = Scroll::new(Offset::Center, offset, width, height, Padding::default(), anchor, ScrollDirection::Vertical);
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }
         Content(scroll, ContentChildren::new(content, layout.content_padding)) 
     }
@@ -207,8 +208,8 @@ impl OnEvent for Content {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.0.adjust_scroll(*a);
-        } else if let Some(TextInputSelect(id)) = event.downcast_ref::<TextInputSelect>() {
-            if crate::config::IS_MOBILE {
+        } else if let Some(TextInputEvent::TextInputSelect(id)) = event.downcast_ref::<TextInputEvent>() {
+            if mustache::IS_MOBILE {
                 let mut total_height = 0.0;
                 for item in self.items().iter_mut() {
                     match item.as_any_mut().downcast_mut::<TextInput>() {
@@ -353,7 +354,7 @@ impl Bumper {
     pub fn new(ctx: &mut Context, content: Vec<Box<dyn Drawable>>) -> Self {
         let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
         let max = ctx.get::<PelicanUI>().get().0.theme().layout.bumper_max;
-        let max = if crate::config::IS_WEB {1200.0} else {max};
+        let max = if mustache::IS_WEB {1200.0} else {max};
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
@@ -445,10 +446,30 @@ impl NavigatorGhostButton {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let buttons = [colors.disabled, colors.hover, colors.pressed, colors.default, colors.disabled];
         let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
-            IconButton::new(ctx, icon, false, ButtonSize::Large, colors.background, colors.outline, colors.label)
+            IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
         NavigatorGhostButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, state))
     }
 
     pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
+}
+
+/// Selects the [`NavigationButton`] with the given [`ElementID`] and deselects all other items.
+#[derive(Debug, Clone)]
+pub struct NavigatorSelect(pub ElementID);
+
+impl Event for NavigatorSelect {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+    }
+}
+
+/// Navigates to the page at the given `index`. See [`AppPage`] for details on navigation.
+#[derive(Debug, Clone)]
+pub struct NavigatorEvent(pub usize);
+
+impl Event for NavigatorEvent {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+    }
 }

@@ -4,12 +4,13 @@ use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component};
 
 use crate::components::{Rectangle, AspectRatioImage};
-use crate::events::{NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Stack, Bin, Row, Padding, Offset, Size};
+use crate::components::interface::general::NavigatorSelect;
+use crate::components::interface::general::NavigatorEvent;
 use crate::components::interface::general::NavigatorGhostButton;
 use crate::components::button::GhostIconButton;
 use crate::utils::ElementID;
-use crate::pages::AppPage;
+use crate::{AppPage, NavigateEvent};
 use crate::pages::Error;
 use crate::plugin::PelicanUI;
 

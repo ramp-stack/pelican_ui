@@ -3,16 +3,18 @@ use mustache::drawable::{Drawable, Component};
 use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component};
 
-use crate::events::{KeyboardActiveEvent, NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Row, Padding, Offset, Size, Opt, Stack};
 use crate::components::Rectangle;
 use crate::utils::ElementID;
-use crate::pages::AppPage;
+use crate::{AppPage, NavigateEvent};
 use crate::pages::Error;
 use crate::plugin::PelicanUI;
+use crate::components::interface::general::NavigatorEvent;
+use crate::components::interface::general::NavigatorSelect;
 use crate::components::interface::general::{NavigationButton, NavigateInfo, PageBuilder};
 use crate::components::interface::system::MobileKeyboard;
 use crate::components::interface::general::NavigatorGhostButton;
+use crate::components::text_input::TextInputEvent;
 
 #[derive(Component)]
 pub struct MobileInterface(Column, Option<Box<dyn AppPage>>, Option<MobileKeyboard>, Option<Opt<MobileNavigator>>, #[skip] Option<Vec<PageBuilder>>);
@@ -53,11 +55,10 @@ impl OnEvent for MobileInterface {
         } else if let Some(NavigatorEvent(index)) = event.downcast_mut::<NavigatorEvent>() {
             self.3 = None;
             if let Some(nav) = self.4.as_mut() { self.1 = Some(nav[*index](ctx)); }
-        } else if let Some(KeyboardActiveEvent(keyboard)) = event.downcast_ref::<KeyboardActiveEvent>() {
-            match keyboard {
-                Some(_) if self.2.is_some() => {},
-                Some(a) => self.2 = Some(MobileKeyboard::new(ctx, *a)),
-                None => self.2 = None
+        } else if let Some(TextInputEvent::ShowKeyboard(b)) = event.downcast_ref::<TextInputEvent>() {
+            match b {
+                true => self.2 = Some(MobileKeyboard::new(ctx, true)),
+                false => self.2 = None
             }
         }
         true

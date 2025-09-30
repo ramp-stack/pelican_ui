@@ -9,6 +9,7 @@ use crate::components::interactions::ButtonState;
 use crate::layout::{Column, Stack, Row, Padding, Offset, Size};
 use crate::plugin::PelicanUI;
 use crate::utils::Callback;
+use crate::utils::ElementID;
 
 /// ## List Item
 ///
@@ -54,12 +55,12 @@ pub struct ListItemInfoLeft {
 }
 
 impl ListItemInfoLeft {
-    pub fn new(t: &str, s: &str, f: Option<(&'static str, Color)>, d: Option<&str>) -> Self {
+    pub fn new(title: &str, subtitle: &str, description: Option<&str>, flair: Option<(&'static str, Color)>) -> Self {
         ListItemInfoLeft {
-            title: t.to_string(),
-            subtitle: s.to_string(),
-            flair: f,
-            description: d.map(|text| text.to_string()),
+            title: title.to_string(),
+            subtitle: subtitle.to_string(),
+            description: description.map(|text| text.to_string()),
+            flair,
         }
     }
 }
@@ -70,10 +71,10 @@ pub struct ListItemInfoRight {
 }
 
 impl ListItemInfoRight {
-    pub fn new(t: &str, s: &str) -> Self {
+    pub fn new(title: &str, subtitle: &str) -> Self {
         ListItemInfoRight {
-            title: t.to_string(),
-            subtitle: s.to_string(),
+            title: title.to_string(),
+            subtitle: subtitle.to_string(),
         }
     }
 }
@@ -158,7 +159,7 @@ impl LeftData {
 }
 
 #[derive(Debug, Component)]
-pub struct TitleRow(Row, Text, Option<Image>);
+struct TitleRow(Row, Text, Option<Image>);
 impl OnEvent for TitleRow {}
 
 impl TitleRow {
@@ -176,12 +177,22 @@ struct RightData(Column, Text, Text);
 impl OnEvent for RightData {}
 
 impl RightData {
-    pub fn new(ctx: &mut Context, info: ListItemInfoRight) -> Self {
+    fn new(ctx: &mut Context, info: ListItemInfoRight) -> Self {
         let layout = Column::new(4.0, Offset::End, Size::Fit, Padding::default());
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         let title = Text::new(ctx, &info.title, size.h5, TextStyle::Heading, Align::Left, Some(1));
         let subtitle = Text::new(ctx, &info.subtitle, size.xs, TextStyle::Secondary, Align::Left, Some(2));
         RightData(layout, title, subtitle)
+    }
+}
+
+/// Selects the [`ListItem`] with the given [`ElementID`] and deselects all other items.
+#[derive(Debug, Clone)]
+pub struct ListItemSelect(pub ElementID);
+
+impl Event for ListItemSelect {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }
 
