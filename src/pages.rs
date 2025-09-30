@@ -1,6 +1,5 @@
 use mustache::events::OnEvent;
-use mustache::drawable::{Align, Drawable, Component};
-use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::drawable::{Align};
 use mustache::{drawables, Context, Component};
 
 use crate::layout::{Offset, Stack};

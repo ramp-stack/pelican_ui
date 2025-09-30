@@ -1,6 +1,6 @@
 use mustache::events::{OnEvent, MouseState, MouseEvent, Event, TickEvent, Key, NamedKey};
-use mustache::layout::{Area, SizeRequest, Layout};
-use mustache::drawable::{Drawable, Component, Color, Align, Span, Cursor}; //Shape, Cursor
+use mustache::layout::{Area, SizeRequest};
+use mustache::drawable::{Drawable, Color, Align, Span, Cursor}; //Shape, Cursor
 use mustache::drawable::Text as BasicText;
 use mustache::{Context, Component, resources};
 

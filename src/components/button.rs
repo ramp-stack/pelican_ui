@@ -1,6 +1,5 @@
 use mustache::events::OnEvent;
-use mustache::drawable::{Image, Drawable, Component, Color, Align};
-use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::drawable::{Image, Drawable, Color, Align};
 use mustache::{drawables, Context, Component};
 
 use crate::components::{Icon, Rectangle, Text, TextStyle};

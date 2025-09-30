@@ -1,8 +1,7 @@
 use mustache::events::Key as WinitKey;
 // use mustache::maverick_os::hardware::ImageOrientation;
 use mustache::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey, SmolStr};
-use mustache::drawable::{Drawable, Component, Align, Image, Color};
-use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::drawable::{Align, Image, Color};
 use mustache::{Context, Component};
 
 use crate::components::text_input::TextInputEvent;

@@ -1,6 +1,5 @@
 use mustache::events::{TickEvent, OnEvent, MouseState, Event, MouseEvent};
-use mustache::drawable::{Drawable, Component, Image, Color, Shape, ShapeType};
-use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::drawable::{Image, Color, Shape, ShapeType};
 use mustache::{Context, Component, resources};
 
 use crate::components::{Icon, Circle};

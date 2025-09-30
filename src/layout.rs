@@ -1,5 +1,5 @@
 use mustache::events::{OnEvent, Event};
-use mustache::drawable::{Drawable, Component};
+use mustache::drawable::{Drawable};
 use mustache::layout::{Layout, Area, SizeRequest};
 use mustache::{Context, Component};
 

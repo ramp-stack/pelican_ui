@@ -1,6 +1,4 @@
 use mustache::events::{OnEvent, Event};
-use mustache::drawable::{Drawable, Component};
-use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component};
 
 use crate::layout::{Column, Row, Padding, Offset, Size, Opt, Stack};

@@ -1,6 +1,5 @@
 use mustache::events::{OnEvent, Event};
-use mustache::drawable::{Color, Drawable, Component, Image};
-use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::drawable::{Color, Image};
 use mustache::{Context, Component};
 
 use crate::components::{Rectangle, AspectRatioImage};

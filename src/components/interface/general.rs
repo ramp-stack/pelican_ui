@@ -1,6 +1,5 @@
 use mustache::events::{OnEvent, MouseState, MouseEvent, Event};
-use mustache::drawable::{Drawable, Component, Align};
-use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::drawable::{Drawable, Align};
 use mustache::{drawables, Context, Component, IS_MOBILE, IS_WEB};
 
 use crate::components::{Rectangle, TextStyle, ExpandableText, Text};

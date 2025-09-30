@@ -1,6 +1,5 @@
 use mustache::events::{MouseState, MouseEvent, OnEvent, Event, TickEvent};
-use mustache::drawable::{Drawable, Component};
-use mustache::layout::{Area, SizeRequest, Layout};
+use mustache::drawable::{Drawable};
 use mustache::{Context, Component};
 
 // use crate::components::avatar::{Avatar, AvatarContent};
