@@ -3,7 +3,6 @@ use mustache::drawable::{Image, Drawable, Component, Color, Align};
 use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{drawables, Context, Component};
 
-use crate::Callback;
 use crate::components::{Icon, Rectangle, Text, TextStyle};
 use crate::layout::{Offset, Padding, Row, Size, Stack};
 use crate::theme::ButtonColorScheme;

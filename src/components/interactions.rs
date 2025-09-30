@@ -4,7 +4,7 @@ use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component};
 
 // use crate::components::avatar::{Avatar, AvatarContent};
-use crate::Callback;
+use crate::utils::Callback;
 use crate::layout::{Stack, Opt};
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]

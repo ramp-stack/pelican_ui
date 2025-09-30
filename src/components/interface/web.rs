@@ -6,10 +6,8 @@ use mustache::{Context, Component};
 use crate::components::{Rectangle, AspectRatioImage};
 use crate::events::{NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Stack, Bin, Row, Padding, Offset, Size};
-// use crate::components::avatar::{Avatar, AvatarContent};
 use crate::components::interface::general::NavigatorGhostButton;
 use crate::components::button::GhostIconButton;
-use crate::components::interactions::ButtonState;
 use crate::utils::ElementID;
 use crate::pages::AppPage;
 use crate::pages::Error;
@@ -134,7 +132,7 @@ impl WebNavigator {
 }
 
 impl OnEvent for WebNavigator {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(NavigatorSelect(id)) = event.downcast_ref::<NavigatorSelect>() {
             let mut buttons: Vec<&mut NavigationButton> = self.3.buttons().iter_mut().collect();
             // buttons.extend(self.4.buttons().iter_mut());

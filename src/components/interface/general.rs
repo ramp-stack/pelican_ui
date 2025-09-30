@@ -17,7 +17,6 @@ use crate::events::NavigateEvent;
 use crate::utils::ElementID;
 use crate::pages::AppPage;
 use crate::plugin::PelicanUI;
-use crate::Callback;
 use crate::components::interface::{
     desktop::DesktopInterface,
     mobile::MobileInterface,

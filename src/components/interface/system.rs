@@ -343,9 +343,6 @@ impl OnEvent for Paginator {
             };
 
             if event.state == MouseState::Pressed && event.position.is_some() {
-                // ctx.hardware.vibrate();
-
-                let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
                 let highlight = TextStyle::Keyboard;
                 let dim = TextStyle::Secondary;
                 let next = if self.3 == 2 { 0 } else { self.3 + 1 };
@@ -379,8 +376,9 @@ impl OnEvent for KeyContent {}
 
 impl KeyContent {
     fn new(_ctx: &mut Context, size: f32, offset: Offset, content: KeyCharacter) -> Self {
+        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, size));
         KeyContent(
-            Stack(Offset::Center, offset, Size::Fill, Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
+            Stack(Offset::Center, offset, width, Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
             Rectangle::new(Color::from_hex("ffffff", 110), 4.0, None),
             content
         )

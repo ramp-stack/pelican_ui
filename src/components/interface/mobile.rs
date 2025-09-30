@@ -4,13 +4,12 @@ use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{Context, Component};
 
 use crate::events::{KeyboardActiveEvent, NavigatorSelect, NavigateEvent, NavigatorEvent};
-use crate::layout::{Column, Row, Padding, Offset, Size, Opt, Stack, Bin};
+use crate::layout::{Column, Row, Padding, Offset, Size, Opt, Stack};
 use crate::components::Rectangle;
 use crate::utils::ElementID;
 use crate::pages::AppPage;
 use crate::pages::Error;
 use crate::plugin::PelicanUI;
-use crate::components::interactions::ButtonState;
 use crate::components::interface::general::{NavigationButton, NavigateInfo, PageBuilder};
 use crate::components::interface::system::MobileKeyboard;
 use crate::components::interface::general::NavigatorGhostButton;
@@ -120,7 +119,7 @@ impl MobileNavigatorContent {
 
 
 impl OnEvent for MobileNavigatorContent {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(NavigatorSelect(id)) = event.downcast_ref::<NavigatorSelect>() {
             self.1.iter_mut().for_each(|b| {
                 let is_selected = b.id() == *id;

@@ -133,12 +133,7 @@ pub mod components;
 //     HeaderContent
 // };
 
-mod utils;
-pub use utils::{
-    // Timestamp, 
-    // ElementID,
-    Callback
-};
+pub mod utils;
 
 pub mod plugin;
 pub mod theme;

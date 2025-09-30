@@ -5,7 +5,6 @@ use mustache::{drawables, Context, Component};
 
 use crate::layout::{Offset, Stack};
 use crate::components::interface::general::{Page, Content, Header, Bumper};
-use crate::components::button::Button;
 use crate::components::{TextStyle, Text, AspectRatioImage};
 use crate::events::NavigateEvent;
 use crate::components::button::PrimaryButton;

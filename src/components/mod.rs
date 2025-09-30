@@ -2,7 +2,7 @@ pub mod button;
 // mod alert;
 // pub use alert::Alert;
 pub mod avatar;
-pub mod data_item;
+mod data_item;
 pub use data_item::{DataItem, QuickActions};
 pub mod list_item;
 mod text_input;
@@ -17,5 +17,4 @@ mod text;
 pub use text::*;
 
 pub mod interactions;
-
 pub mod interface;

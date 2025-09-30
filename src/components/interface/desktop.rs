@@ -6,8 +6,6 @@ use mustache::{Context, Component};
 use crate::components::{Rectangle, AspectRatioImage};
 use crate::events::{NavigatorSelect, NavigateEvent, NavigatorEvent};
 use crate::layout::{Column, Stack, Bin, Row, Padding, Offset, Size};
-use crate::components::avatar::AvatarContent;
-use crate::components::interactions::ButtonState;
 use crate::components::interface::general::NavigatorGhostButton;
 use crate::plugin::PelicanUI;
 
@@ -125,7 +123,7 @@ impl DesktopNavigator {
 }
 
 impl OnEvent for DesktopNavigator {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(NavigatorSelect(id)) = event.downcast_ref::<NavigatorSelect>() {
             let mut buttons: Vec<&mut NavigationButton> = self.2.buttons().iter_mut().collect();
             if let Some(b) = self.4.as_mut() { buttons.extend(b.buttons().iter_mut()) }
