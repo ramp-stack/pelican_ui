@@ -3,7 +3,7 @@ use mustache::drawable::{Drawable, Component, Align};
 use mustache::layout::{Area, SizeRequest, Layout};
 use mustache::{drawables, Context, Component};
 
-use crate::components::{Rectangle, TextStyle, Text};
+use crate::components::{Rectangle, TextStyle, ExpandableText, Text};
 use crate::events::{TextInputSelect, AdjustScrollEvent};
 use crate::layout::{Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor};
 use crate::components::avatar::{AvatarContent, Avatar};
@@ -77,15 +77,15 @@ impl OnEvent for Interface {}
 impl Interface {
     pub fn new(
         ctx: &mut Context, 
-        start_page: Box<dyn AppPage>,
+        start_page: impl AppPage,
         navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
     ) -> Self {
         let color = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
 
         let (mobile, desktop, web) = match crate::config::IS_WEB {
-            true => (None, None, Some(WebInterface::new(ctx, start_page, navigation, None))),
-            false if crate::config::IS_MOBILE => (Some(MobileInterface::new(ctx, start_page, navigation)), None, None),
-            false => (None, Some(DesktopInterface::new(ctx, start_page, navigation)), None),
+            true => (None, None, Some(WebInterface::new(ctx, Box::new(start_page), navigation, None))),
+            false if crate::config::IS_MOBILE => (Some(MobileInterface::new(ctx, Box::new(start_page), navigation)), None, None),
+            false => (None, Some(DesktopInterface::new(ctx, Box::new(start_page), navigation)), None),
         };
 
         Interface(Stack::default(), Some(Rectangle::new(color, 0.0, None)), mobile, desktop, web)
@@ -268,7 +268,7 @@ impl Header {
             HeaderIcon::new(ctx, i, c)
         }).unwrap_or_default();
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h3;
-        let title = Text::new(ctx, title, size, TextStyle::Heading, Align::Left, None);
+        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, None);
         Header::_new(HeaderIcon::none(), title, icon)
     }
 
@@ -277,11 +277,15 @@ impl Header {
     /// ```rust
     /// let header = Header::stack(ctx, 0, "Select role");
     /// ```
-    pub fn stack(ctx: &mut Context, back_index: usize, title: &str) -> Self {
+    pub fn stack(ctx: &mut Context, back_index: usize, title: &str, icon: Option<(&'static str, usize)>) -> Self {
         let back = HeaderIcon::new(ctx, "left", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(back_index)));
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h4;
-        let title = Text::new(ctx, title, size, TextStyle::Heading, Align::Left, None);
-        Header::_new(back, title, HeaderIcon::none())
+        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, None);
+        let icon = icon.map(|(i,u)| {
+            let c = move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(u));
+            HeaderIcon::new(ctx, i, c)
+        }).unwrap_or_default();
+        Header::_new(back, title, icon)
     }
 
     /// A `Header` preset used for end-of-flow pages.
@@ -292,7 +296,7 @@ impl Header {
     pub fn stack_end(ctx: &mut Context, next_index: usize, title: &str) -> Self {
         let back = HeaderIcon::new(ctx, "close", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(next_index)));
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h4;
-        let title = Text::new(ctx, title, size, TextStyle::Heading, Align::Left, None);
+        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, None);
         Header::_new(back, title, HeaderIcon::none())
     }
 

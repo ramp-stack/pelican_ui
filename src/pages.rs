@@ -108,28 +108,27 @@ impl Error {
 //     }
 // }
 
-// /// Example landing page for Pelican UI.
-// ///
-// /// `PelicanHome` demonstrates how to create a basic page with a logo, heading, 
-// /// and tagline. It is intended as a template or reference for building other pages.
-// #[derive(Debug, Component)]
-// pub struct PelicanHome(Stack, Page);
-// impl OnEvent for PelicanHome {}
+/// Example landing page for Pelican UI.
+///
+/// `PelicanHome` demonstrates how to create a basic page with a logo, heading, 
+/// and tagline. It is intended as a template or reference for building other pages.
+#[derive(Debug, Component)]
+pub struct PelicanHome(Stack, Page);
+impl OnEvent for PelicanHome {}
 
-// impl AppPage for PelicanHome {
-//     fn has_nav(&self) -> bool { false }
-//     fn navigate(self: Box<Self>, _ctx: &mut Context, _index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> { Err(self) }
-// }
+impl AppPage for PelicanHome {
+    fn has_nav(&self) -> bool { false }
+    fn navigate(self: Box<Self>, _ctx: &mut Context, _index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> { Err(self) }
+}
 
-// impl PelicanHome {
-//     pub fn new(ctx: &mut Context) -> Self {
-//         let theme = &ctx.theme;
-//         let logo = theme.brand.logo.clone();
-//         let font_size = theme.fonts.size;
-//         let illustration = AspectRatioImage::new(logo, (150.0, 150.0));
-//         let title = Text::new(ctx, "Welcome to Pelican UI", TextStyle::Heading, font_size.h4, Align::Center);
-//         let text = Text::new(ctx, "featherlight ui for heavy ideas", TextStyle::Primary, font_size.md, Align::Center);
-//         let content = Content::new(ctx, Offset::Center, vec![Box::new(illustration), Box::new(title), Box::new(text)]);
-//         PelicanHome(Stack::default(), Page::new(None, content, None))
-//     }
-// }
+impl PelicanHome {
+    pub fn new(ctx: &mut Context) -> Self {
+        let logo = ctx.get::<PelicanUI>().get().0.theme().brand.logo.clone();
+        let font_size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
+        let illustration = AspectRatioImage::new(logo, (150.0, 150.0));
+        let title = Text::new(ctx, "Welcome to Pelican UI", font_size.h4, TextStyle::Heading, Align::Center, None);
+        let text = Text::new(ctx, "featherlight ui for heavy ideas", font_size.md, TextStyle::Primary, Align::Center, None);
+        let content = Content::new(ctx, Offset::Center, vec![Box::new(illustration), Box::new(title), Box::new(text)]);
+        PelicanHome(Stack::default(), Page::new(None, content, None))
+    }
+}

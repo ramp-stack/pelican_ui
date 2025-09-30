@@ -138,7 +138,8 @@ pub mod utils;
 pub mod plugin;
 pub mod theme;
 
-mod pages;
+pub mod pages;
+pub use pages::AppPage;
 // pub use pages::{
 //     AppPage, 
 //     Error, 

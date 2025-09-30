@@ -95,7 +95,7 @@ impl DesktopNavigator {
         let top_col = ButtonColumn::new(top_col);
         let bot_col = (!bot_col.is_empty()).then_some(ButtonColumn::new(bot_col));
         let wordmark = ctx.get::<PelicanUI>().get().0.theme().brand.wordmark.clone();
-        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, widths[1].1));
+        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 200.0));
 
         DesktopNavigator(
             Column::new(32.0, Offset::Center, width, Padding(16.0, 32.0, 16.0, 32.0)),

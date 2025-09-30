@@ -18,9 +18,7 @@ use crate::plugin::PelicanUI;
 /// ### Example
 /// ```rust
 /// let data = DataItem::new(
-///     ctx,
-///     Some("1"),
-///     "Confirm Shipping Address",
+///     ctx, "Confirm Shipping Address",
 ///     Some("Confirm the address below matches your shipping address."),
 ///     None,
 ///     Some(vec![
@@ -29,7 +27,7 @@ use crate::plugin::PelicanUI;
 ///         ("ZIP", "44556"),
 ///     ]), 
 ///     Some(vec![
-///         Button::secondary(ctx, Some("edit"), "Edit Address", None, |ctx: &mut Context| println!("Editing address...")),
+///         SecondaryButton::medium(ctx, "edit, "Edit Address", |ctx: &mut Context| println!("Editing address...")),
 ///     ]),
 /// );
 /// ```
@@ -40,18 +38,18 @@ impl OnEvent for DataItem {}
 impl DataItem {
     pub fn new(
         ctx: &mut Context,
-        label: &str,
-        text: Option<&str>,
+        primary: &str,
         secondary: Option<&str>,
+        description: Option<&str>,
         table: Option<Vec<(&str, &str)>>,
         quick_actions: Option<Vec<SecondaryButton>>,
     ) -> Self {
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         DataItem(
             Column::new(16.0, Offset::Start, Size::Fill, Padding::default()),
-            Text::new(ctx, label, size.h5, TextStyle::Heading, Align::Left, None),
-            text.map(|t| ExpandableText::new(ctx, t, size.md, TextStyle::Primary, Align::Left, None)),
-            secondary.map(|t|ExpandableText::new(ctx, t, size.sm, TextStyle::Secondary, Align::Left, None)),
+            Text::new(ctx, primary, size.h5, TextStyle::Heading, Align::Left, None),
+            secondary.map(|t| ExpandableText::new(ctx, t, size.md, TextStyle::Primary, Align::Left, None)),
+            description.map(|t|ExpandableText::new(ctx, t, size.sm, TextStyle::Secondary, Align::Left, None)),
             table.map(|tabulars| Table::new(ctx, tabulars)),
             quick_actions.map(QuickActions::new)
         )

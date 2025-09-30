@@ -87,7 +87,7 @@ impl GhostIconButton {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
         let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
-            IconButton::new(ctx, icon, false, ButtonSize::Large, colors.background, colors.outline, colors.label)
+            IconButton::new(ctx, icon, false, ButtonSize::Medium, colors.background, colors.outline, colors.label)
         });
         GhostIconButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, ButtonState::Default))
     }
