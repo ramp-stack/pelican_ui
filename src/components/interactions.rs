@@ -3,7 +3,7 @@ use mustache::drawable::{Drawable};
 use mustache::{Context, Component};
 
 // use crate::components::avatar::{Avatar, AvatarContent};
-use crate::utils::Callback;
+use crate::utils::{Callback, ElementID};
 use crate::layout::{Stack, Opt};
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
@@ -103,5 +103,66 @@ impl OnEvent for Button {
 impl std::fmt::Debug for Button {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Button")
+    }
+}
+
+
+#[derive(Component)]
+pub struct Selectable {
+    layout: Stack,
+    default: Opt<Box<dyn Drawable>>,
+    selected: Opt<Box<dyn Drawable>>,
+    #[skip] is_selected: bool,
+    #[skip] on_click: Callback,
+    #[skip] id: ElementID,
+}
+
+impl std::fmt::Debug for Selectable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Selectable")
+    }
+}
+
+impl Selectable {
+    pub fn new(
+        on_click: impl FnMut(&mut Context) + 'static,
+        default: impl Drawable + 'static,
+        selected: impl Drawable + 'static,
+        is_selected: bool,
+    ) -> Self {
+        Selectable {
+            layout: Stack::default(),
+            on_click: Box::new(on_click),
+            default: Opt::new(Box::new(default), !is_selected),
+            selected: Opt::new(Box::new(selected), is_selected),
+            is_selected,
+            id: ElementID::new(),
+        }
+    }
+
+    pub fn selected(&mut self, is_selected: bool) { self.is_selected = is_selected; }
+}
+
+impl OnEvent for Selectable {
+    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            self.default.display(!self.is_selected);
+            self.selected.display(self.is_selected);
+        } else if let Some(MouseEvent { state: MouseState::Pressed, position: Some(_) }) = event.downcast_ref::<MouseEvent>() {
+            ctx.hardware.haptic();
+            (self.on_click)(ctx);
+            ctx.trigger_event(SelectableEvent(self.id))
+        } else if let Some(SelectableEvent(id)) = event.downcast_ref::<SelectableEvent>() {
+            if *id != self.id { self.is_selected = false; } else { self.is_selected = true; }
+        }
+        false
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct SelectableEvent(pub ElementID);
+impl Event for SelectableEvent {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }

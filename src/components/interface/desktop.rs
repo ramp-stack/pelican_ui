@@ -1,73 +1,43 @@
-use mustache::events::{OnEvent, Event};
-use mustache::drawable::{Color, Image};
-use mustache::{Context, Component};
+use mustache::{Component, Context};
+use mustache::events::{Event, OnEvent};
+use mustache::drawable::{Color, Drawable, Image};
 
 use crate::components::{Rectangle, AspectRatioImage};
-use crate::layout::{Column, Stack, Bin, Row, Padding, Offset, Size};
-use crate::components::interface::general::NavigatorGhostButton;
-use crate::components::interface::general::NavigatorSelect;
-use crate::components::interface::general::NavigatorEvent;
-use crate::plugin::PelicanUI;
+use crate::components::interface::general::InterfaceTrait;
+use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelect, NavigatorSelectable, PageBuilder};
+use crate::layout::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 
-use crate::utils::ElementID;
-use crate::{AppPage, NavigateEvent};
 use crate::pages::Error;
+use crate::plugin::PelicanUI;
+use crate::utils::ElementID;
 
-use std::fmt::Debug;
-use crate::components::interface::general::{NavigationButton, NavigateInfo, PageBuilder};
+#[derive(Component, Debug)]
+pub struct DesktopInterface(Row, Option<Opt<Box<dyn Drawable>>>, Bin<Stack, Rectangle>, Option<Box<dyn AppPage>>);
+impl OnEvent for DesktopInterface {}
 
-#[derive(Component)]
-pub struct DesktopInterface(Row, Option<DesktopNavigator>, Bin<Stack, Rectangle>, Option<Box<dyn AppPage>>, #[skip] Option<Vec<PageBuilder>>);
+impl InterfaceTrait for DesktopInterface {
+    fn app_page(&mut self) -> &mut Option<Box<dyn AppPage>> {&mut self.3}
+    fn navigator(&mut self) -> &mut Option<Opt<Box<dyn Drawable>>> {&mut self.1}
+}
 
 impl DesktopInterface {
     pub fn new(
         ctx: &mut Context, 
-        start_page: Box<dyn AppPage>,
+        start_page: impl AppPage,
         mut navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
     ) -> Self {
         let color = ctx.get::<PelicanUI>().get().0.theme().colors.outline.secondary;
-        let pages = navigation.as_mut().map(|(_, a, b)| {
-            let new: Vec<&mut NavigateInfo> = match b {
-                Some(nav) => a.iter_mut().chain(nav.iter_mut()).collect(),
-                None => a.iter_mut().collect(),
-            };
-            new.into_iter().map(|t| t.get_page.take().unwrap()).collect::<Vec<_>>()
-        });
-
-        let navigator = navigation.map(|n| DesktopNavigator::new(ctx, n));
-
+        let navigator = navigation.map(|n| Opt::new(Box::new(DesktopNavigator::new(ctx, n)) as Box<dyn Drawable>, true));
         let line_layout = Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default());
         let separator = Bin(line_layout, Rectangle::new(color, 0.0, None));
-
         let layout = Row::new(0.0, Offset::Start, Size::Fit, Padding::default());
-        DesktopInterface(layout, navigator, separator, Some(start_page), pages)
-    }
-
-    pub fn page(&mut self) -> &mut Option<Box<dyn AppPage>> { &mut self.3 }
-    pub fn navigator(&mut self) -> &mut Option<DesktopNavigator> { &mut self.1 }
-}
-
-impl OnEvent for DesktopInterface {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if let Some(NavigateEvent(index)) = event.downcast_mut::<NavigateEvent>() {
-            self.3 = Some(self.3.take().unwrap().navigate(ctx, *index).unwrap_or_else(|e| {
-                Box::new(Error::new(ctx, "404 Page Not Found", e))
-            }));
-        } else if let Some(NavigatorEvent(index)) = event.downcast_mut::<NavigatorEvent>() {
-            if let Some(nav) = self.4.as_mut() { self.3 = Some(nav[*index](ctx)); }
-        }
-        true
-    }
-}
-
-impl std::fmt::Debug for DesktopInterface {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Desktop")
+        DesktopInterface(layout, navigator, separator, Some(Box::new(start_page)))
     }
 }
 
 #[derive(Debug, Component)]
 pub struct DesktopNavigator(Column, Image, ButtonColumn, Option<Bin<Stack, Rectangle>>, Option<ButtonColumn>);
+impl OnEvent for DesktopNavigator {}
 
 impl DesktopNavigator {
     pub fn new(ctx: &mut Context, navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
@@ -81,13 +51,23 @@ impl DesktopNavigator {
         });
 
         navigation.1.into_iter().for_each(|info| {
-            top_col.push(Self::_new(ctx, i, navigation.0 == i, info));
+            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
+
+            top_col.push(match info.avatar {
+                Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, navigation.0 == i),
+                None => NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == i)
+            });
             i += 1;
         });
 
         if let Some(n) = navigation.2 {
             n.into_iter().for_each(|info| {
-                bot_col.push(Self::_new(ctx, i, navigation.0 == i, info));
+                let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
+
+                bot_col.push(match info.avatar {
+                    Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, navigation.0 == i),
+                    None => NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == i)
+                });
                 i += 1;
             });
         }
@@ -103,47 +83,14 @@ impl DesktopNavigator {
         )
     }
 
-    fn _new(ctx: &mut Context, index: usize, selected: bool, info: NavigateInfo) -> NavigationButton {
-        let id = ElementID::new();
-
-        let closure = move |ctx: &mut Context| {
-            ctx.trigger_event(NavigatorSelect(id));
-            ctx.trigger_event(NavigatorEvent(index));
-        };
-
-        match info.avatar {
-            Some(a) => NavigationButton::new(id, NavigatorGhostButton::desktop_avatar(ctx, a, &info.label, closure, selected)),
-            None => NavigationButton::new(id, NavigatorGhostButton::desktop_icon(ctx, info.icon, &info.label, closure, selected))
-        }
-    }
-
-    pub fn buttons(&mut self) -> Vec<&mut NavigatorGhostButton> {
-        self.2.buttons().iter_mut().map(|nb| nb.inner()).collect()
-    }
-}
-
-impl OnEvent for DesktopNavigator {
-    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if let Some(NavigatorSelect(id)) = event.downcast_ref::<NavigatorSelect>() {
-            let mut buttons: Vec<&mut NavigationButton> = self.2.buttons().iter_mut().collect();
-            if let Some(b) = self.4.as_mut() { buttons.extend(b.buttons().iter_mut()) }
-            buttons.iter_mut().for_each(|b| {
-                let is_selected = b.id() == *id;
-                b.inner().inner().selected(is_selected);
-            });
-        }
-        true
-    }
 }
 
 #[derive(Debug, Component)]
-struct ButtonColumn(Column, Vec<NavigationButton>);
+struct ButtonColumn(Column, Vec<NavigatorSelectable>);
 impl OnEvent for ButtonColumn {}
 
 impl ButtonColumn {
-    fn new(buttons: Vec<NavigationButton>) -> Self {
+    fn new(buttons: Vec<NavigatorSelectable>) -> Self {
         ButtonColumn(Column::center(8.0), buttons)
     }
-
-    fn buttons(&mut self) -> &mut Vec<NavigationButton> {&mut self.1}
 }

@@ -2983,8 +2983,6 @@ dependencies = [
 [[package]]
 name = "pelican_ui_proc"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4b7653eee7e4a68f7b7d1e239771e2f094f4f07dab025736369b8c6490e6eab"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",

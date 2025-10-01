@@ -7,8 +7,8 @@ use crate::components::interface::general::{Page, Content, Header, Bumper};
 use crate::components::{TextStyle, Text, AspectRatioImage};
 use crate::components::button::PrimaryButton;
 use crate::plugin::PelicanUI;
-use crate::{AppPage, NavigateEvent};
-
+use crate::components::interface::navigation::AppPage;
+use crate::components::interface::navigation::NavigateEvent;
 
 /// Error page that will be shown when the user is navigated to an invalid index.
 ///

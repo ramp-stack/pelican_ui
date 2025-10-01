@@ -46,38 +46,6 @@ impl std::fmt::Debug for ListItem {
     }
 }
 
-pub struct ListItemInfoLeft {
-    title: String,
-    subtitle: String,
-    flair: Option<(&'static str, Color)>,
-    description: Option<String>,
-}
-
-impl ListItemInfoLeft {
-    pub fn new(title: &str, subtitle: &str, description: Option<&str>, flair: Option<(&'static str, Color)>) -> Self {
-        ListItemInfoLeft {
-            title: title.to_string(),
-            subtitle: subtitle.to_string(),
-            description: description.map(|text| text.to_string()),
-            flair,
-        }
-    }
-}
-
-pub struct ListItemInfoRight {
-    title: String,
-    subtitle: String,
-}
-
-impl ListItemInfoRight {
-    pub fn new(title: &str, subtitle: &str) -> Self {
-        ListItemInfoRight {
-            title: title.to_string(),
-            subtitle: subtitle.to_string(),
-        }
-    }
-}
-
 impl ListItem {
     pub fn new(
         ctx: &mut Context,
@@ -195,6 +163,37 @@ impl Event for ListItemSelect {
     }
 }
 
+pub struct ListItemInfoLeft {
+    title: String,
+    subtitle: String,
+    flair: Option<(&'static str, Color)>,
+    description: Option<String>,
+}
+
+impl ListItemInfoLeft {
+    pub fn new(title: &str, subtitle: &str, description: Option<&str>, flair: Option<(&'static str, Color)>) -> Self {
+        ListItemInfoLeft {
+            title: title.to_string(),
+            subtitle: subtitle.to_string(),
+            description: description.map(|text| text.to_string()),
+            flair,
+        }
+    }
+}
+
+pub struct ListItemInfoRight {
+    title: String,
+    subtitle: String,
+}
+
+impl ListItemInfoRight {
+    pub fn new(title: &str, subtitle: &str) -> Self {
+        ListItemInfoRight {
+            title: title.to_string(),
+            subtitle: subtitle.to_string(),
+        }
+    }
+}
 
 // /// ## List Item Selector
 // ///

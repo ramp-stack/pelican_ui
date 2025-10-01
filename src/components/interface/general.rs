@@ -1,56 +1,21 @@
-use mustache::events::{OnEvent, MouseState, MouseEvent, Event};
+use mustache::{Component, Context, IS_MOBILE, IS_WEB, drawables};
+use mustache::events::{Event, OnEvent, MouseEvent, MouseState};
 use mustache::drawable::{Drawable, Align};
-use mustache::{drawables, Context, Component, IS_MOBILE, IS_WEB};
 
-use crate::components::{Rectangle, TextStyle, ExpandableText, Text};
-use crate::layout::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor};
-use crate::components::avatar::{AvatarContent, Avatar};
-use crate::components::interactions::{ButtonState, self};
+use crate::components::{Rectangle, TextStyle, ExpandableText, Text, TextInput, Icon};
+use crate::components::avatar::{Avatar, AvatarContent};
+use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, GhostIconButton, IconButton};
+use crate::components::interactions::{self, ButtonState};
 use crate::components::text_input::TextInputEvent;
-use crate::components::button::{ButtonSize, ButtonWidth};
-use crate::components::button::GhostIconButton;
-use crate::components::button::IconButton;
-use crate::components::button::Button;
-use crate::components::button::ButtonStyle;
-use crate::components::{TextInput, Icon};
-use crate::utils::ElementID;
-use crate::layout::ScrollDirection;
-use crate::{AppPage, NavigateEvent};
+
+use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelect, PageBuilder};
+use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInterface, web::WebInterface};
+
+use crate::layout::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
+
+use crate::pages::Error;
 use crate::plugin::PelicanUI;
-use crate::components::interface::{
-    desktop::DesktopInterface,
-    mobile::MobileInterface,
-    web::WebInterface,
-};
-
-pub struct NavigateInfo {
-    pub(crate) icon: &'static str,
-    pub(crate) label: String,
-    pub(crate) avatar: Option<AvatarContent>,
-    pub(crate) get_page: Option<PageBuilder>
-}
-
-impl NavigateInfo {
-    pub fn icon(icon: &'static str, label: &str, get_page: impl FnMut(&mut Context) -> Box<dyn AppPage> + 'static) -> Self {
-        NavigateInfo {
-            icon,
-            label: label.to_string(),
-            avatar: None,
-            get_page: Some(Box::new(get_page))
-        }
-    }
-
-    pub fn avatar(avatar: AvatarContent, label: &str, get_page: impl FnMut(&mut Context) -> Box<dyn AppPage> + 'static) -> Self {
-        NavigateInfo {
-            icon: "profile",
-            label: label.to_string(),
-            avatar: Some(avatar),
-            get_page: Some(Box::new(get_page))
-        }
-    }
-}
-
-pub type PageBuilder = Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>;
+use crate::utils::ElementID;
 
 /// The top-level interface of an app built with Pelican.
 ///
@@ -71,36 +36,65 @@ pub type PageBuilder = Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>;
 ///   - Two vectors of [`NavigateInfo`], which define top and bottom sections of the navigator on desktop.
 ///     On web and mobile, these vectors are combined with no visual separation.
 /// - A vector of socials for web, as tuples `(icon, URL)` representing the social icon and its link.
-#[derive(Debug, Component)]
-pub struct Interface (Stack, Option<Rectangle>, Option<MobileInterface>, Option<DesktopInterface>, Option<WebInterface>);
-impl OnEvent for Interface {}
+#[derive(Component)]
+pub struct Interface(Stack, Rectangle, Box<dyn InterfaceTrait>, #[skip] Option<Vec<PageBuilder>>);
+
 impl Interface {
     pub fn new(
         ctx: &mut Context, 
         start_page: impl AppPage,
-        navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
+        mut navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
     ) -> Self {
-        let color = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
+        let pages = navigation.as_mut().map(|(_, a, b)| {
+            let new: Vec<&mut NavigateInfo> = match b {
+                Some(nav) => a.iter_mut().chain(nav.iter_mut()).collect(),
+                None => a.iter_mut().collect(),
+            };
+            new.into_iter().map(|t| t.get_page.take().unwrap()).collect::<Vec<_>>()
+        });
 
-        let (mobile, desktop, web) = match IS_WEB {
-            true => (None, None, Some(WebInterface::new(ctx, Box::new(start_page), navigation, None))),
-            false if IS_MOBILE => (Some(MobileInterface::new(ctx, Box::new(start_page), navigation)), None, None),
-            false => (None, Some(DesktopInterface::new(ctx, Box::new(start_page), navigation)), None),
+        let visual: Box<dyn InterfaceTrait> = match IS_WEB {
+            true => Box::new(WebInterface::new(ctx, start_page, navigation, None)),
+            false if IS_MOBILE => Box::new(MobileInterface::new(ctx, start_page, navigation)),
+            false => Box::new(DesktopInterface::new(ctx, start_page, navigation)),
         };
 
-        Interface(Stack::default(), Some(Rectangle::new(color, 0.0, None)), mobile, desktop, web)
+        let color = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
+        Interface(Stack::default(), Rectangle::new(color, 0.0, None), visual, pages)
     }
+}
 
-    /// Returns the DesktopInterface if on desktop
-    pub fn desktop(&mut self) -> &mut Option<DesktopInterface> { &mut self.3 }
-    /// Returns the MobileInterface if on mobile
-    pub fn mobile(&mut self) -> &mut Option<MobileInterface> { &mut self.2 }
-    /// Returns the WebInterface if on web
-    pub fn web(&mut self) -> &mut Option<WebInterface> { &mut self.4 }
-    // pub fn navigation(&mut self) -> (Option<&mut Option<MobileNavigator>>, Option<&mut Option<DesktopNavigator>>) {
-    //     (self.desktop().as_mut().map(|d| &mut d.navigator()), self.mobile().as_mut().map(|m| &mut m.navigator()))
-    // }
-}  
+impl std::fmt::Debug for Interface {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Interface")
+    }
+}
+
+impl OnEvent for Interface {
+    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+        if let Some(NavigateEvent(index)) = event.downcast_mut::<NavigateEvent>() {
+            let page = self.2.app_page().take().unwrap();
+            *self.2.app_page() = Some(page.navigate(ctx, *index).unwrap_or_else(|e| Box::new(Error::new(ctx, "404 Page Not Found", e))));
+
+            if IS_MOBILE {
+                let display = self.2.app_page().as_ref().map(|s| s.has_nav()).unwrap_or(false);
+                if let Some(navigator) = self.2.navigator() {
+                    navigator.display(display);
+                }
+            }
+        } else if let Some(NavigatorEvent(index)) = event.downcast_mut::<NavigatorEvent>() {
+            if let Some(pages) = self.3.as_mut() { *self.2.app_page() = Some(pages[*index](ctx)); }
+        }
+
+        true
+    }
+}
+
+pub trait InterfaceTrait: Drawable + std::fmt::Debug + 'static {
+    fn app_page(&mut self) -> &mut Option<Box<dyn AppPage>>;
+    fn navigator(&mut self) -> &mut Option<Opt<Box<dyn Drawable>>>;
+}
+
 
 /// # Page
 ///
@@ -389,86 +383,5 @@ impl OnEvent for BumperContent {}
 impl BumperContent {
     fn new(content: Vec<Box<dyn Drawable>>) -> Self {
         BumperContent(Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0)), content)
-    }
-}
-
-
-/// Button wrapper used for navigators.
-#[derive(Debug, Component)]
-pub struct NavigationButton(Stack, NavigatorGhostButton, #[skip] ElementID);
-impl OnEvent for NavigationButton {}
-impl NavigationButton {
-    pub fn new(id: ElementID, button: NavigatorGhostButton) -> Self {
-        NavigationButton(Stack::default(), button, id)
-    }
-
-    /// Returns the id of the `NavigationButton`
-    pub fn id(&self) -> ElementID { self.2 }
-
-    /// Returns the inner [`NavigatorGhostButton`] component.
-    pub fn inner(&mut self) -> &mut NavigatorGhostButton { &mut self.1 }
-}
-
-#[derive(Debug, Component)]
-pub struct NavigatorGhostButton(Stack, interactions::Button);
-impl OnEvent for NavigatorGhostButton {}
-impl NavigatorGhostButton {
-    pub fn desktop_icon(ctx: &mut Context, icon: &'static str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool) -> NavigatorGhostButton {
-        let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
-        let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
-            let font_size = ButtonSize::Large.font(ctx);
-            let icon_size = ButtonSize::Large.icon();
-            let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-            let icon = Icon::new(ctx, icon, colors.label, icon_size);
-            Button::new(drawables![icon, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
-        });
-        NavigatorGhostButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, state))
-    }
-
-    pub fn desktop_avatar(ctx: &mut Context, avatar: AvatarContent, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool) -> NavigatorGhostButton {
-        let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
-        let buttons = [colors.default, colors.hover, colors.pressed, colors.pressed, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
-            let font_size = ButtonSize::Large.font(ctx);
-            let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-            let avatar = Avatar::new(ctx, avatar.clone(), None, false, ButtonSize::Large.icon(), None);
-            Button::new(drawables![avatar, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
-        });
-        NavigatorGhostButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, state))
-    }
-
-    pub fn mobile(ctx: &mut Context, icon: &'static str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool) -> NavigatorGhostButton {
-        let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
-        let buttons = [colors.disabled, colors.hover, colors.pressed, colors.default, colors.disabled];
-        let [default, hover, pressed, selected, disabled] = buttons.map(|colors| {
-            IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
-        });
-        NavigatorGhostButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, selected, disabled, state))
-    }
-
-    pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
-}
-
-/// Selects the [`NavigationButton`] with the given [`ElementID`] and deselects all other items.
-#[derive(Debug, Clone)]
-pub struct NavigatorSelect(pub ElementID);
-
-impl Event for NavigatorSelect {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
-        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
-
-/// Navigates to the page at the given `index`. See [`AppPage`] for details on navigation.
-#[derive(Debug, Clone)]
-pub struct NavigatorEvent(pub usize);
-
-impl Event for NavigatorEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
-        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }
