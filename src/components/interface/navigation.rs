@@ -1,16 +1,13 @@
-use mustache::{Component, Context, IS_MOBILE, IS_WEB, drawables};
-use mustache::events::{Event, OnEvent, MouseEvent, MouseState};
+use mustache::{Component, Context, drawables};
+use mustache::events::{Event, OnEvent};
 use mustache::drawable::{Drawable, Align};
 
-use crate::components::{Rectangle, TextStyle, ExpandableText, Text, TextInput, Icon};
+use crate::components::{TextStyle, Text, Icon};
 use crate::components::avatar::{Avatar, AvatarContent};
-use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, GhostIconButton, IconButton};
-use crate::components::interactions::{self, ButtonState};
-use crate::components::text_input::TextInputEvent;
+use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, IconButton};
+use crate::components::interactions;
 
-use crate::layout::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
-
-use crate::pages::Error;
+use crate::layout::{Stack, Offset};
 use crate::plugin::PelicanUI;
 use crate::utils::ElementID;
 
@@ -133,7 +130,6 @@ impl NavigatorSelectable {
     }
 
     pub fn mobile(ctx: &mut Context, icon: &'static str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool) -> Self {
-        let state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
             IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)

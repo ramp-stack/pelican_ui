@@ -1,15 +1,12 @@
 use mustache::{Component, Context};
-use mustache::events::{Event, OnEvent};
+use mustache::events::OnEvent;
 use mustache::drawable::{Color, Drawable, Image};
 
 use crate::components::{Rectangle, AspectRatioImage};
 use crate::components::interface::general::InterfaceTrait;
-use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelect, NavigatorSelectable, PageBuilder};
+use crate::components::interface::navigation::{AppPage, NavigatorEvent, NavigateInfo, NavigatorSelectable};
 use crate::layout::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
-
-use crate::pages::Error;
 use crate::plugin::PelicanUI;
-use crate::utils::ElementID;
 
 #[derive(Component, Debug)]
 pub struct DesktopInterface(Row, Option<Opt<Box<dyn Drawable>>>, Bin<Stack, Rectangle>, Option<Box<dyn AppPage>>);
@@ -24,7 +21,7 @@ impl DesktopInterface {
     pub fn new(
         ctx: &mut Context, 
         start_page: impl AppPage,
-        mut navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
+        navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
     ) -> Self {
         let color = ctx.get::<PelicanUI>().get().0.theme().colors.outline.secondary;
         let navigator = navigation.map(|n| Opt::new(Box::new(DesktopNavigator::new(ctx, n)) as Box<dyn Drawable>, true));

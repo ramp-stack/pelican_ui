@@ -8,11 +8,8 @@ use crate::components::Rectangle;
 use crate::components::text_input::TextInputEvent;
 use crate::components::interface::general::InterfaceTrait;
 use crate::components::interface::system::MobileKeyboard;
-use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelect, NavigatorSelectable, PageBuilder};
-
-use crate::pages::Error;
+use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelectable};
 use crate::plugin::PelicanUI;
-use crate::utils::ElementID;
 
 #[derive(Component, Debug)]
 pub struct MobileInterface(Column, Option<Box<dyn AppPage>>, Option<MobileKeyboard>, Option<Opt<Box<dyn Drawable>>>);
@@ -26,7 +23,7 @@ impl MobileInterface {
     pub fn new(
         ctx: &mut Context, 
         start_page: impl AppPage,
-        mut navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>
+        navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>
     ) -> Self {
         let navigator = navigation.map(|n| Opt::new(Box::new(MobileNavigator::new(ctx, n)) as Box<dyn Drawable>, true));
         let insets = ctx.hardware.safe_area_insets();

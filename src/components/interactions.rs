@@ -153,7 +153,7 @@ impl OnEvent for Selectable {
             (self.on_click)(ctx);
             ctx.trigger_event(SelectableEvent(self.id))
         } else if let Some(SelectableEvent(id)) = event.downcast_ref::<SelectableEvent>() {
-            if *id != self.id { self.is_selected = false; } else { self.is_selected = true; }
+            self.is_selected = *id == self.id;
         }
         false
     }

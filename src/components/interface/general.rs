@@ -1,21 +1,18 @@
-use mustache::{Component, Context, IS_MOBILE, IS_WEB, drawables};
+use mustache::{Component, Context, IS_MOBILE, IS_WEB};
 use mustache::events::{Event, OnEvent, MouseEvent, MouseState};
 use mustache::drawable::{Drawable, Align};
 
-use crate::components::{Rectangle, TextStyle, ExpandableText, Text, TextInput, Icon};
-use crate::components::avatar::{Avatar, AvatarContent};
-use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, GhostIconButton, IconButton};
-use crate::components::interactions::{self, ButtonState};
+use crate::components::{Rectangle, TextStyle, ExpandableText, TextInput};
+use crate::components::button::GhostIconButton;
 use crate::components::text_input::TextInputEvent;
 
-use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelect, PageBuilder};
+use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, PageBuilder};
 use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInterface, web::WebInterface};
 
 use crate::layout::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
 
 use crate::pages::Error;
 use crate::plugin::PelicanUI;
-use crate::utils::ElementID;
 
 /// The top-level interface of an app built with Pelican.
 ///
