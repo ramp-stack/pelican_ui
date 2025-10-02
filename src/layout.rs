@@ -555,11 +555,11 @@ impl Event for AdjustScrollEvent {
 
 /// A container pairing a layout with a drawable element.
 #[derive(Debug, Component)]
-pub struct Bin<L: Layout, D: Drawable>(pub L, pub D);
+pub struct Bin<L: Layout, D: Drawable + 'static>(pub L, pub D);
 
-impl<L: Layout, D: Drawable> OnEvent for Bin<L, D> {}
+impl<L: Layout, D: Drawable + 'static> OnEvent for Bin<L, D> {}
 
-impl<L: Layout, D: Drawable> Bin<L, D> {
+impl<L: Layout, D: Drawable + 'static> Bin<L, D> {
     pub fn inner(&mut self) -> &mut D {
         &mut self.1
     }

@@ -92,7 +92,6 @@ pub trait InterfaceTrait: Drawable + std::fmt::Debug + 'static {
     fn navigator(&mut self) -> &mut Option<Opt<Box<dyn Drawable>>>;
 }
 
-
 /// # Page
 ///
 /// A Page is a UI container that holds optional [`Header`], [`Content`], and optional [`Bumper`] components.
