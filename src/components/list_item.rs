@@ -46,7 +46,7 @@ impl ListItem {
         ctx: &mut Context,
         avatar: Option<AvatarContent>,
         left: ListItemInfoLeft,
-        right: Option<ListItemInfoRight>,
+        right: Option<TitleSubtitle>,
         icon: Option<&'static str>,
         on_click: impl FnMut(&mut Context) + 'static,
     ) -> Self {
@@ -90,7 +90,7 @@ impl ListItemContent {
         ctx: &mut Context,
         avatar: Option<AvatarContent>,
         left: ListItemInfoLeft,
-        right: Option<ListItemInfoRight>,
+        right: Option<TitleSubtitle>,
         icon: Option<&'static str>,
     ) -> Self {
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding::default());
@@ -106,7 +106,7 @@ struct ListItemData(Row, LeftData, Option<RightData>);
 impl OnEvent for ListItemData {}
 
 impl ListItemData {
-    fn new(ctx: &mut Context, left: ListItemInfoLeft, right: Option<ListItemInfoRight>) -> Self {
+    fn new(ctx: &mut Context, left: ListItemInfoLeft, right: Option<TitleSubtitle>) -> Self {
         let layout = Row::new(8.0, Offset::Start, Size::Fit, Padding::default());
         ListItemData(layout, LeftData::new(ctx, left), right.map(|info| RightData::new(ctx, info)))
     }
@@ -120,9 +120,9 @@ impl LeftData {
     pub fn new(ctx: &mut Context, info: ListItemInfoLeft) -> Self {
         let layout = Column::new(4.0, Offset::Start, Size::Fill, Padding::default());
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.xs;
-        let subtitle = ExpandableText::new(ctx, &info.subtitle, size, TextStyle::Secondary, Align::Left, Some(2));
+        let subtitle = ExpandableText::new(ctx, &info.title.1, size, TextStyle::Secondary, Align::Left, Some(2));
         let description = info.description.map(|text| ExpandableText::new(ctx, &text, size, TextStyle::Secondary, Align::Left, Some(2)));
-        LeftData(layout, TitleRow::new(ctx, &info.title, info.flair), subtitle, description)
+        LeftData(layout, TitleRow::new(ctx, &info.title.0, info.flair), subtitle, description)
     }
 }
 
@@ -145,11 +145,11 @@ struct RightData(Column, Text, Text);
 impl OnEvent for RightData {}
 
 impl RightData {
-    fn new(ctx: &mut Context, info: ListItemInfoRight) -> Self {
+    fn new(ctx: &mut Context, info: TitleSubtitle) -> Self {
         let layout = Column::new(4.0, Offset::End, Size::Fit, Padding::default());
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
-        let title = Text::new(ctx, &info.title, size.h5, TextStyle::Heading, Align::Left, Some(1));
-        let subtitle = Text::new(ctx, &info.subtitle, size.xs, TextStyle::Secondary, Align::Left, Some(2));
+        let title = Text::new(ctx, &info.0, size.h5, TextStyle::Heading, Align::Left, Some(1));
+        let subtitle = Text::new(ctx, &info.1, size.xs, TextStyle::Secondary, Align::Left, Some(2));
         RightData(layout, title, subtitle)
     }
 }
@@ -165,8 +165,7 @@ impl Event for ListItemSelect {
 }
 
 pub struct ListItemInfoLeft {
-    title: String,
-    subtitle: String,
+    title: TitleSubtitle,
     flair: Option<(&'static str, Color)>,
     description: Option<String>,
 }
@@ -174,25 +173,18 @@ pub struct ListItemInfoLeft {
 impl ListItemInfoLeft {
     pub fn new(title: &str, subtitle: &str, description: Option<&str>, flair: Option<(&'static str, Color)>) -> Self {
         ListItemInfoLeft {
-            title: title.to_string(),
-            subtitle: subtitle.to_string(),
+            title: TitleSubtitle::new(title, subtitle),
             description: description.map(|text| text.to_string()),
             flair,
         }
     }
 }
 
-pub struct ListItemInfoRight {
-    title: String,
-    subtitle: String,
-}
+pub struct TitleSubtitle(String, String);
 
-impl ListItemInfoRight {
+impl TitleSubtitle {
     pub fn new(title: &str, subtitle: &str) -> Self {
-        ListItemInfoRight {
-            title: title.to_string(),
-            subtitle: subtitle.to_string(),
-        }
+        TitleSubtitle(title.to_string(), subtitle.to_string())
     }
 }
 
