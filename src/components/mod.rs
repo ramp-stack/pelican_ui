@@ -6,7 +6,7 @@ mod data_item;
 pub use data_item::{DataItem, QuickActions};
 pub mod list_item;
 mod text_input;
-pub use text_input::{TextInput, TextInputEvent};
+pub use text_input::TextInput;
 mod slider;
 pub use slider::Slider;
 mod images;

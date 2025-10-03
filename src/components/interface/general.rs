@@ -2,9 +2,10 @@ use mustache::{Component, Context, IS_MOBILE, IS_WEB};
 use mustache::events::{Event, OnEvent, MouseEvent, MouseState};
 use mustache::drawable::{Drawable, Align};
 
-use crate::components::{Rectangle, TextStyle, ExpandableText, TextInput};
+use crate::components::{Rectangle, TextStyle, ExpandableText};
 use crate::components::button::GhostIconButton;
-use crate::components::text_input::TextInputEvent;
+use crate::components::text_input::TextInput;
+use crate::components::interactions::TextInputEvent;
 
 use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, PageBuilder};
 use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInterface, web::WebInterface};
@@ -202,7 +203,7 @@ impl OnEvent for Content {
                 let mut total_height = 0.0;
                 for item in self.items().iter_mut() {
                     match item.as_any_mut().downcast_mut::<TextInput>() {
-                        Some(input) if input.element_id == *id => {
+                        Some(input) if *input.id() == *id => {
                             self.0.set_scroll(total_height);
                             break;
                         }

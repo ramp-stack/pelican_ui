@@ -10,7 +10,7 @@ use crate::components::interactions;
 use crate::plugin::PelicanUI;
 
 #[derive(Debug, Component)]
-pub struct PrimaryButton(Stack, interactions::Button);
+pub struct PrimaryButton(Stack, pub interactions::Button);
 impl OnEvent for PrimaryButton {}
 impl PrimaryButton {
     pub fn new(ctx: &mut Context, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_disabled: bool) -> Self {
@@ -29,7 +29,7 @@ impl PrimaryButton {
 }
 
 #[derive(Debug, Component)]
-pub struct SecondaryButton(Stack, interactions::Button);
+pub struct SecondaryButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryButton {}
 impl SecondaryButton {
     pub fn medium(ctx: &mut Context, icon: &'static str, label: &str, active_label: Option<&str>, on_click: impl FnMut(&mut Context) + 'static) -> Self {
@@ -63,7 +63,7 @@ impl SecondaryButton {
 }
 
 #[derive(Debug, Component)]
-pub struct SecondaryIconButton(Stack, interactions::Button);
+pub struct SecondaryIconButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryIconButton {}
 impl SecondaryIconButton {
     pub fn new(ctx: &mut Context, icon: &'static str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
@@ -79,7 +79,7 @@ impl SecondaryIconButton {
 }
 
 #[derive(Debug, Component)]
-pub struct GhostIconButton(Stack, interactions::Button);
+pub struct GhostIconButton(Stack, pub interactions::Button);
 impl OnEvent for GhostIconButton {}
 impl GhostIconButton {
     pub fn new(ctx: &mut Context, icon: &'static str, on_click: impl FnMut(&mut Context) + 'static) -> Self {

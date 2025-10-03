@@ -5,7 +5,7 @@ use mustache::events::{Event, OnEvent};
 use crate::layout::{Column, Row, Padding, Offset, Size, Opt, Stack};
 
 use crate::components::Rectangle;
-use crate::components::text_input::TextInputEvent;
+use crate::components::interactions::TextInputEvent;
 use crate::components::interface::general::InterfaceTrait;
 use crate::components::interface::system::MobileKeyboard;
 use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelectable};

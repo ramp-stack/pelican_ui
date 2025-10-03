@@ -4,10 +4,10 @@ use mustache::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, Mous
 use mustache::drawable::{Align, Image, Color};
 use mustache::{Context, Component};
 
-use crate::components::text_input::TextInputEvent;
 use crate::components::{Text, TextStyle, Rectangle, Icon};
 use crate::layout::{Stack, Bin, Column, Row, Offset, Size, Padding};
 use crate::components::interactions::ButtonState;
+use crate::components::interactions::TextInputEvent;
 use crate::components::button::GhostIconButton;
 use crate::plugin::PelicanUI;
 

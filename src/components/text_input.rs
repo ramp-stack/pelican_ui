@@ -1,14 +1,15 @@
-use mustache::events::{OnEvent, TickEvent, MouseState, MouseEvent, Event, KeyboardState, KeyboardEvent};
+use mustache::events::{OnEvent, TickEvent, Event};
 use mustache::drawable::{Align, Color};
 use mustache::{Context, Component};
 
+use crate::components::interactions::{InputState, SubmitCallback, self};
 use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
-use crate::layout::{EitherOr, Padding, Column, Stack, Offset, Size, Row, Bin};
+use crate::layout::{Padding, Column, Stack, Offset, Size, Bin};
 use crate::components::button::SecondaryIconButton;
 use crate::utils::ElementID;
 use crate::plugin::PelicanUI;
 
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc;
 
 /// ## Text Input
 ///
@@ -39,43 +40,93 @@ pub struct TextInput {
     #[skip] pub error: Option<String>,
     #[skip] pub hint: Option<String>,
     #[skip] pub value: String,
-    #[skip] pub element_id: ElementID,
 }
 
-impl TextInput {
-    #[allow(clippy::type_complexity)]
-    pub const NO_ICON: Option<(&str, fn(&mut Context, &mut String))> = None::<(&'static str, fn(&mut Context, &mut String))>;
+type TextInputButton = (&'static str, Box<dyn FnMut(&mut Context, &mut String)>);
 
+impl TextInput {
     pub fn new(
         ctx: &mut Context,
         value: Option<&str>,
         label: Option<&str>,
         placeholder: &str,
         help_text: Option<&str>,
-        icon_button: Option<(&'static str, impl FnMut(&mut Context, &mut String) + 'static)>,
+        icon_button: Option<TextInputButton>,
     ) -> Self {
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
-        let element_id = ElementID::new();
 
         TextInput {
             _layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default()),
             _label: label.map(|text| Text::new(ctx, text, size.h5, TextStyle::Heading, Align::Left, None)),
-            _input: InputField::new(ctx, value, placeholder, icon_button, element_id),
+            _input: InputField::new(ctx, placeholder, value, icon_button),
             _hint: help_text.map(|t| ExpandableText::new(ctx, t, size.sm, TextStyle::Secondary, Align::Left, None)),
             _error: None,
             hint: help_text.map(|t| t.to_string()),
             error: None,
             value: value.map(|v| v.to_string()).unwrap_or_default(),
-            element_id,
         }
     }
 
-    pub fn sync_input_value(&mut self, actual_value: &str) -> bool {
-        let changed = self.value != actual_value;
-        if *self._input.state() != InputState::Focus && !changed {
-            self.value = actual_value.to_string();
-        }
-        changed
+    pub fn id(&self) -> &ElementID {&self._input.1.id}
+
+    // pub fn sync_input_value(&mut self, actual_value: &str) -> bool {
+    //     let changed = self.value != actual_value;
+    //     if *self._input.inner().state != InputState::Focus && !changed {
+    //         self.value = actual_value.to_string();
+    //     }
+    //     changed
+    // }
+}
+
+#[derive(Debug, Component)]
+pub struct InputField(Stack, interactions::InputField);
+impl OnEvent for InputField {}
+impl InputField {
+    pub fn new(ctx: &mut Context, placeholder: &str, value: Option<&str>, icon_button: Option<TextInputButton>) -> Self {
+        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.md;
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
+
+        let icon_button = icon_button.map(|(icon, on_click)| {
+            let (sender, receiver) = mpsc::channel();
+            let icon_button = SecondaryIconButton::new(ctx, icon, move |_| {sender.send(0).unwrap();});
+            (icon_button.1, receiver, Box::new(on_click) as SubmitCallback)
+        });
+
+        let content = interactions::InputContent::new(
+            Padding(16.0, 8.0, 8.0, 8.0),
+            TextEditor::new(ctx, value.unwrap_or(""), size, TextStyle::Primary, Align::Left),
+            ExpandableText::new(ctx, "", size, TextStyle::Secondary, Align::Left, None),
+            ExpandableText::new(ctx, placeholder, size, TextStyle::Secondary, Align::Left, None),
+            icon_button,
+            InputState::Default,
+            value.unwrap_or_default().to_string()
+        );
+
+        let field = interactions::InputField::new(
+            InputBackground::new(Color::TRANSPARENT, colors.outline.secondary),
+            InputBackground::new(colors.background.secondary, colors.outline.secondary),
+            InputBackground::new(Color::TRANSPARENT, colors.outline.primary),
+            InputBackground::new(Color::TRANSPARENT, colors.status.danger),
+            content,
+            InputState::Default,
+            value.unwrap_or_default().to_string()
+        );
+
+        InputField(Stack::default(), field)
+    }
+
+    pub fn inner(&mut self) -> &mut interactions::InputField {&mut self.1}
+}
+
+
+struct InputBackground;
+impl InputBackground {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(background: Color, outline: Color) -> Bin<Stack, Rectangle> {
+        let rectangle = Rectangle::new(background, 8.0, Some((1.0, outline)));
+        let height = Size::custom(|_: Vec<(f32, f32)>| (48.0, f32::MAX));
+        let layout = Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default());
+        Bin(layout, rectangle)
     }
 }
 
@@ -96,206 +147,11 @@ impl OnEvent for TextInput {
                 self.error = None;
             }
             
-            *self._input.input() = self.value.clone();
+            self._input.inner().value = self.value.clone();
         }
         false
     }
 }
-
-#[derive(Debug, Component)]
-struct InputField(Stack, Rectangle, InputContent, #[skip] InputState, #[skip] bool, #[skip] ElementID);
-
-impl InputField {
-    pub fn new(
-        ctx: &mut Context,
-        value: Option<&str>,
-        placeholder: &str,
-        icon_button: Option<(&'static str, impl FnMut(&mut Context, &mut String) + 'static)>,
-        element_id: ElementID
-    ) -> Self {
-        let (background, outline) = InputState::Default.get_color(ctx);
-        let content = InputContent::new(ctx, value, placeholder, icon_button);
-        let background = Rectangle::new(background, 8.0, Some((1.0, outline)));
-        let height = Size::custom(|heights: Vec<(f32, f32)>| (heights[1].0.max(48.0), heights[1].1.max(48.0)));
-
-        InputField(
-            Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default()), 
-            background, content, InputState::Default, false, element_id,
-        )
-    }
-
-    pub fn input(&mut self) -> &mut String { &mut self.2.text().text().spans[0].text }
-    pub fn state(&mut self) -> &mut InputState {&mut self.3}
-}
-
-impl OnEvent for InputField {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
-            self.2.text().display_cursor(self.3 == InputState::Focus);
-            self.3 = match self.3 {
-                InputState::Default if self.4 => Some(InputState::Error),
-                InputState::Error if !self.4 => Some(InputState::Default),
-                _ => None
-            }.unwrap_or(self.3);
-
-            let (background, outline) = self.3.get_color(ctx);
-            *self.1.background() = background;
-            if let Some(c) = self.1.outline() { *c = outline; }
-            *self.2.focus() = self.3 == InputState::Focus;
-        } else if let Some(input_event) = event.downcast_ref::<TextInputEvent>() {
-            match input_event {
-                TextInputEvent::ClearActiveInput => *self.input() = String::new(),
-                TextInputEvent::SetActiveInput(s) => *self.input() = s.to_string(),
-                TextInputEvent::TextInputSelect(id) if *id != self.5 && self.3 == InputState::Focus => {
-                    if self.4 { self.3 = InputState::Error } else { self.3 = InputState::Default }
-                },
-                TextInputEvent::ShowKeyboard(false) if self.3 == InputState::Focus => {
-                    if self.4 { self.3 = InputState::Error } else { self.3 = InputState::Default }
-                }
-                _ => {}
-            }
-        } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            self.3 = match self.3 {
-                InputState::Default => {
-                    match event {
-                        MouseEvent{state: MouseState::Pressed, position: Some(_)} => {
-                            ctx.hardware.haptic();
-                            ctx.trigger_event(TextInputEvent::TextInputSelect(self.5));
-                            ctx.trigger_event(TextInputEvent::ShowKeyboard(false)); 
-                            Some(InputState::Focus)
-                        },
-                        MouseEvent{state: MouseState::Moved, position: Some(_)} => Some(InputState::Hover),
-                        _ => None
-                    }
-                },
-                InputState::Hover => {
-                    match event {
-                        MouseEvent{state: MouseState::Pressed, position: Some(_)} => {
-                            ctx.trigger_event(TextInputEvent::TextInputSelect(self.5));
-                            Some(InputState::Focus)
-                        },
-                        MouseEvent{state: MouseState::Moved, position: None} if self.4 => Some(InputState::Error),
-                        MouseEvent{state: MouseState::Moved, position: None} => Some(InputState::Default),
-                        _ => None
-                    }
-                },
-                InputState::Focus => {
-                    match event {
-                        MouseEvent{state: MouseState::Pressed, position: None} if self.4 && !mustache::IS_MOBILE => Some(InputState::Error),
-                        MouseEvent{state: MouseState::Pressed, position: None} if !mustache::IS_MOBILE => Some(InputState::Default),
-                        _ => None
-                    }
-                },
-                InputState::Error => {
-                    match event {
-                        MouseEvent{state: MouseState::Pressed, position: Some(_)} => Some(InputState::Focus),
-                        MouseEvent{state: MouseState::Moved, position: Some(_)} => Some(InputState::Hover),
-                        _ => None
-                    }
-                }
-            }.unwrap_or(self.3);
-        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key}) = event.downcast_ref() {
-            if self.3 == InputState::Focus {
-                self.2.text().apply_edit(ctx, key);
-            }
-            ctx.trigger_event(TextInputEvent::InputEditedEvent);
-        }
-        true
-    }
-}
-
-pub type SubmitCallback = Box<dyn FnMut(&mut Context, &mut String)>;
-
-#[derive(Component)]
-struct InputContent(
-    Row, Bin<Stack, EitherOr<TextEditor, ExpandableText>>, Option<SecondaryIconButton>,
-    #[skip] bool, #[skip] Option<(Receiver<u8>, SubmitCallback)>
-);
-
-impl InputContent {
-    fn new(ctx: &mut Context, value: Option<&str>, placeholder: &str, icon_button: Option<(&'static str, impl FnMut(&mut Context, &mut String) + 'static)>) -> Self {
-        let (icon_button, callback) = icon_button.map(|(icon, on_click)| {
-            let (sender, receiver) = mpsc::channel();
-            let icon_button = SecondaryIconButton::new(ctx, icon, move |_| {sender.send(0).unwrap();});
-            let callback = (receiver, Box::new(on_click) as SubmitCallback);
-            (Some(icon_button), Some(callback))
-        }).unwrap_or((None, None));
-
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.md;
-        let bin_layout = Stack(Offset::default(), Offset::End, Size::Fill, Size::Fit, Padding::new(8.0));
-        let text_editor = TextEditor::new(ctx, value.unwrap_or(""), size, TextStyle::Primary, Align::Left);
-        let placeholder = ExpandableText::new(ctx, placeholder, size, TextStyle::Secondary, Align::Left, None);
-        let bin = Bin(bin_layout, EitherOr::new(text_editor, placeholder));
-        let layout = Row::new(0.0, Offset::End, Size::Fit, Padding(16.0, 8.0, 8.0, 8.0));
-        InputContent(layout, bin, icon_button, false, callback)
-    }
-
-    fn text(&mut self) -> &mut TextEditor { self.1.inner().left() }
-    fn focus(&mut self) -> &mut bool {&mut self.3}
-}
-
-impl OnEvent for InputContent {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
-            if let Some((receiver, on_submit)) = self.4.as_mut() {
-                if receiver.try_recv().is_ok() {
-                    on_submit(ctx, &mut self.1.inner().left().text().spans[0].text)
-                }
-            }
-
-            let input = !self.1.inner().left().text().spans[0].text.is_empty();
-            self.1.inner().display_left(input || self.3)
-        }
-        true
-    }
-}
-
-impl std::fmt::Debug for InputContent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "InputContent(...)")
-    }
-}
-
-#[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
-pub enum InputState {
-    Default,
-    Hover,
-    Focus,
-    Error
-}
-
-impl InputState {
-    fn get_color(&self, ctx: &mut Context) -> (Color, Color) { // background, outline
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
-        match self {
-            InputState::Default => (Color::TRANSPARENT, colors.outline.secondary),
-            InputState::Hover => (colors.background.secondary, colors.outline.secondary),
-            InputState::Focus => (Color::TRANSPARENT, colors.outline.primary),
-            InputState::Error => (Color::TRANSPARENT, colors.status.danger)
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum TextInputEvent {
-    /// Event used to bring up or hide the keyboard.
-    ShowKeyboard(bool),
-    /// Clears the contents of the active text input.
-    ClearActiveInput,
-    /// Sets the contents of the active [`TextInput`] with the provided `String`
-    SetActiveInput(String),
-    /// Selects the [`TextInput`] with the given [`ElementID`] and deselects all other items.
-    TextInputSelect(ElementID),
-    /// Event trigger by [`TextInput`] when contents are edited. 
-    InputEditedEvent
-}
-
-impl Event for TextInputEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
-        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
-
 
 // /// # Searchbar
 // /// 

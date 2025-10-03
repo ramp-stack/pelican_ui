@@ -3,7 +3,7 @@ use mustache::drawable::{Align, Color, Image};
 use mustache::{Context, Component};
 
 use crate::components::{Rectangle, Icon, Text, ExpandableText, TextStyle};
-use crate::components::avatar::{Avatar, AvatarContent};
+use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::interactions::ButtonState;
 use crate::layout::{Column, Stack, Row, Padding, Offset, Size};
 use crate::plugin::PelicanUI;
@@ -40,11 +40,6 @@ use crate::utils::ElementID;
 /// ```
 #[derive(Component)]
 pub struct ListItem(Stack, Rectangle, ListItemContent, #[skip] ButtonState, #[skip] Callback, #[skip] bool);
-impl std::fmt::Debug for ListItem {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ListItem")
-    }
-}
 
 impl ListItem {
     pub fn new(
@@ -79,6 +74,12 @@ impl OnEvent for ListItem {
     }
 }
 
+impl std::fmt::Debug for ListItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ListItem")
+    }
+}
+
 #[derive(Debug, Component)]
 struct ListItemContent(Row, Option<Avatar>, ListItemData, Option<Image>);
 impl OnEvent for ListItemContent {}
@@ -93,7 +94,7 @@ impl ListItemContent {
         icon: Option<&'static str>,
     ) -> Self {
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding::default());
-        let avatar = avatar.map(|data| Avatar::new(ctx, data, None, false, 48.0, None));
+        let avatar = avatar.map(|data| Avatar::new(ctx, data, None, false, AvatarSize::Md, None));
         let content = ListItemData::new(ctx, left, right);
         let icon = icon.map(|i| {let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.primary; Icon::new(ctx, i, c, 16.0)});
         ListItemContent(layout, avatar, content, icon)

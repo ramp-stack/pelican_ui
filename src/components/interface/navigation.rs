@@ -3,7 +3,7 @@ use mustache::events::{Event, OnEvent};
 use mustache::drawable::{Drawable, Align};
 
 use crate::components::{TextStyle, Text, Icon};
-use crate::components::avatar::{Avatar, AvatarContent};
+use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, IconButton};
 use crate::components::interactions;
 
@@ -123,7 +123,7 @@ impl NavigatorSelectable {
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font(ctx);
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-            let avatar = Avatar::new(ctx, avatar.clone(), None, false, ButtonSize::Large.icon(), None);
+            let avatar = Avatar::new(ctx, avatar.clone(), None, false, AvatarSize::Xs, None);
             Button::new(drawables![avatar, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
         NavigatorSelectable(Stack::default(), interactions::Selectable::new(on_click, default, selected, is_selected))

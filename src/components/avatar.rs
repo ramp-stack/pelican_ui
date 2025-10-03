@@ -31,7 +31,7 @@ pub struct Avatar {
     _layout: Stack,
     _avatar: PrimaryAvatar,
     _flair: Option<Flair>,
-    #[skip] _size: f32,
+    #[skip] _size: AvatarSize,
     #[skip] on_click: Option<Callback>,
     #[skip] pub content: AvatarContent,
     #[skip] pub flair: Option<(&'static str, AvatarIconStyle)>,
@@ -50,7 +50,7 @@ impl Avatar {
         content: AvatarContent, 
         flair: Option<(&'static str, AvatarIconStyle)>, 
         outline: bool, 
-        size: f32,
+        size: AvatarSize,
         on_click: Option<Callback>
     ) -> Self {
         Avatar {
@@ -75,13 +75,13 @@ impl OnEvent for Avatar {
             }
         } else if event.as_any().downcast_ref::<TickEvent>().is_some() {
             let (circle_icon, image) = match &self.content {
-                AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (self._size, self._size), 0.0), image: image.clone(), color: None})),
-                AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(ctx, name, *style, self._size)), None)
+                AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (self._size.get(), self._size.get()), 0.0), image: image.clone(), color: None})),
+                AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(ctx, name, *style, self._size.get())), None)
             };
             
             self._avatar.1 = circle_icon;
             self._avatar.2 = image;
-            self._avatar.3 = self.outline.then(|| Circle::new(self._size, Color::BLACK, true));
+            self._avatar.3 = self.outline.then(|| Circle::new(self._size.get(), Color::BLACK, true));
             self._flair = self.flair.map(|(name, style)| Flair::new(ctx, name, style, self._size));
         }
         false
@@ -93,19 +93,46 @@ struct PrimaryAvatar(Stack, Option<AvatarIcon>, Option<Image>, Option<Shape>);
 impl OnEvent for PrimaryAvatar {}
 
 impl PrimaryAvatar {
-    fn new(ctx: &mut Context, content: AvatarContent, outline: bool, size: f32) -> Self {
+    fn new(ctx: &mut Context, content: AvatarContent, outline: bool, size: AvatarSize) -> Self {
         let (circle_icon, image) = match content {
-            AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (size, size), 0.0), image, color: None})),
-            AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(ctx, name, style, size)), None)
+            AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (size.get(), size.get()), 0.0), image, color: None})),
+            AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(ctx, name, style, size.get())), None)
         };
 
         PrimaryAvatar(
             Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding::default()),
-            circle_icon, image, outline.then(|| Circle::new(size, Color::BLACK, true)),
+            circle_icon, image, outline.then(|| Circle::new(size.get(), Color::BLACK, true)),
         )
     }
 }
 
+#[derive(Debug, Component)]
+struct AvatarIcon(Stack, Shape, Image);
+impl OnEvent for AvatarIcon {}
+impl AvatarIcon {
+    fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: f32) -> Self {
+        let icon_size = size * 0.75;
+        let (background, icon_color) = style.get(ctx);
+        AvatarIcon(
+            Stack::center(),
+            Circle::new(size - 2.0, background, false), 
+            Icon::new(ctx, name, icon_color, icon_size)
+        )
+    }
+}
+
+#[derive(Debug, Component)]
+struct Flair(Stack, AvatarIcon, Shape);
+impl OnEvent for Flair {}
+impl Flair {
+    fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: AvatarSize) -> Self {
+        Flair(
+            Stack::center(),
+            AvatarIcon::new(ctx, name, style, size.get() / 3.0),
+            Circle::new(size.get() / 3.0,  Color::BLACK, true)
+        )
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum AvatarContent {
@@ -137,30 +164,18 @@ impl AvatarIconStyle {
     }
 }
 
-#[derive(Debug, Component)]
-struct AvatarIcon(Stack, Shape, Image);
-impl OnEvent for AvatarIcon {}
-impl AvatarIcon {
-    fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: f32) -> Self {
-        let icon_size = size * 0.75;
-        let (background, icon_color) = style.get(ctx);
-        AvatarIcon(
-            Stack::center(),
-            Circle::new(size - 2.0, background, false), 
-            Icon::new(ctx, name, icon_color, icon_size)
-        )
-    }
-}
+#[derive(Debug, Copy, Clone)]
+pub enum AvatarSize {Xxl, Xl, Lg, Md, Sm, Xs}
 
-#[derive(Debug, Component)]
-struct Flair(Stack, AvatarIcon, Shape);
-impl OnEvent for Flair {}
-impl Flair {
-    fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: f32) -> Self {
-        Flair(
-            Stack::center(),
-            AvatarIcon::new(ctx, name, style, size / 3.0),
-            Circle::new(size / 3.0,  Color::BLACK, true)
-        )
+impl AvatarSize {
+    pub fn get(&self) -> f32 {
+        match self {
+            AvatarSize::Xxl => 128.0,
+            AvatarSize::Xl => 96.0,
+            AvatarSize::Lg => 64.0,
+            AvatarSize::Md => 48.0,
+            AvatarSize::Sm => 32.0,
+            AvatarSize::Xs => 24.0
+        }
     }
 }
