@@ -134,28 +134,27 @@ impl TextEditor {
         TextEditor(Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default()), text, TextCursor::new(ctx, style, size))
     }
 
-    pub fn text(&mut self) -> &mut BasicText { &mut self.1.0.inner }
 
     pub fn apply_edit(&mut self, _ctx: &mut Context, key: &Key) {
-        let index = self.text().cursor.unwrap();
+        let index = self.1.0.inner.cursor.unwrap();
         match key {
             Key::Named(NamedKey::Enter) => {
-                match index >= self.text().spans[0].text.len() {
-                    true => self.text().spans[0].text.push('\n'),
-                    false => self.text().spans[0].text.insert(index, '\n'),
+                match index >= self.1.0.spans[0].len() {
+                    true => self.1.0.spans[0].push('\n'),
+                    false => self.1.0.spans[0].insert(index, '\n'),
                 };
-                if let Some(c) = self.text().cursor.as_mut() {*c += 1};
+                if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1};
             },
             Key::Named(NamedKey::Space) => {
-                match index >= self.text().spans[0].text.len() {
-                    true => self.text().spans[0].text.push(' '),
-                    false => self.text().spans[0].text.insert(index, ' '),
+                match index >= self.1.0.spans[0].len() {
+                    true => self.1.0.spans[0].push(' '),
+                    false => self.1.0.spans[0].insert(index, ' '),
                 };
-                if let Some(c) = self.text().cursor.as_mut() {*c += 1};
+                if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1};
             },
             Key::Named(NamedKey::Delete | NamedKey::Backspace) => {
-                self.text().spans[0].text = {
-                    let mut chars: Vec<char> = self.text().spans[0].text.chars().collect();
+                self.1.0.spans[0] = {
+                    let mut chars: Vec<char> = self.1.0.spans[0].chars().collect();
 
                     match chars.len() {
                         1 => chars.clear(),
@@ -165,14 +164,14 @@ impl TextEditor {
 
                     chars.into_iter().collect()
                 };
-                if let Some(c) = self.text().cursor.as_mut() { *c = c.saturating_sub(1); }
+                if let Some(c) = self.1.0.inner.cursor.as_mut() { *c = c.saturating_sub(1); }
             },
             Key::Character(c) => {
-                match index >= self.text().spans[0].text.len() {
-                    true => c.chars().next().map(|ch| self.text().spans[0].text.push(ch)),
-                    false => c.chars().next().map(|ch| self.text().spans[0].text.insert(index, ch)),
+                match index >= self.1.0.spans[0].len() {
+                    true => c.chars().next().map(|ch| self.1.0.spans[0].push(ch)),
+                    false => c.chars().next().map(|ch| self.1.0.spans[0].insert(index, ch)),
                 };
-                if let Some(c) = self.text().cursor.as_mut() {*c += 1;}
+                if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1;}
             },
             _ => {}
         };
@@ -185,13 +184,13 @@ impl TextEditor {
 
 impl OnEvent for TextEditor {
     fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
-            let cursor_pos = self.text().cursor_position();
+        if event.downcast_ref::<TickEvent>().is_some() && self.1.0.inner.cursor.is_some() {
+            let cursor_pos = self.1.0.inner.cursor_position();
             *self.2.x_offset() = Offset::Static(cursor_pos.0);
             *self.2.y_offset() = Offset::Static(cursor_pos.1+2.0);
         } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
             if event.state == MouseState::Pressed && event.position.is_some() {
-                self.text().cursor_click(event.position.unwrap().0, event.position.unwrap().1)
+                self.1.0.inner.cursor_click(event.position.unwrap().0, event.position.unwrap().1) 
             }
         }
         
@@ -209,7 +208,7 @@ impl TextCursor {
         let (color, _) = style.get(ctx);
         TextCursor(
             Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()), 
-            Opt::new(Rectangle::new(color, 0.0, None), false)
+            Opt::new(Rectangle::new(color, 0.0, None), true)
         )
     }
 

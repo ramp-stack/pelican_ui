@@ -17,10 +17,7 @@ use crate::plugin::PelicanUI;
 
 /// The top-level interface of an app built with Pelican.
 ///
-/// This interface automatically adapts to the platform:
-/// - On desktop, it uses [`DesktopInterface`].
-/// - On web, it uses [`WebInterface`].
-/// - On mobile, it uses [`MobileInterface`].
+/// This interface automatically adapts to the platform
 ///
 /// The background color is taken from `ctx.theme.colors.background.primary` by default.
 /// You can customize it by setting ctx.theme to a customized [`Theme`] object.
@@ -33,7 +30,6 @@ use crate::plugin::PelicanUI;
 ///   - The index of the starting page.
 ///   - Two vectors of [`NavigateInfo`], which define top and bottom sections of the navigator on desktop.
 ///     On web and mobile, these vectors are combined with no visual separation.
-/// - A vector of socials for web, as tuples `(icon, URL)` representing the social icon and its link.
 #[derive(Component)]
 pub struct Interface(Stack, Rectangle, Box<dyn InterfaceTrait>, #[skip] Option<Vec<PageBuilder>>);
 
@@ -259,7 +255,7 @@ impl Header {
             HeaderIcon::new(ctx, i, c)
         }).unwrap_or_default();
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h3;
-        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, None);
+        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, Some(1));
         Header::_new(HeaderIcon::none(), title, icon)
     }
 
@@ -271,7 +267,7 @@ impl Header {
     pub fn stack(ctx: &mut Context, back_index: usize, title: &str, icon: Option<(&'static str, usize)>) -> Self {
         let back = HeaderIcon::new(ctx, "left", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(back_index)));
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h4;
-        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, None);
+        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, Some(1));
         let icon = icon.map(|(i,u)| {
             let c = move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(u));
             HeaderIcon::new(ctx, i, c)
@@ -287,7 +283,7 @@ impl Header {
     pub fn stack_end(ctx: &mut Context, next_index: usize, title: &str) -> Self {
         let back = HeaderIcon::new(ctx, "close", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(next_index)));
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h4;
-        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, None);
+        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, Some(1));
         Header::_new(back, title, HeaderIcon::none())
     }
 

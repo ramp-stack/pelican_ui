@@ -1,7 +1,8 @@
 use mustache::events::OnEvent;
-use mustache::drawable::{Drawable, Component, ShapeType, Shape, Color};
+use mustache::drawable::{Drawable, ShapeType, Shape, Color};
 use mustache::layout::{Area, SizeRequest};
-use mustache::Context;
+use mustache::{Context, Component};
+use crate::layout::Stack;
 
 /// # Rectangle
 ///
@@ -28,25 +29,36 @@ use mustache::Context;
 /// let layout = Stack(Offset::Center, Offset::Center, Size::Static(100.0), Size::Static(100.0), Padding::default());
 /// let shape = Bin(layout, rect);
 /// ```
-#[derive(Debug)]
-pub struct Rectangle(Shape, Option<Shape>);
-
+#[derive(Debug, Component)]
+pub struct Rectangle(Stack, _Rectangle, Option<_Rectangle>);
 impl OnEvent for Rectangle {}
 
 impl Rectangle {
     pub fn new(background: Color, radius: f32, outline: Option<(f32, Color)>) -> Self {
         Rectangle(
-            Shape{shape: ShapeType::RoundedRectangle(0.0, (0.0, 0.0), radius, 0.0), color: background},
-            outline.map(|(s, c)| Shape{shape: ShapeType::RoundedRectangle(s, (0.0, 0.0), radius, 0.0), color: c})
+            Stack::default(),
+            _Rectangle::new(0.0, radius, background),
+            outline.map(|(s, c)| _Rectangle::new(s, radius, c))
         )
     }
 
-    pub fn background(&mut self) -> &mut Color {&mut self.0.color}
-    pub fn outline(&mut self) -> Option<&mut Color> {self.1.as_mut().map(|r| &mut r.color)}
-    pub fn size(&self) -> (f32, f32) {self.0.shape.size()}
+    pub fn background(&mut self) -> &mut Color {&mut self.1.shape().color}
+    pub fn outline(&mut self) -> Option<&mut Color> {self.2.as_mut().map(|s| &mut s.shape().color)}
+    pub fn size(&self) -> (f32, f32) {self.1.0.shape.size()}
 }
 
-impl Component for Rectangle {
+#[derive(Debug)]
+struct _Rectangle(Shape);
+
+impl _Rectangle {
+    fn new(s: f32, r: f32, color: Color) -> Self {
+        _Rectangle(Shape{shape: ShapeType::RoundedRectangle(s, (0.0, 0.0), r, 0.0), color})
+    }
+    fn shape(&mut self) -> &mut Shape { &mut self.0 }
+}
+
+impl OnEvent for _Rectangle {}
+impl Component for _Rectangle {
     fn children_mut(&mut self) -> Vec<&mut dyn Drawable> {vec![&mut self.0]}
     fn children(&self) -> Vec<&dyn Drawable> {vec![&self.0]}
     fn request_size(&self, _ctx: &mut Context, _children: Vec<SizeRequest>) -> SizeRequest {
@@ -56,14 +68,10 @@ impl Component for Rectangle {
         if let ShapeType::RoundedRectangle(_, s, _, _) = &mut self.0.shape {
             *s = size;
         }
-        if let Some(shape) = &mut self.1 {
-            if let ShapeType::RoundedRectangle(_, s, _, _) = &mut shape.shape {
-                *s = size;
-            }
-        }
         vec![Area { offset: (0.0, 0.0), size }]
     }
 }
+
 
 /// # Circle
 ///

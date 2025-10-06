@@ -39,7 +39,6 @@ pub struct TextInput {
     _error:  Option<Text>,
     #[skip] pub error: Option<String>,
     #[skip] pub hint: Option<String>,
-    #[skip] pub value: String,
 }
 
 type TextInputButton = (&'static str, Box<dyn FnMut(&mut Context, &mut String)>);
@@ -63,7 +62,6 @@ impl TextInput {
             _error: None,
             hint: help_text.map(|t| t.to_string()),
             error: None,
-            value: value.map(|v| v.to_string()).unwrap_or_default(),
         }
     }
 
@@ -76,58 +74,6 @@ impl TextInput {
     //     }
     //     changed
     // }
-}
-
-#[derive(Debug, Component)]
-pub struct InputField(Stack, interactions::InputField);
-impl OnEvent for InputField {}
-impl InputField {
-    pub fn new(ctx: &mut Context, placeholder: &str, value: Option<&str>, icon_button: Option<TextInputButton>) -> Self {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.md;
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
-
-        let icon_button = icon_button.map(|(icon, on_click)| {
-            let (sender, receiver) = mpsc::channel();
-            let icon_button = SecondaryIconButton::new(ctx, icon, move |_| {sender.send(0).unwrap();});
-            (icon_button.1, receiver, Box::new(on_click) as SubmitCallback)
-        });
-
-        let content = interactions::InputContent::new(
-            Padding(16.0, 8.0, 8.0, 8.0),
-            TextEditor::new(ctx, value.unwrap_or(""), size, TextStyle::Primary, Align::Left),
-            ExpandableText::new(ctx, "", size, TextStyle::Secondary, Align::Left, None),
-            ExpandableText::new(ctx, placeholder, size, TextStyle::Secondary, Align::Left, None),
-            icon_button,
-            InputState::Default,
-            value.unwrap_or_default().to_string()
-        );
-
-        let field = interactions::InputField::new(
-            InputBackground::new(Color::TRANSPARENT, colors.outline.secondary),
-            InputBackground::new(colors.background.secondary, colors.outline.secondary),
-            InputBackground::new(Color::TRANSPARENT, colors.outline.primary),
-            InputBackground::new(Color::TRANSPARENT, colors.status.danger),
-            content,
-            InputState::Default,
-            value.unwrap_or_default().to_string()
-        );
-
-        InputField(Stack::default(), field)
-    }
-
-    pub fn inner(&mut self) -> &mut interactions::InputField {&mut self.1}
-}
-
-
-struct InputBackground;
-impl InputBackground {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(background: Color, outline: Color) -> Bin<Stack, Rectangle> {
-        let rectangle = Rectangle::new(background, 8.0, Some((1.0, outline)));
-        let height = Size::custom(|_: Vec<(f32, f32)>| (48.0, f32::MAX));
-        let layout = Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default());
-        Bin(layout, rectangle)
-    }
 }
 
 impl OnEvent for TextInput {
@@ -146,10 +92,52 @@ impl OnEvent for TextInput {
                 self._error = None;
                 self.error = None;
             }
-            
-            self._input.inner().value = self.value.clone();
         }
-        false
+        true
+    }
+}
+
+#[derive(Debug, Component)]
+pub struct InputField(Stack, interactions::InputField);
+impl OnEvent for InputField {}
+impl InputField {
+    pub fn new(ctx: &mut Context, placeholder: &str, value: Option<&str>, icon_button: Option<TextInputButton>) -> Self {
+        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.md;
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
+
+        let icon_button = icon_button.map(|(icon, on_click)| {
+            let (sender, receiver) = mpsc::channel();
+            let icon_button = SecondaryIconButton::new(ctx, icon, move |_| {sender.send(0).unwrap();});
+            (icon_button.1, receiver, Box::new(on_click) as SubmitCallback)
+        });
+
+        let content = interactions::InputContent::new(
+            TextEditor::new(ctx, value.unwrap_or(""), size, TextStyle::Primary, Align::Left),
+            ExpandableText::new(ctx, "", size, TextStyle::Secondary, Align::Left, None),
+            ExpandableText::new(ctx, placeholder, size, TextStyle::Secondary, Align::Left, None),
+            icon_button,
+        );
+
+        let field = interactions::InputField::new(
+            InputBackground::new(Color::TRANSPARENT, colors.outline.secondary),
+            InputBackground::new(colors.background.secondary, colors.outline.secondary),
+            InputBackground::new(Color::TRANSPARENT, colors.outline.primary),
+            InputBackground::new(Color::TRANSPARENT, colors.status.danger),
+            content,
+        );
+
+        InputField(Stack::default(), field)
+    }
+
+    // pub fn inner(&mut self) -> &mut interactions::InputField {&mut self.1}
+}
+
+
+struct InputBackground;
+impl InputBackground {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(background: Color, outline: Color) -> Rectangle {
+        Rectangle::new(background, 8.0, Some((1.0, outline)))
     }
 }
 

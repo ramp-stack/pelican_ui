@@ -154,7 +154,7 @@ pub enum ButtonWidth {Fit, Fill}
 impl ButtonWidth{
     pub(crate) fn get(&self) -> Size {
         match self {
-            ButtonWidth::Fit => Size::Fit,
+            ButtonWidth::Fit => Size::custom(move |w: Vec<(f32, f32)>| (w[1].0, w[1].1)),
             ButtonWidth::Fill => Size::Fill,
         }
     }

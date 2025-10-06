@@ -172,20 +172,6 @@ impl Event for SelectableEvent {
 
 type SliderClosure = Box<dyn FnMut(&mut Context, f32)>;
 
-// pub trait SliderObject: Drawable + std::fmt::Debug + 'static {
-//     fn size(&self) -> (f32, f32);
-//     fn position(&mut self) -> (&mut f32, &mut f32);
-// }
-
-// impl Drawable for Box<dyn SliderObject> {
-//     fn request_size(&self, ctx: &mut Context) -> SizeRequest {Drawable::request_size(self, ctx).0}
-//     fn name(&self) -> String {Drawable::name(self)}
-
-//     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> { self }
-//     fn as_any(&self) -> &dyn std::any::Any { self }
-//     fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
-// }
-
 #[derive(Component)]
 pub struct Slider {
     layout: Stack,
@@ -309,7 +295,6 @@ pub struct InputField {
     #[skip] _state: InputState,
     #[skip] pub id: ElementID,
     #[skip] pub error: Option<String>,
-    #[skip] pub value: String,
 }
 
 impl InputField {
@@ -319,20 +304,18 @@ impl InputField {
         focus: impl Drawable + 'static,
         error: impl Drawable + 'static,
         content: InputContent,
-        state: InputState,
-        value: String,
     ) -> Self {
+        let height = Size::custom(|heights: Vec<(f32, f32)>| (heights[4].0.max(48.0), heights[4].1.max(48.0)));
         InputField {
-            _layout: Stack::default(),
-            _default: Opt::new(Box::new(default), state == InputState::Default),
-            _hover: Opt::new(Box::new(hover), state == InputState::Hover),
-            _focus: Opt::new(Box::new(focus), state == InputState::Focus),
-            _error: Opt::new(Box::new(error), state == InputState::Error),
+            _layout: Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default()),
+            _default: Opt::new(Box::new(default), true),
+            _hover: Opt::new(Box::new(hover), false),
+            _focus: Opt::new(Box::new(focus), false),
+            _error: Opt::new(Box::new(error), false),
             _content: content,
-            _state: state,
+            _state: InputState::Default,
             id: ElementID::new(),
             error: None,
-            value,
         }
     }
 
@@ -352,7 +335,11 @@ impl OnEvent for InputField {
 
             self._content.state = self._state;
             self._content.error = self.error.is_some();
-            self._content.value = self.value.clone();
+
+            self._default.display(self._state == InputState::Default);
+            self._hover.display(self._state == InputState::Hover);
+            self._focus.display(self._state == InputState::Focus);
+            self._error.display(self._state == InputState::Error);
         } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self._state = match self._state {
                 InputState::Default => {
@@ -417,32 +404,30 @@ pub struct InputContent {
     layout: Row,
     default: Opt<EitherOr<ExpandableText, ExpandableText>>,
     focus: Opt<TextEditor>,
-    button: Option<Button>,
+    button: Option<Bin<Stack, Button>>,
     #[skip] state: InputState,
     #[skip] on_submit: Option<(mpsc::Receiver<u8>, SubmitCallback)>,
-    #[skip] value: String,
     #[skip] error: bool,
 }
 
 impl InputContent {
     pub fn new(
-        padding: Padding,
         editor: TextEditor,
         default: ExpandableText,
         placeholder: ExpandableText,
         button: Option<(Button, mpsc::Receiver<u8>, SubmitCallback)>,
-        state: InputState,
-        value: String,
     ) -> Self {
+        
         let (button, on_submit) = button.map(|(b, r, c)| (Some(b), Some((r, c)))).unwrap_or((None, None));
+        let bin_layout = Stack(Offset::default(), Offset::End, Size::Fit, Size::Fit, Padding(-8.0, -8.0, -8.0, -8.0));
+        let button = button.map(|b| Bin(bin_layout, b));
         InputContent {
-            layout: Row::new(0.0, Offset::Start, Size::Fill, padding),
+            layout: Row::new(0.0, Offset::Start, Size::Fill, Padding(16.0, 14.0, 16.0, 14.0)),
             default: Opt::new(EitherOr::new(placeholder, default), true),
             focus: Opt::new(editor, false),
             button,
-            state,
+            state: InputState::Default,
             on_submit,
-            value,
             error: false,
         }
     }
@@ -460,28 +445,28 @@ impl OnEvent for InputContent {
             self.focus.display(self.state == InputState::Focus);
             self.default.display(self.state != InputState::Focus);
 
-            if let Some((receiver, on_submit)) = &mut self.on_submit {
-                if receiver.try_recv().is_ok() {
-                    on_submit(ctx, &mut self.value)
-                }
-            }
+            // if let Some((receiver, on_submit)) = &mut self.on_submit {
+            //     if receiver.try_recv().is_ok() {
+            //         on_submit(ctx, &mut self.value)
+            //     }
+            // }
 
-            if self.state != InputState::Focus {
-                self.default.inner().display_left(self.value.is_empty());
-            }
+            // if self.state != InputState::Focus {
+            //     self.default.inner().display_left(self.value.is_empty());
+            // }
 
-            self.default.inner().left().0.spans[0] = self.value.clone();
+            // self.default.inner().left().0.spans[0] = self.value.clone();
         } else if let Some(input_event) = event.downcast_ref::<TextInputEvent>() {
-            match input_event {
-                TextInputEvent::ClearActiveInput => self.value = String::new(),
-                TextInputEvent::SetActiveInput(s) => self.value = s.to_string(),
-                _ => {}
-            }
+            // match input_event {
+            //     TextInputEvent::ClearActiveInput => self.value = String::new(),
+            //     TextInputEvent::SetActiveInput(s) => self.value = s.to_string(),
+            //     _ => {}
+            // }
         } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key}) = event.downcast_ref() {
             if self.state == InputState::Focus {
                 self.focus.inner().apply_edit(ctx, key);
-                self.value = self.focus.inner().text().spans[0].text.clone();
-                ctx.trigger_event(TextInputEvent::InputEditedEvent);
+                // self.value = self.focus.inner().text().spans[0].text.clone();
+                // ctx.trigger_event(TextInputEvent::InputEditedEvent);
             }
         } 
         true
