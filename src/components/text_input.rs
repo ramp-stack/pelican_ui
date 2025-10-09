@@ -2,9 +2,9 @@ use mustache::events::{OnEvent, TickEvent, Event};
 use mustache::drawable::{Align, Color};
 use mustache::{Context, Component};
 
-use crate::components::interactions::{InputState, SubmitCallback, self};
+use crate::components::interactions::{SubmitCallback, self};
 use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
-use crate::layout::{Padding, Column, Stack, Offset, Size, Bin};
+use crate::layout::{Padding, Column, Stack, Offset, Size};
 use crate::components::button::SecondaryIconButton;
 use crate::utils::ElementID;
 use crate::plugin::PelicanUI;
@@ -57,7 +57,7 @@ impl TextInput {
         TextInput {
             _layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default()),
             _label: label.map(|text| Text::new(ctx, text, size.h5, TextStyle::Heading, Align::Left, None)),
-            _input: InputField::new(ctx, placeholder, value, icon_button),
+            _input: InputField::new(ctx, value, placeholder,icon_button),
             _hint: help_text.map(|t| ExpandableText::new(ctx, t, size.sm, TextStyle::Secondary, Align::Left, None)),
             _error: None,
             hint: help_text.map(|t| t.to_string()),
@@ -101,7 +101,7 @@ impl OnEvent for TextInput {
 pub struct InputField(Stack, interactions::InputField);
 impl OnEvent for InputField {}
 impl InputField {
-    pub fn new(ctx: &mut Context, placeholder: &str, value: Option<&str>, icon_button: Option<TextInputButton>) -> Self {
+    pub fn new(ctx: &mut Context, value: Option<&str>, placeholder: &str, icon_button: Option<TextInputButton>) -> Self {
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.md;
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
 
@@ -111,9 +111,11 @@ impl InputField {
             (icon_button.1, receiver, Box::new(on_click) as SubmitCallback)
         });
 
+        println!("Value is {:?}, placeholder is {:?}", value, placeholder);
+
         let content = interactions::InputContent::new(
             TextEditor::new(ctx, value.unwrap_or(""), size, TextStyle::Primary, Align::Left),
-            ExpandableText::new(ctx, "", size, TextStyle::Secondary, Align::Left, None),
+            ExpandableText::new(ctx, value.unwrap_or(""), size, TextStyle::Primary, Align::Left, None),
             ExpandableText::new(ctx, placeholder, size, TextStyle::Secondary, Align::Left, None),
             icon_button,
         );

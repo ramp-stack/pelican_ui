@@ -125,7 +125,7 @@ impl Component for ExpandableText {
 }
 
 #[derive(Component, Debug)]
-pub struct TextEditor(Stack, ExpandableText, TextCursor);
+pub struct TextEditor(Stack, pub ExpandableText, TextCursor);
 
 impl TextEditor {
     pub fn new(ctx: &mut Context, text: &str, size: f32, style: TextStyle, align: Align) -> Self {
