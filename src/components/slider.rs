@@ -34,7 +34,7 @@ impl Slider {
         start: f32,
         label: Option<&str>,
         description: Option<&str>,
-        on_release: impl FnMut(&mut Context, f32) + 'static,
+        on_change: impl FnMut(&mut Context, f32) + 'static,
     ) -> Self {
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         let brand = ctx.get::<PelicanUI>().get().0.theme().colors.brand;
@@ -42,7 +42,7 @@ impl Slider {
             Column::new(8.0, Offset::Start, Size::Fit, Padding::default()),
             label.map(|l| Text::new(ctx, l, size.h5, TextStyle::Heading, Align::Left, None)),
             description.map(|t| ExpandableText::new(ctx, t, size.md, TextStyle::Primary, Align::Left, None)),
-            interactions::Slider::new(ctx, start, Rectangle::new(Color::WHITE, 3.0, None), Rectangle::new(brand, 3.0, None), Circle::new(18.0, brand, false), on_release),
+            interactions::Slider::new(start, Rectangle::new(Color::WHITE, 3.0, None), Rectangle::new(brand, 3.0, None), Circle::new(18.0, brand, false), on_change),
         )
     }
 

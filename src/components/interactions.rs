@@ -1,5 +1,5 @@
 use mustache::events::{MouseState, MouseEvent, OnEvent, Event, TickEvent, KeyboardState, KeyboardEvent};
-use mustache::drawable::{Drawable, Color};
+use mustache::drawable::{Drawable};
 use mustache::{Context, Component};
 
 use std::sync::mpsc;
@@ -7,8 +7,7 @@ use std::sync::mpsc;
 // use crate::components::avatar::{Avatar, AvatarContent};
 use crate::utils::{Callback, ElementID};
 use crate::layout::{Stack, Bin, Opt, Offset, Size, Row, Padding, EitherOr};
-use crate::components::{ExpandableText, TextEditor, Rectangle};
-use crate::plugin::PelicanUI;
+use crate::components::{ExpandableText, TextEditor};
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
 pub enum ButtonState {Default, Disabled, Selected, Pressed, Hover}
@@ -191,19 +190,18 @@ pub struct Slider {
     pub background: Bin<Stack, Box<dyn Drawable>>,
     pub foreground: Bin<Stack, Box<dyn Drawable>>,
     pub knob: Bin<Stack, Box<dyn Drawable>>,
-    #[skip] value: f32,
+    #[skip] pub value: f32,
     #[skip] closure: SliderClosure,
     #[skip] dragging: bool,
 }
 
 impl Slider {
     pub fn new(
-        ctx: &mut Context, 
         start: f32, 
         background: impl Drawable + 'static,
         foreground: impl Drawable + 'static,
         knob: impl Drawable + 'static,
-        on_release: impl FnMut(&mut Context, f32) + 'static
+        on_change: impl FnMut(&mut Context, f32) + 'static
     ) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>| (widths[0].0.min(300.0), f32::MAX));
         let b_layout = Stack(Offset::Start, Offset::Center, width, Size::Static(6.0), Padding::default());
@@ -217,83 +215,51 @@ impl Slider {
             foreground: Bin(f_layout, Box::new(foreground)),
             knob: Bin(k_layout, Box::new(knob)),
             value: start, 
-            closure: Box::new(on_release),
+            closure: Box::new(on_change),
             dragging: false,
         }
     }
 
-    pub fn set_value(&mut self, ctx: &mut Context) {
-        self.value = self.value.clamp(0.0, 1.0);
+    fn update(&mut self, ctx: &mut Context, x: f32) {
+        let full_width = (**self.background.inner()).request_size(ctx).max_width();
         let track_width = (**self.foreground.inner()).request_size(ctx).max_width();
         let size = (**self.knob.inner()).request_size(ctx).min_width() / 2.0;
-        let clamped_x = (self.value * track_width).clamp(size, track_width);
-        self.knob.layout().0 = Offset::Static(clamped_x - size);
-    }
+        let clamped_x = x.clamp(0.0, full_width);
+        self.value = (clamped_x / full_width).clamp(0.0, 1.0);
 
-
-    fn set_knob_pixel(&mut self, ctx: &mut Context, px: f32, track_width: f32) {
-        let clamped = px.clamp(0.0, track_width);
-        let size = (**self.knob.inner()).request_size(ctx).min_width() / 2.0;
-        let clamped_x = clamped.clamp(size, track_width);
-        self.knob.layout().0 = Offset::Static(clamped_x - size);
-        self.foreground.layout().2 = Size::Static(clamped);
+        let knob_x = (self.value * track_width).clamp(size, track_width);
+        self.knob.layout().0 = Offset::Static(knob_x - size);
+        self.foreground.layout().2 = Size::Static(clamped_x);
     }
 }
 
-// impl Drawable for Box<dyn SliderBackground> {
-//     fn request_size(&self, ctx: &mut Context) -> RequestBranch {Drawable::request_size(&**self, ctx)}
-
-//     fn name(&self) -> String {Drawable::name(&**self)}
-//     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> { self }
-//     fn as_any(&self) -> &dyn std::any::Any { self }
-//     fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
-// }
-
-
 impl OnEvent for Slider {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        let width = (**self.background.inner()).request_size(ctx).max_width();
-        if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
-            self.set_value(ctx);
-        } else if let Some(MouseEvent { state: MouseState::Pressed, position: Some((x, _)) }) = event.downcast_ref::<MouseEvent>() {
-            self.dragging = true;
-
-            if width > 0.0 {
-                let clamped_x = x.clamp(0.0, width);
-                self.value = (clamped_x / width).clamp(0.0, 1.0);
-                self.set_knob_pixel(ctx, clamped_x, width);
-                let p = self.value;
-                (self.closure)(ctx, p);
+        if let Some(MouseEvent { state, position, }) = event.downcast_ref::<MouseEvent>() {
+            match state {
+                MouseState::Pressed => {
+                    if let Some((x, _)) = position {
+                        self.dragging = true;
+                        self.update(ctx, *x);
+                    }
+                },
+                MouseState::Released if self.dragging => {
+                    self.dragging = false;
+                    (self.closure)(ctx, self.value);
+                }
+                MouseState::Scroll(..) | MouseState::Moved 
+                if self.dragging => {
+                    (self.closure)(ctx, self.value);
+                    if let Some((x, _)) = position { self.update(ctx, *x); }
+                }
+                _ => {}
             }
-        } else if let Some(MouseEvent { state: MouseState::Scroll(..), position: Some((x, _))}) = event.downcast_ref::<MouseEvent>() {
-            if self.dragging && width > 0.0 {
-                let clamped_x = x.clamp(0.0, width);
-                self.value = (clamped_x / width).clamp(0.0, 1.0);
-                self.set_knob_pixel(ctx, clamped_x, width);
-                let p = self.value;
-                (self.closure)(ctx, p);
-            }
-        } else if let Some(MouseEvent { state: MouseState::Moved, position: Some((x, _)) }) = event.downcast_ref::<MouseEvent>() {
-            if self.dragging && width > 0.0 {
-                let clamped_x = x.clamp(0.0, width);
-                self.value = (clamped_x / width).clamp(0.0, 1.0);
-                self.set_knob_pixel(ctx, clamped_x, width);
-                let p = self.value;
-                (self.closure)(ctx, p);
-            }
-        } else if let Some(MouseEvent { state: MouseState::Released, .. }) = event.downcast_ref::<MouseEvent>() {
-            if self.dragging {
-                self.dragging = false;
-                let p = self.value;
-                (self.closure)(ctx, p);
-            }
-        } else if event.downcast_ref::<TickEvent>().is_some() && width > 0.0 {
-            self.set_knob_pixel(ctx, self.value * width, width);
         }
 
         true
     }
 }
+
 
 #[derive(Debug, Component)]
 pub struct InputField {
@@ -345,8 +311,6 @@ impl OnEvent for InputField {
             };
 
             self._content.state = self._state;
-            self._content.error = self.error.is_some();
-
             self._default.display(self._state == InputState::Default);
             self._hover.display(self._state == InputState::Hover);
             self._focus.display(self._state == InputState::Focus);
@@ -418,7 +382,6 @@ pub struct InputContent {
     button: Option<Bin<Stack, Button>>,
     #[skip] state: InputState,
     #[skip] on_submit: Option<(mpsc::Receiver<u8>, SubmitCallback)>,
-    #[skip] error: bool,
     #[skip] value: String,
 }
 
@@ -440,7 +403,6 @@ impl InputContent {
             button,
             state: InputState::Default,
             on_submit,
-            error: false,
             value,
         }
     }
@@ -496,15 +458,10 @@ pub enum InputState {
 
 #[derive(Debug, Clone)]
 pub enum TextInputEvent {
-    /// Event used to bring up or hide the keyboard.
     ShowKeyboard(bool),
-    /// Clears the contents of the active text input.
     ClearActiveInput,
-    /// Sets the contents of the active [`TextInput`] with the provided `String`
     SetActiveInput(String),
-    /// Selects the [`TextInput`] with the given [`ElementID`] and deselects all other items.
     TextInputSelect(ElementID),
-    /// Event trigger by [`TextInput`] when contents are edited. 
     InputEditedEvent
 }
 
