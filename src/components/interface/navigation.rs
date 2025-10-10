@@ -20,43 +20,26 @@ pub type PageBuilder = Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>;
 /// Every page must implement [`Debug`] and [`Component`].
 ///
 ///
-/// # Navigation
-/// **'navigate'** is called to navigate away from this page.
-///
-/// The `index` parameter is the index that was triggered. Match on the index to navigate to
-/// the desired page. The returned value must be an `Ok` variant with a boxed `dyn AppPage`.
-///
-/// If the index is not an expected value, return `Err(self)` and the user will be navigated
-/// to an error page where `self` acts as the **"go back"** button.
-///
-/// ```rust
-/// fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) {
-///     match index {
-///         0 => Ok(Box::new(Home::new(ctx))),
-///         1 => Ok(Box::new(Settings::new(ctx))),
-///         2 => Ok(Box::new(Search::new(ctx))),
-///         _ => Err(self),
-///     }
-/// }
-/// ```
-///
-/// # Navigation Example
-/// This is an example of button triggering a [`NavigateEvent`].
-/// According to the example above, this will send the user to the settings page.
-///
-/// ```rust
-/// let button = Button::primary(ctx, "Continue", |ctx: &mut Context| {
-///     ctx.trigger_event(NavigateEvent(1));
-/// })
-/// ```
-///
-/// # Navigator Bar
-///
-/// When creating an [`Interface`], you can optionally pass in navigatable pages to the navigation bar.
-///
-/// The navigation bar is only optional on mobile. On web and desktop, if a navigator was passed into the interface,
-/// it will always be shown.
 pub trait AppPage: Drawable + std::fmt::Debug + 'static {
+    /// This is called to navigate away from the current page.
+    ///
+    /// The `index` parameter is the index that was triggered. Match on the index to navigate to
+    /// the desired page. The returned value must be an `Ok` variant with a boxed `dyn AppPage`.
+    ///
+    /// If the index is not an expected value, return `Err(self)` and the user will be navigated
+    /// to an error page where `self` acts as the **"go back"** button.
+    ///
+    /// ```rust
+    /// fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) {
+    ///     match index {
+    ///         0 => Ok(Box::new(Home::new(ctx))),
+    ///         1 => Ok(Box::new(Settings::new(ctx))),
+    ///         2 => Ok(Box::new(Search::new(ctx))),
+    ///         _ => Err(self),
+    ///     }
+    /// }
+    /// ```
+    ///
     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) 
         -> Result<Box<dyn AppPage>, Box<dyn AppPage>>;
 
@@ -140,7 +123,7 @@ impl NavigatorSelectable {
     pub fn inner(&mut self) -> &mut interactions::Selectable {&mut self.1}
 }
 
-/// Selects the [`NavigationButton`] with the given [`ElementID`] and deselects all other items.
+/// Selects the [`NavigationButton`] with the given [`ElementID`].
 #[derive(Debug, Clone)]
 pub struct NavigatorSelect(pub ElementID);
 

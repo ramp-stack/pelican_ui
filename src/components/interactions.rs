@@ -188,9 +188,9 @@ impl std::fmt::Debug for Slider {
 #[derive(Component)]
 pub struct Slider {
     layout: Stack,
-    pub background: Bin<Stack, Rectangle>,
-    pub foreground: Bin<Stack, Rectangle>,
-    pub knob: SliderKnob,
+    pub background: Bin<Stack, Box<dyn Drawable>>,
+    pub foreground: Bin<Stack, Box<dyn Drawable>>,
+    pub knob: Bin<Stack, Box<dyn Drawable>>,
     #[skip] value: f32,
     #[skip] closure: SliderClosure,
     #[skip] dragging: bool,
@@ -200,38 +200,42 @@ impl Slider {
     pub fn new(
         ctx: &mut Context, 
         start: f32, 
-        background: Color,
-        knob_size: (f32, f32),
+        background: impl Drawable + 'static,
+        foreground: impl Drawable + 'static,
         knob: impl Drawable + 'static,
         on_release: impl FnMut(&mut Context, f32) + 'static
     ) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>| (widths[0].0.min(300.0), f32::MAX));
-        let track = Stack(Offset::Start, Offset::Center, width, Size::Static(6.0), Padding::default());
-        let fill = Stack(Offset::Start, Offset::Start, Size::Static(30.0), Size::Static(6.0), Padding::default());
+        let b_layout = Stack(Offset::Start, Offset::Center, width, Size::Static(6.0), Padding::default());
+        let f_layout = Stack(Offset::Start, Offset::Start, Size::Static(30.0), Size::Static(6.0), Padding::default());
+        let k_layout = Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default());
         let layout = Stack(Offset::Start, Offset::Center, Size::Fit, Size::Fit, Padding::default());
-        let brand = ctx.get::<PelicanUI>().get().0.theme().colors.brand;
 
         Slider {
             layout,
-            background: Bin(track, Rectangle::new(background, 3.0, None)),
-            foreground: Bin(fill, Rectangle::new(brand, 3.0, None)),
-            knob: SliderKnob::new(knob_size, knob),
+            background: Bin(b_layout, Box::new(background)),
+            foreground: Bin(f_layout, Box::new(foreground)),
+            knob: Bin(k_layout, Box::new(knob)),
             value: start, 
             closure: Box::new(on_release),
             dragging: false,
         }
     }
 
-    pub fn set_value(&mut self) {
+    pub fn set_value(&mut self, ctx: &mut Context) {
         self.value = self.value.clamp(0.0, 1.0);
-        let track_width = self.foreground.inner().size().0;
-        self.knob.adjust_position(self.value * track_width, track_width);
+        let track_width = (**self.foreground.inner()).request_size(ctx).max_width();
+        let size = (**self.knob.inner()).request_size(ctx).min_width() / 2.0;
+        let clamped_x = (self.value * track_width).clamp(size, track_width);
+        self.knob.layout().0 = Offset::Static(clamped_x - size);
     }
 
 
-    fn set_knob_pixel(&mut self, px: f32, track_width: f32) {
+    fn set_knob_pixel(&mut self, ctx: &mut Context, px: f32, track_width: f32) {
         let clamped = px.clamp(0.0, track_width);
-        self.knob.adjust_position(clamped, track_width);
+        let size = (**self.knob.inner()).request_size(ctx).min_width() / 2.0;
+        let clamped_x = clamped.clamp(size, track_width);
+        self.knob.layout().0 = Offset::Static(clamped_x - size);
         self.foreground.layout().2 = Size::Static(clamped);
     }
 }
@@ -248,16 +252,16 @@ impl Slider {
 
 impl OnEvent for Slider {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        let width = self.background.inner().size().0;
+        let width = (**self.background.inner()).request_size(ctx).max_width();
         if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
-            self.set_value();
+            self.set_value(ctx);
         } else if let Some(MouseEvent { state: MouseState::Pressed, position: Some((x, _)) }) = event.downcast_ref::<MouseEvent>() {
             self.dragging = true;
 
             if width > 0.0 {
                 let clamped_x = x.clamp(0.0, width);
                 self.value = (clamped_x / width).clamp(0.0, 1.0);
-                self.set_knob_pixel(clamped_x, width);
+                self.set_knob_pixel(ctx, clamped_x, width);
                 let p = self.value;
                 (self.closure)(ctx, p);
             }
@@ -265,7 +269,7 @@ impl OnEvent for Slider {
             if self.dragging && width > 0.0 {
                 let clamped_x = x.clamp(0.0, width);
                 self.value = (clamped_x / width).clamp(0.0, 1.0);
-                self.set_knob_pixel(clamped_x, width);
+                self.set_knob_pixel(ctx, clamped_x, width);
                 let p = self.value;
                 (self.closure)(ctx, p);
             }
@@ -273,7 +277,7 @@ impl OnEvent for Slider {
             if self.dragging && width > 0.0 {
                 let clamped_x = x.clamp(0.0, width);
                 self.value = (clamped_x / width).clamp(0.0, 1.0);
-                self.set_knob_pixel(clamped_x, width);
+                self.set_knob_pixel(ctx, clamped_x, width);
                 let p = self.value;
                 (self.closure)(ctx, p);
             }
@@ -284,26 +288,10 @@ impl OnEvent for Slider {
                 (self.closure)(ctx, p);
             }
         } else if event.downcast_ref::<TickEvent>().is_some() && width > 0.0 {
-            self.set_knob_pixel(self.value * width, width);
+            self.set_knob_pixel(ctx, self.value * width, width);
         }
 
         true
-    }
-}
-
-#[derive(Debug, Component)]
-pub struct SliderKnob(Stack, Box<dyn Drawable>);
-impl OnEvent for SliderKnob {}
-
-impl SliderKnob {
-    pub fn new(size: (f32, f32), knob: impl Drawable + 'static) -> Self {
-        let layout = Stack(Offset::Start, Offset::Start, Size::Static(size.0), Size::Static(size.1), Padding::default());
-        SliderKnob(layout, Box::new(knob))
-    }
-
-    pub fn adjust_position(&mut self, x: f32, track_width: f32) {
-        let clamped_x = x.clamp(9.0, track_width);
-        self.0.0 = Offset::Static(clamped_x - 9.0);
     }
 }
 
