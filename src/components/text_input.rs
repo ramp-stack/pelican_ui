@@ -4,7 +4,7 @@ use mustache::{Context, Component};
 
 use crate::components::interactions::{SubmitCallback, self};
 use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
-use crate::layout::{Padding, Column, Offset, Size, EitherOr};
+use crate::layout::{Padding, Column, Offset, Size, EitherOr, Stack, Bin};
 use crate::components::button::SecondaryIconButton;
 use crate::utils::ElementID;
 use crate::plugin::PelicanUI;
@@ -69,13 +69,12 @@ impl TextInput {
             icon_button,
         );
 
-        let (radius, outline) = (8.0, 1.0);
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
         let input_field = interactions::InputField::new(
-            Rectangle::new(Color::TRANSPARENT, radius, Some((outline, colors.outline.secondary))),
-            Rectangle::new(colors.background.secondary, radius, Some((outline, colors.outline.secondary))),
-            Rectangle::new(Color::TRANSPARENT, radius, Some((outline, colors.outline.primary))),
-            Rectangle::new(Color::TRANSPARENT, radius, Some((outline, colors.status.danger))),
+            Self::new_background(Color::TRANSPARENT, colors.outline.secondary),
+            Self::new_background(colors.background.secondary, colors.outline.secondary),
+            Self::new_background(Color::TRANSPARENT, colors.outline.primary),
+            Self::new_background(Color::TRANSPARENT, colors.status.danger),
             content,
         );
 
@@ -90,6 +89,12 @@ impl TextInput {
     }
 
     pub fn id(&self) -> &ElementID {&self._inner.id}
+
+    fn new_background(background: Color, outline: Color) -> Bin<Stack, Rectangle> {
+        let height = Size::custom(|heights: Vec<(f32, f32)>| (heights[4].0.max(48.0), heights[4].1.max(48.0)));
+        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, height, Padding::default());
+        Bin(layout, Rectangle::new(background, 8.0, Some((1.0, outline))))
+    }
 
     // pub fn sync_input_value(&mut self, actual_value: &str) -> bool {
     //     let changed = self.value != actual_value;

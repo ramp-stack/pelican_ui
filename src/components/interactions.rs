@@ -230,11 +230,10 @@ impl OnEvent for Slider {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
         if event.downcast_ref::<TickEvent>().is_some() {
             let full_width = (**self.background.inner()).request_size(ctx).max_width();
-            let track_width = (**self.foreground.inner()).request_size(ctx).max_width();
-            let size = (**self.knob.inner()).request_size(ctx).min_width() / 2.0;
+            let knob_size = (**self.knob.inner()).request_size(ctx).min_width() / 2.0;
 
             let clamped_x = self.value.clamp(0.0, full_width);
-            self.knob.layout().0 = Offset::Static((clamped_x - size).max(0.0));
+            self.knob.layout().0 = Offset::Static((clamped_x - knob_size).max(0.0));
             self.foreground.layout().2 = Size::Static(clamped_x);
         } else if let Some(MouseEvent { state, position, }) = event.downcast_ref::<MouseEvent>() {
             match state {
@@ -261,7 +260,6 @@ impl OnEvent for Slider {
     }
 }
 
-
 #[derive(Debug, Component)]
 pub struct InputField {
     _layout: Stack,
@@ -283,9 +281,8 @@ impl InputField {
         error: impl Drawable + 'static,
         content: InputContent,
     ) -> Self {
-        let height = Size::custom(|heights: Vec<(f32, f32)>| (heights[4].0.max(48.0), heights[4].1.max(48.0)));
         InputField {
-            _layout: Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default()),
+            _layout: Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default()),
             _default: Opt::new(Box::new(default), true),
             _hover: Opt::new(Box::new(hover), false),
             _focus: Opt::new(Box::new(focus), false),
