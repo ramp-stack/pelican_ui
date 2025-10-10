@@ -220,27 +220,28 @@ impl Slider {
         }
     }
 
-    fn update(&mut self, ctx: &mut Context, x: f32) {
+    fn clamp(&mut self, ctx: &mut Context, x: f32) {
         let full_width = (**self.background.inner()).request_size(ctx).max_width();
-        let track_width = (**self.foreground.inner()).request_size(ctx).max_width();
-        let size = (**self.knob.inner()).request_size(ctx).min_width() / 2.0;
-        let clamped_x = x.clamp(0.0, full_width);
-        self.value = (clamped_x / full_width).clamp(0.0, 1.0);
-
-        let knob_x = (self.value * track_width).clamp(size, track_width);
-        self.knob.layout().0 = Offset::Static(knob_x - size);
-        self.foreground.layout().2 = Size::Static(clamped_x);
+        self.value = x.clamp(0.0, full_width);
     }
 }
 
 impl OnEvent for Slider {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if let Some(MouseEvent { state, position, }) = event.downcast_ref::<MouseEvent>() {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            let full_width = (**self.background.inner()).request_size(ctx).max_width();
+            let track_width = (**self.foreground.inner()).request_size(ctx).max_width();
+            let size = (**self.knob.inner()).request_size(ctx).min_width() / 2.0;
+
+            let clamped_x = self.value.clamp(0.0, full_width);
+            self.knob.layout().0 = Offset::Static((clamped_x - size).max(0.0));
+            self.foreground.layout().2 = Size::Static(clamped_x);
+        } else if let Some(MouseEvent { state, position, }) = event.downcast_ref::<MouseEvent>() {
             match state {
                 MouseState::Pressed => {
                     if let Some((x, _)) = position {
                         self.dragging = true;
-                        self.update(ctx, *x);
+                        self.clamp(ctx, *x);
                     }
                 },
                 MouseState::Released if self.dragging => {
@@ -250,7 +251,7 @@ impl OnEvent for Slider {
                 MouseState::Scroll(..) | MouseState::Moved 
                 if self.dragging => {
                     (self.closure)(ctx, self.value);
-                    if let Some((x, _)) = position { self.update(ctx, *x); }
+                    if let Some((x, _)) = position { self.clamp(ctx, *x); }
                 }
                 _ => {}
             }

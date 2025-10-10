@@ -34,7 +34,7 @@ use std::sync::mpsc;
 pub struct TextInput {
     _layout: Column,
     _label: Option<Text>,
-    _input: interactions::InputField,
+    _inner: interactions::InputField,
     _hint: EitherOr<Option<ExpandableText>, ExpandableText>,
     #[skip] pub error: Option<String>,
     #[skip] pub hint: Option<String>,
@@ -69,7 +69,6 @@ impl TextInput {
             icon_button,
         );
 
-
         let (radius, outline) = (8.0, 1.0);
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
         let input_field = interactions::InputField::new(
@@ -83,14 +82,14 @@ impl TextInput {
         TextInput {
             _layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default()),
             _label: label.map(|text| Text::new(ctx, text, size.h5, TextStyle::Heading, Align::Left, None)),
-            _input: input_field,
+            _inner: input_field,
             _hint: EitherOr::new(help, error),
             hint: help_text.map(|t| t.to_string()),
             error: None,
         }
     }
 
-    pub fn id(&self) -> &ElementID {&self._input.id}
+    pub fn id(&self) -> &ElementID {&self._inner.id}
 
     // pub fn sync_input_value(&mut self, actual_value: &str) -> bool {
     //     let changed = self.value != actual_value;
@@ -104,6 +103,8 @@ impl TextInput {
 impl OnEvent for TextInput {
     fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
         if event.as_any().downcast_ref::<TickEvent>().is_some() {
+            self._inner.error = self.error.clone();
+
             if let Some(e) = &self.error {
                 self._hint.display_left(false);
                 self._hint.right().0.spans[0] = e.to_string();

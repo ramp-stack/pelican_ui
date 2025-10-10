@@ -16,7 +16,7 @@ use crate::components::interactions;
 /// ### Example
 /// ```rust
 /// let slider = Slider::new(
-///     ctx,V
+///     ctx,
 ///     50.0,
 ///     Some("Volume"),
 ///     Some("Adjust the sound level"),
@@ -45,22 +45,4 @@ impl Slider {
             interactions::Slider::new(start, Rectangle::new(Color::WHITE, 3.0, None), Rectangle::new(brand, 3.0, None), Circle::new(18.0, brand, false), on_change),
         )
     }
-
-    // pub fn set_value(&mut self, value: f32) {
-    //     self.pending_value = Some(value.clamp(0.0, 1.0));
-    //     let track_width = match self.content.background.layout().2 {
-    //         Size::Static(w) => w,
-    //         _ => 0.0,
-    //     };
-    //     self.content.set_knob_position(self.pending_value.unwrap() * track_width, track_width);
-    // }
 }
-
-
-
-// Rectangle::new(Color::WHITE, 3.0, None)
-// Rectangle::new(color, 3.0, None)?
-// let color = ctx.get::<PelicanUI>().get().0.theme().colors.brand;
-
-// let color = ctx.get::<PelicanUI>().get().0.theme().colors.brand;
-// Circle::new(18.0, color, false)
