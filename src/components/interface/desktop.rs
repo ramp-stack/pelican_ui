@@ -7,6 +7,7 @@ use crate::components::interface::general::InterfaceTrait;
 use crate::components::interface::navigation::{AppPage, NavigatorEvent, NavigateInfo, NavigatorSelectable};
 use crate::layout::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 use crate::plugin::PelicanUI;
+use crate::utils::ElementID;
 
 #[derive(Component, Debug)]
 pub struct DesktopInterface(Row, Option<Opt<Box<dyn Drawable>>>, Bin<Stack, Rectangle>, Option<Box<dyn AppPage>>);
@@ -38,6 +39,7 @@ impl OnEvent for DesktopNavigator {}
 
 impl DesktopNavigator {
     pub fn new(ctx: &mut Context, navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
+        let group_id = ElementID::new();
         let (mut top_col, mut bot_col) = (Vec::new(), Vec::new());
         let mut i = 0;
 
@@ -51,8 +53,8 @@ impl DesktopNavigator {
             let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
 
             top_col.push(match info.avatar {
-                Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, navigation.0 == i),
-                None => NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == i)
+                Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, navigation.0 == i, group_id),
+                None => NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == i, group_id)
             });
             i += 1;
         });
@@ -62,8 +64,8 @@ impl DesktopNavigator {
                 let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
 
                 bot_col.push(match info.avatar {
-                    Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, navigation.0 == i),
-                    None => NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == i)
+                    Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, navigation.0 == i, group_id),
+                    None => NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == i, group_id)
                 });
                 i += 1;
             });

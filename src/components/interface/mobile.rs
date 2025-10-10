@@ -10,6 +10,7 @@ use crate::components::interface::general::InterfaceTrait;
 use crate::components::interface::system::MobileKeyboard;
 use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelectable};
 use crate::plugin::PelicanUI;
+use crate::utils::ElementID;
 
 #[derive(Component, Debug)]
 pub struct MobileInterface(Column, Option<Box<dyn AppPage>>, Option<MobileKeyboard>, Option<Opt<Box<dyn Drawable>>>);
@@ -68,12 +69,13 @@ impl OnEvent for MobileNavigatorContent {}
 
 impl MobileNavigatorContent {
     fn new(ctx: &mut Context, mut navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
+        let group_id = ElementID::new();
         let mut tabs = Vec::new();
         if let Some(n) = navigation.2 { navigation.1.extend(n); }
         for (i, info) in navigation.1.into_iter().enumerate() {
             let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
 
-            tabs.push(NavigatorSelectable::mobile(ctx, info.icon, closure, navigation.0 == i));
+            tabs.push(NavigatorSelectable::mobile(ctx, info.icon, closure, navigation.0 == i, group_id));
         }
 
         let layout = Row::new(48.0, Offset::Center, Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));

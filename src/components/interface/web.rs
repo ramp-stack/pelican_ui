@@ -9,6 +9,7 @@ use crate::components::interface::navigation::{AppPage, NavigateInfo, NavigatorE
 
 use crate::layout::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 use crate::plugin::PelicanUI;
+use crate::utils::ElementID;
 
 #[derive(Component, Debug)]
 pub struct WebInterface(Column, Option<Opt<Box<dyn Drawable>>>, Option<Box<dyn AppPage>>, Option<WebFooter>);
@@ -43,11 +44,12 @@ impl WebNavigator {
         mut navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>),
     ) -> Self {
         let mut buttons = Vec::new();
+        let group_id = ElementID::new();
 
         if let Some(n) = navigation.2 { navigation.1.extend(n); }
         for (index, info) in navigation.1.into_iter().enumerate() {
             let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(index));
-            buttons.push(NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == index));
+            buttons.push(NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == index, group_id));
         }
 
         let wordmark = ctx.get::<PelicanUI>().get().0.theme().brand.wordmark.clone();

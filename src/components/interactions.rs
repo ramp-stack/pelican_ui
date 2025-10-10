@@ -109,7 +109,6 @@ impl std::fmt::Debug for Button {
     }
 }
 
-
 #[derive(Component)]
 pub struct Selectable {
     layout: Stack,
@@ -118,6 +117,7 @@ pub struct Selectable {
     #[skip] is_selected: bool,
     #[skip] on_click: Callback,
     #[skip] id: ElementID,
+    #[skip] group_id: ElementID,
 }
 
 impl std::fmt::Debug for Selectable {
@@ -132,6 +132,7 @@ impl Selectable {
         default: impl Drawable + 'static,
         selected: impl Drawable + 'static,
         is_selected: bool,
+        group_id: ElementID,
     ) -> Self {
         Selectable {
             layout: Stack::default(),
@@ -140,6 +141,7 @@ impl Selectable {
             selected: Opt::new(Box::new(selected), is_selected),
             is_selected,
             id: ElementID::new(),
+            group_id,
         }
     }
 
@@ -154,16 +156,16 @@ impl OnEvent for Selectable {
         } else if let Some(MouseEvent { state: MouseState::Pressed, position: Some(_) }) = event.downcast_ref::<MouseEvent>() {
             ctx.hardware.haptic();
             (self.on_click)(ctx);
-            ctx.trigger_event(SelectableEvent(self.id))
-        } else if let Some(SelectableEvent(id)) = event.downcast_ref::<SelectableEvent>() {
-            self.is_selected = *id == self.id;
+            ctx.trigger_event(SelectableEvent(self.id, self.group_id))
+        } else if let Some(SelectableEvent(id, group_id)) = event.downcast_ref::<SelectableEvent>() {
+            self.is_selected = *id == self.id && *group_id == self.group_id;
         }
         false
     }
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct SelectableEvent(pub ElementID);
+pub struct SelectableEvent(pub ElementID, pub ElementID);
 impl Event for SelectableEvent {
     fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
         children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
