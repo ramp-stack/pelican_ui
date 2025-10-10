@@ -158,7 +158,7 @@ impl OnEvent for Selectable {
             (self.on_click)(ctx);
             ctx.trigger_event(SelectableEvent(self.id, self.group_id))
         } else if let Some(SelectableEvent(id, group_id)) = event.downcast_ref::<SelectableEvent>() {
-            self.is_selected = *id == self.id && *group_id == self.group_id;
+            if *group_id == self.group_id {self.is_selected = *id == self.id; }
         }
         false
     }
@@ -241,6 +241,7 @@ impl OnEvent for Slider {
             match state {
                 MouseState::Pressed => {
                     if let Some((x, _)) = position {
+                        ctx.hardware.haptic();
                         self.dragging = true;
                         self.clamp(ctx, *x);
                     }
@@ -282,9 +283,11 @@ impl InputField {
         focus: impl Drawable + 'static,
         error: impl Drawable + 'static,
         content: InputContent,
+        height: f32,
     ) -> Self {
+        let height = Size::custom(move |heights: Vec<(f32, f32)>| (heights[4].0.max(height), heights[4].1.max(height)));
         InputField {
-            _layout: Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default()),
+            _layout: Stack(Offset::Start, Offset::Start, Size::Fit, height, Padding::default()),
             _default: Opt::new(Box::new(default), true),
             _hover: Opt::new(Box::new(hover), false),
             _focus: Opt::new(Box::new(focus), false),
@@ -397,7 +400,7 @@ impl InputContent {
         let bin_layout = Stack(Offset::default(), Offset::End, Size::Fit, Size::Fit, Padding(-8.0, -8.0, -8.0, -8.0));
         let button = button.map(|b| Bin(bin_layout, b));
         InputContent {
-            layout: Row::new(0.0, Offset::Start, Size::Fill, Padding(16.0, 14.0, 16.0, 14.0)),
+            layout: Row::new(0.0, Offset::Start, Size::Fit, Padding(16.0, 14.0, 16.0, 14.0)),
             default: Opt::new(EitherOr::new(default, placeholder), true),
             focus: Opt::new(editor, false),
             button,

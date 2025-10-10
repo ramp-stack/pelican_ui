@@ -76,6 +76,7 @@ impl TextInput {
             Self::new_background(Color::TRANSPARENT, colors.outline.primary),
             Self::new_background(Color::TRANSPARENT, colors.status.danger),
             content,
+            48.0
         );
 
         TextInput {
@@ -90,10 +91,8 @@ impl TextInput {
 
     pub fn id(&self) -> &ElementID {&self._inner.id}
 
-    fn new_background(background: Color, outline: Color) -> Bin<Stack, Rectangle> {
-        let height = Size::custom(|heights: Vec<(f32, f32)>| (heights[4].0.max(48.0), heights[4].1.max(48.0)));
-        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, height, Padding::default());
-        Bin(layout, Rectangle::new(background, 8.0, Some((1.0, outline))))
+    fn new_background(background: Color, outline: Color) -> Rectangle {
+        Rectangle::new(background, 8.0, Some((1.0, outline)))
     }
 
     // pub fn sync_input_value(&mut self, actual_value: &str) -> bool {
