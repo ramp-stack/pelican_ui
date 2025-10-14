@@ -46,11 +46,12 @@ pub struct Text {
     #[skip] pub style: TextStyle,
     #[skip] pub align: Align,
     #[skip] pub max_lines: Option<u32>,
+    #[skip] pub kerning: f32,
 }
 
 impl OnEvent for Text {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
+        if event.downcast_ref::<TickEvent>().is_some() {
             let (color, font) = self.style.get(ctx);
             self.inner.align = self.align;
             self.inner.max_lines = self.max_lines;
@@ -59,6 +60,7 @@ impl OnEvent for Text {
                 s.font_size = self.size;
                 s.color = color;
                 s.font = font.clone();
+                s.kerning = self.kerning;
             });
         }
         true
@@ -69,7 +71,7 @@ impl Text {
     pub fn new(ctx: &mut Context, text: &str, size: f32, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         let (color, font) = style.get(ctx);
         let inner = BasicText::new(vec![Span::new(text.to_string(), size, Some(size*1.25), font, color, 0.0)], None, align, max_lines);
-        Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size, style, align, max_lines}
+        Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size, style, align, max_lines, kerning: 0.0}
     }
 }
 

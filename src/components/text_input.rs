@@ -4,7 +4,7 @@ use mustache::{Context, Component};
 
 use crate::components::interactions::{SubmitCallback, self};
 use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
-use crate::layout::{Padding, Column, Offset, Size, EitherOr, Stack, Bin};
+use crate::layout::{Padding, Column, Offset, Size, EitherOr};
 use crate::components::button::SecondaryIconButton;
 use crate::utils::ElementID;
 use crate::plugin::PelicanUI;

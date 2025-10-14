@@ -99,7 +99,7 @@ impl OnEvent for Button {
                 }
             }
         }
-        false
+        true
     }
 }
 
