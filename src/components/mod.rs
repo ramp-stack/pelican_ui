@@ -5,6 +5,8 @@ pub mod avatar;
 pub mod list_item;
 mod text_input;
 pub use text_input::TextInput;
+mod radio;
+pub use radio::RadioSelector;
 mod slider;
 pub use slider::Slider;
 mod images;

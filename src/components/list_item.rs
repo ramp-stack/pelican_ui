@@ -47,11 +47,12 @@ impl ListItem {
         avatar: Option<AvatarContent>,
         left: ListItemInfoLeft,
         right: Option<TitleSubtitle>,
-        icon: Option<&'static str>,
+        icon_l: Option<&'static str>,
+        icon_r: Option<&'static str>,
         on_click: impl FnMut(&mut Context) + 'static,
     ) -> Self {
         let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
-        let content = ListItemContent::new(ctx, avatar, left, right, icon);
+        let content = ListItemContent::new(ctx, avatar, left, right, icon_l, icon_r);
         let layout = Stack(Offset::Start, Offset::Center, Size::Fill, Size::custom(|heights: Vec<(f32, f32)>| heights[1]), Padding(0.0, 16.0, 0.0, 16.0));
         ListItem(layout, Rectangle::new(background, 0.0, None), content, ButtonState::Default, Box::new(on_click), false)
     }
@@ -81,7 +82,7 @@ impl std::fmt::Debug for ListItem {
 }
 
 #[derive(Debug, Component)]
-struct ListItemContent(Row, Option<Avatar>, ListItemData, Option<Image>);
+struct ListItemContent(Row, Option<Image>, Option<Avatar>, ListItemData, Option<Image>);
 impl OnEvent for ListItemContent {}
 
 impl ListItemContent {
@@ -91,13 +92,15 @@ impl ListItemContent {
         avatar: Option<AvatarContent>,
         left: ListItemInfoLeft,
         right: Option<TitleSubtitle>,
-        icon: Option<&'static str>,
+        icon_l: Option<&'static str>,
+        icon_r: Option<&'static str>,
     ) -> Self {
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding::default());
         let avatar = avatar.map(|data| Avatar::new(ctx, data, None, false, AvatarSize::Md, None));
         let content = ListItemData::new(ctx, left, right);
-        let icon = icon.map(|i| {let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.primary; Icon::new(ctx, i, c, 16.0)});
-        ListItemContent(layout, avatar, content, icon)
+        let icon_l = icon_l.map(|i| {let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.primary; Icon::new(ctx, i, c, 24.0)});
+        let icon_r = icon_r.map(|i| {let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.primary; Icon::new(ctx, i, c, 16.0)});
+        ListItemContent(layout, icon_l, avatar, content, icon_r)
     }
 }
 
