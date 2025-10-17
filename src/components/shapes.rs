@@ -9,11 +9,6 @@ use crate::layout::Stack;
 /// A rectangle component with a customizable background and optional outline.  
 /// Supports rounded corners and adjustable stroke thickness.
 ///
-/// - `background`: background color
-/// - `outline`: outline color
-/// - `radius`: corner radius
-/// - `stroke`: optional outline thickness (`None` == no outline)
-///
 /// Rectangles expand to fill available space, so wrap them in a [`Bin`]  
 /// with a [`Stack`] layout to control the size.
 ///
@@ -23,9 +18,7 @@ use crate::layout::Stack;
 ///
 /// ## Example
 /// ```rust
-/// let background = ctx.theme.colors.brand;
-/// let outline = ctx.theme.colors.outline.primary;
-/// let rect = Rectangle::new(background, outline, 8.0, Some(8.0));
+/// let rect = Rectangle::new(black, 8.0, Some(8.0, blue));
 /// let layout = Stack(Offset::Center, Offset::Center, Size::Static(100.0), Size::Static(100.0), Padding::default());
 /// let shape = Bin(layout, rect);
 /// ```
@@ -75,8 +68,7 @@ impl Component for _Rectangle {
 
 /// # Circle
 ///
-/// Creates a circle with a specified size and color.  
-/// Supports an optional outline by setting `outlined = true`.
+/// Creates a circle with a specified size and color.
 ///
 /// - `size`: diameter of the circle
 /// - `color`: fill color

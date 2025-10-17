@@ -37,24 +37,6 @@ impl Error {
     }
 }
 
-// /// Splash page shown when the app first launches.
-// #[derive(Debug, Component)]
-// pub struct Splash(Stack, Page);
-// impl OnEvent for Splash {}
-// impl AppPage for Splash {
-//     fn has_nav(&self) -> bool { false }
-//     fn navigate(self: Box<Self>, _ctx: &mut Context, _index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> { Ok(self) }
-// }
-
-// impl Splash {
-//     pub fn new(ctx: &mut Context) -> Self {
-//         let wordmark = ctx.theme.brand.wordmark.clone();
-//         let content = Content::new(ctx, Offset::Center, vec![Box::new(AspectRatioImage::new(wordmark, (162.0, 34.5)))]);
-
-//         Splash(Stack::default(), Page::new(None, content, None))
-//     }
-// }
-
 /// Example landing page for Pelican UI.
 ///
 /// `PelicanHome` demonstrates how to create a basic page with a logo, heading, 

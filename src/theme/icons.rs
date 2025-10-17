@@ -4,15 +4,9 @@ use std::collections::HashMap;
 
 /// A collection of icons used throughout the application.
 ///
-/// # Adding a New Icon
-/// ```rust
-/// let theme = Theme::default();
-/// theme.insert(ctx, "ice_cream");
-/// ```
-/// 
-/// - Icons must be `.svg` files located in `resources/icons/`.
-/// - The file name must match the name passed to the `insert` function.
-///   For example: `"ice_cream"` corresponds to `resources/icons/ice_cream.svg`.
+/// - Icons will automatically be adde to resources when they meet these conditions:
+///     - Icons must be `.svg` files.
+///     - Icons must be located in `project/resources/icons/`.
 ///
 /// # Default Icons
 /// - ![accounts](https://raw.githubusercontent.com/ramp-stack/pelican_ui/master/resources/icons/accounts.svg) `accounts`

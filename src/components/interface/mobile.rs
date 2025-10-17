@@ -62,7 +62,6 @@ impl MobileNavigator {
     }
 }
 
-
 #[derive(Debug, Component)]
 struct MobileNavigatorContent(Row, Vec<NavigatorSelectable>);
 impl OnEvent for MobileNavigatorContent {}

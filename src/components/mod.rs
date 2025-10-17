@@ -19,15 +19,10 @@ pub use radio::RadioSelector;
 mod slider;
 pub use slider::Slider;
 
-/// Images.
 mod images;
 pub use images::*;
-
-/// Geometric shapes.
 mod shapes;
 pub use shapes::*;
-
-/// Text rendering.
 mod text;
 pub use text::*;
 
