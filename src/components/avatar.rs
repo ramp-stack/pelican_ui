@@ -134,12 +134,16 @@ impl Flair {
     }
 }
 
+/// Variations of avatar content.
 #[derive(Debug, Clone)]
 pub enum AvatarContent {
+    /// Display an icon on a circle background.
     Icon(&'static str, AvatarIconStyle),
+    /// Display a circular image .
     Image(resources::Image)
 }
 
+/// Style presets for avatar icons and backgrounds.
 #[derive(Debug, Copy, Clone)]
 pub enum AvatarIconStyle {
     Primary,
@@ -164,10 +168,25 @@ impl AvatarIconStyle {
     }
 }
 
+/// Size presets for avatars.
 #[derive(Debug, Copy, Clone)]
-pub enum AvatarSize {Xxl, Xl, Lg, Md, Sm, Xs}
+pub enum AvatarSize {
+    /// `128.0`
+    Xxl, 
+    /// `96.0`
+    Xl, 
+    /// `64.0`
+    Lg, 
+    /// `48.0`
+    Md, 
+    /// `32.0`
+    Sm, 
+    /// `24.0`
+    Xs
+}
 
 impl AvatarSize {
+    /// returns the corresponding size.
     pub fn get(&self) -> f32 {
         match self {
             AvatarSize::Xxl => 128.0,

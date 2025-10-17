@@ -11,7 +11,9 @@ use crate::components::interactions;
 ///
 /// A UI component that allows users to select a value along a continuous range. 
 ///
-/// ![Slider Example](https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/slider.png)
+/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/slider.png"
+///      alt="Secondary Icons Example"
+///      width="350">
 ///
 /// ### Example
 /// ```rust
@@ -19,7 +21,7 @@ use crate::components::interactions;
 ///     ctx,
 ///     50.0,
 ///     Some("Volume"),
-///     Some("Adjust the sound level"),
+///     None,
 ///     |ctx: &mut Context, percentage: f32| {
 ///         println!("Slider released at %{percentage}");
 ///     }

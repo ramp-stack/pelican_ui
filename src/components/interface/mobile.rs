@@ -74,7 +74,6 @@ impl MobileNavigatorContent {
         if let Some(n) = navigation.2 { navigation.1.extend(n); }
         for (i, info) in navigation.1.into_iter().enumerate() {
             let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
-
             tabs.push(NavigatorSelectable::mobile(ctx, info.icon, closure, navigation.0 == i, group_id));
         }
 

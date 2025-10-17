@@ -33,8 +33,7 @@ impl Error {
         let content = Content::new(ctx, Offset::Center, drawables![illustration, title, text]);
         let button = PrimaryButton::new(ctx, "Go Back", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(0)), false);
         let bumper = Bumper::new(ctx, drawables![button]);
-        let header = Header::home(ctx, "", None);
-        Error(Stack::default(), Page::new(Some(header), content, Some(bumper)), home)
+        Error(Stack::default(), Page::new(None, content, Some(bumper)), home)
     }
 }
 

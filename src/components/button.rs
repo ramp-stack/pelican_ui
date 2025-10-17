@@ -9,6 +9,16 @@ use crate::components::interactions::ButtonState;
 use crate::components::interactions;
 use crate::plugin::PelicanUI;
 
+/// ## Primary Button
+///
+/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/primary_buttons.png"
+///      alt="Primary Button Example"
+///      width="250">
+///
+/// ### Example
+/// ```rust
+/// let button = PrimaryButton::new(ctx, "Label", |ctx: &mut Context| println!("This button has been clicked!"), false);
+/// ```
 #[derive(Debug, Component)]
 pub struct PrimaryButton(Stack, pub interactions::Button);
 impl OnEvent for PrimaryButton {}
@@ -28,6 +38,16 @@ impl PrimaryButton {
     pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
 }
 
+/// ## Secondary Button
+///
+/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/secondary_buttons.png"
+///      alt="Secondary Button Example"
+///      width="250">
+///
+/// ### Example
+/// ```rust
+/// let button = SecondaryButton::medium(ctx, "edit", "Copy", Some("Copied"), |ctx: &mut Context| println!("This button has been clicked!"));
+/// ```
 #[derive(Debug, Component)]
 pub struct SecondaryButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryButton {}
@@ -62,6 +82,16 @@ impl SecondaryButton {
     pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
 }
 
+/// ## Secondary Icon Button
+///
+/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/secondary_icons.png"
+///      alt="Secondary Icons Example"
+///      width="250">
+///
+/// ### Example
+/// ```rust
+/// let button = SecondaryIconButton::new(ctx, "info", |ctx: &mut Context| println!("This button has been clicked!"));
+/// ```
 #[derive(Debug, Component)]
 pub struct SecondaryIconButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryIconButton {}
@@ -78,6 +108,16 @@ impl SecondaryIconButton {
     pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
 }
 
+/// ## Ghost Icon Button
+///
+/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/ghost_icons.png"
+///      alt="Ghost Icons Example"
+///      width="250">
+///
+/// ### Example
+/// ```rust
+/// let button = GhostIconButton::new(ctx, "explore", |ctx: &mut Context| println!("This button has been clicked!"));
+/// ```
 #[derive(Debug, Component)]
 pub struct GhostIconButton(Stack, pub interactions::Button);
 impl OnEvent for GhostIconButton {}
@@ -146,9 +186,11 @@ impl ButtonContent {
     }
 }
 
+/// Various button styles.
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum ButtonStyle {Primary, Secondary, Ghost}
 
+/// Available button width behaviors.
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum ButtonWidth {Fit, Fill}
 impl ButtonWidth{
@@ -160,6 +202,7 @@ impl ButtonWidth{
     }
 }
 
+/// Available button sizes and their corresponding layout, font, and icon properties.
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum ButtonSize {Large, Medium}
 impl ButtonSize {

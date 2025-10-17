@@ -44,21 +44,11 @@ pub enum Size {
     #[default]
     /// Layout automatically fits the size of its children.
     Fit,
-    /// Layout fills the available space but remains between the specified minimum and maximum.
-    /// 
-    /// # Parameters
-    /// - `min` (`f32`): Minimum size.
-    /// - `max` (`f32`): Maximum size.
+    /// The layout expands to fill the available space but stays within the parent’s maximum size and the minimum size required by its children.    
     Fill,
     /// Layout uses a fixed, static size.
-    ///
-    /// # Parameters
-    /// - `size` (`f32`): The exact size to use.
     Static(f32),
     /// Layout size is determined by a custom function.
-    ///
-    /// # Parameters
-    /// - `func` (`Box<CustomFunc>`): Function that returns the desired size based on available space.
     Custom(Box<CustomFunc>),
 }
 
@@ -434,7 +424,6 @@ impl Layout for Wrap {
     }
 }
 
-
 /// Defines the reference point for scrolling content.
 #[derive(Debug, Clone, Copy)]
 pub enum ScrollAnchor {
@@ -489,7 +478,6 @@ impl Scroll {
     pub fn horizontal(offset_x: Offset, offset_y: Offset, size_x: Size, size_y: Size, padding: Padding) -> Self {
         Scroll::new(offset_x, offset_y, size_x, size_y, padding, ScrollAnchor::Start, ScrollDirection::Horizontal)
     }
-
 
     pub fn adjust_scroll(&mut self, delta: f32) { 
         let mut guard = self.adjustment.lock().unwrap();

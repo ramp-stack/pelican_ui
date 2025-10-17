@@ -24,7 +24,7 @@ use crate::utils::TitleSubtitle;
 /// ```rust
 /// let item = ListItem::new(
 ///     ctx,
-///     Some(AvatarContent::Icon("settings", AvatarIconStyle::Success)),
+///     Some(AvatarContent::Icon("wifi", AvatarIconStyle::Success)),
 ///     ListItemInfoLeft::new("Wi-Fi", "Home Network", None, None),
 ///     Some(TitleSubtitle::new("Connected", "Secure, WPA2")),
 ///     None,
