@@ -41,7 +41,7 @@ impl Slider {
         Slider(Column::start(8.0),
             label.map(|l| Text::new(ctx, l, size.h5, TextStyle::Heading, Align::Left, None)),
             description.map(|t| ExpandableText::new(ctx, t, size.md, TextStyle::Primary, Align::Left, None)),
-            interactions::Slider::new(start, Rectangle::new(colors.text.secondary, 3.0, None), Rectangle::new(colors.brand, 3.0, None), Circle::new(18.0, colors.brand, false), on_change),
+            interactions::Slider::new(start, Rectangle::new(colors.outline.primary, 3.0, None), Rectangle::new(colors.brand, 3.0, None), Circle::new(18.0, colors.brand, false), on_change),
         )
     }
 }

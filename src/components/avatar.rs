@@ -22,7 +22,7 @@ use crate::plugin::PelicanUI;
 ///     AvatarContent::Icon("profile", AvatarIconStyle::Secondary), 
 ///     None, 
 ///     false, 
-///     48.0, 
+///     AvatarSize::Lg,
 ///     None
 /// );
 /// ```

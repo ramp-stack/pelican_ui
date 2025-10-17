@@ -143,7 +143,6 @@ impl EncodedImage {
 ///
 /// ## Example
 /// ```rust
-/// let img = resources::Image::load("logo.png");
 /// let expandable = ExpandableImage::new(img, Some((100.0, 100.0)));
 /// ```
 #[derive(Debug)]

@@ -106,7 +106,7 @@ impl OutlineColor {
     }
     pub fn light() -> Self {
         OutlineColor {
-            primary: Color::BLACK,
+            primary: Color::from_hex("#9e9e9e", 255),
             secondary: Color::from_hex("#444444", 255),
         }
     }

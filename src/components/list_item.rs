@@ -24,17 +24,11 @@ use crate::utils::TitleSubtitle;
 /// ```rust
 /// let item = ListItem::new(
 ///     ctx,
-///     Some(AvatarContent::Icon("wifi", AvatarIconStyle::Success)),
-///     "Wi-Fi",
+///     Some(AvatarContent::Icon("settings", AvatarIconStyle::Success)),
+///     ListItemInfoLeft::new("Wi-Fi", "Home Network", None, None),
+///     Some(TitleSubtitle::new("Connected", "Secure, WPA2")),
 ///     None,
 ///     None,
-///     Some("Home Network"),
-///     Some("Connected")
-///     Some("Secure, WPA2"),
-///     None,
-///     Some(AvatarContent::Icon("wifi", AvatarIconStyle::Success)),
-///     None,
-///     false,
 ///     |ctx: &mut Context| println!("Clicked Wi-Fi")
 /// );
 /// ```
