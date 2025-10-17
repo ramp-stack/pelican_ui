@@ -202,6 +202,14 @@ impl Row {
         Row::new(spacing, Offset::Center, Size::Fit, Padding::default())
     }
 
+    pub fn start(spacing: f32) -> Self {
+        Row::new(spacing, Offset::Start, Size::Fit, Padding::default())
+    }
+
+    pub fn end(spacing: f32) -> Self {
+        Row::new(spacing, Offset::End, Size::Fit, Padding::default())
+    }
+
     pub fn padding(&mut self) -> &mut Padding {&mut self.3}
 }
 
@@ -252,6 +260,15 @@ impl Column {
         Column(spacing, Offset::Center, Size::Fit, Padding::default())
     }
 
+    pub fn start(spacing: f32) -> Self {
+        Column(spacing, Offset::Start, Size::Fit, Padding::default())
+    }
+
+    pub fn end(spacing: f32) -> Self {
+        Column(spacing, Offset::End, Size::Fit, Padding::default())
+    }
+
+
     pub fn padding(&mut self) -> &mut Padding {&mut self.3}
 }
 
@@ -296,6 +313,14 @@ pub struct Stack(pub Offset, pub Offset, pub Size, pub Size, pub Padding);
 impl Stack {
     pub fn center() -> Self {
         Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding::default())
+    }
+
+    pub fn start() -> Self {
+        Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default())
+    }
+
+    pub fn end() -> Self {
+        Stack(Offset::End, Offset::End, Size::Fit, Size::Fit, Padding::default())
     }
 
     pub fn fill() -> Self {

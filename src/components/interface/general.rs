@@ -71,7 +71,7 @@ impl OnEvent for Interface {
             *self.2.app_page() = Some(page.navigate(ctx, *index).unwrap_or_else(|e| Box::new(Error::new(ctx, "404 Page Not Found", e))));
 
             if IS_MOBILE {
-                let display = self.2.app_page().as_ref().map(|s| s.has_nav()).unwrap_or(false);
+                let display = self.2.app_page().as_ref().map(|s| s.mobile_navigator()).unwrap_or(false);
                 if let Some(navigator) = self.2.navigator() {
                     navigator.display(display);
                 }

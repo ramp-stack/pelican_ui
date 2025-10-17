@@ -44,7 +44,7 @@ pub trait AppPage: Drawable + std::fmt::Debug + 'static {
         -> Result<Box<dyn AppPage>, Box<dyn AppPage>>;
 
     /// Returns whether a navigation bar is visible (mobile specific).
-    fn has_nav(&self) -> bool {true}
+    fn mobile_navigator(&self) -> bool {true}
 }
 
 /// Event used to navigate between pages of the app.

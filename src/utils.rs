@@ -105,3 +105,16 @@ impl Default for ElementID {
     }
 }
 
+pub struct TitleSubtitle {
+    pub title: String, 
+    pub subtitle: String
+}
+
+impl TitleSubtitle {
+    pub fn new(title: &str, subtitle: &str) -> Self {
+        TitleSubtitle{
+            title: title.to_string(), 
+            subtitle: subtitle.to_string()
+        }
+    }
+}

@@ -36,8 +36,7 @@ impl OnEvent for KeyboardHeader {}
 impl KeyboardHeader {
     fn new(ctx: &mut Context, actions: bool) -> Self {
         let layout = Stack(Offset::default(), Offset::default(), Size::Fit, Size::Static(1.0), Padding(0.0,0.0,0.0,2.0));
-        KeyboardHeader(
-            Column::new(0.0, Offset::Start, Size::Fit, Padding::default()),
+        KeyboardHeader(Column::start(0.0),
             KeyboardIcons::new(ctx, actions),
             Bin(layout, Rectangle::new(ctx.get::<PelicanUI>().get().0.theme().colors.outline.secondary, 0.0, None))
         )

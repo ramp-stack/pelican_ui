@@ -28,8 +28,7 @@ impl DesktopInterface {
         let navigator = navigation.map(|n| Opt::new(Box::new(DesktopNavigator::new(ctx, n)) as Box<dyn Drawable>, true));
         let line_layout = Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default());
         let separator = Bin(line_layout, Rectangle::new(color, 0.0, None));
-        let layout = Row::new(0.0, Offset::Start, Size::Fit, Padding::default());
-        DesktopInterface(layout, navigator, separator, Some(Box::new(start_page)))
+        DesktopInterface(Row::start(0.0), navigator, separator, Some(Box::new(start_page)))
     }
 }
 
