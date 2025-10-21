@@ -30,6 +30,9 @@ use std::sync::mpsc;
 ///     None,
 /// );
 /// ```
+
+///TextInput(Stack, interaction::TextInput(TextContent(Stack, Enum(Enum(Default, Error), Focused, Hover), TextEditor)))
+
 #[derive(Debug, Component)]
 pub struct TextInput {
     layout: Column,
