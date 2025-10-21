@@ -1,8 +1,8 @@
-use mustache::events::{OnEvent, TickEvent, Event, KeyboardEvent, KeyboardState};
-use mustache::drawable::{Drawable, Align, Color};
+use mustache::events::{OnEvent, TickEvent, Event};
+use mustache::drawable::{Align, Color};
 use mustache::{Context, Component};
 
-use crate::components::interactions::{InputState, TextInputEvent, self};
+use crate::components::interactions::{InputFieldEvent, self};
 use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
 use crate::layout::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
 use crate::components::button::SecondaryIconButton;
@@ -161,9 +161,9 @@ impl OnEvent for _InputContent {
                     self.empty.display(self.value.is_empty());
                 }
             }
-        } else if let Some(TextInputEvent::Select(id)) = event.downcast_ref::<TextInputEvent>() { 
+        } else if let Some(InputFieldEvent::Select(id)) = event.downcast_ref::<InputFieldEvent>() { 
             self.is_focused = *id == self.id;
-        } else if let Some(TextInputEvent::Deselect(id)) = event.downcast_ref::<TextInputEvent>() { 
+        } else if let Some(InputFieldEvent::Deselect(id)) = event.downcast_ref::<InputFieldEvent>() { 
             self.is_focused = !(*id == self.id);
         }
         true

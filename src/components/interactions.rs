@@ -2,12 +2,9 @@ use mustache::events::{MouseState, MouseEvent, OnEvent, Event, TickEvent, Keyboa
 use mustache::drawable::{Drawable};
 use mustache::{Context, Component};
 
-use std::sync::mpsc;
-
 // use crate::components::avatar::{Avatar, AvatarContent};
 use crate::utils::{Callback, ElementID};
-use crate::layout::{Stack, Bin, Opt, Offset, Size, Row, Padding, EitherOr};
-use crate::components::{ExpandableText, TextEditor};
+use crate::layout::{Stack, Bin, Opt, Offset, Size, Padding};
 use crate::components::interface::mobile::ShowKeyboard;
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
@@ -318,7 +315,7 @@ impl OnEvent for InputField {
                         MouseEvent{state: MouseState::Pressed, position: Some(_)} => {
                             ctx.hardware.haptic();
                             ctx.trigger_event(ShowKeyboard(true)); 
-                            ctx.trigger_event(TextInputEvent::Select(self.id));
+                            ctx.trigger_event(InputFieldEvent::Select(self.id));
                             Some(InputState::Focus)
                         },
                         MouseEvent{state: MouseState::Moved, position: Some(_)} => Some(InputState::Hover),
@@ -330,7 +327,7 @@ impl OnEvent for InputField {
                         MouseEvent{state: MouseState::Pressed, position: Some(_)} => {
                             ctx.hardware.haptic();
                             ctx.trigger_event(ShowKeyboard(true)); 
-                            ctx.trigger_event(TextInputEvent::Select(self.id));
+                            ctx.trigger_event(InputFieldEvent::Select(self.id));
                             Some(InputState::Focus)
                         },
                         MouseEvent{state: MouseState::Moved, position: None} if self.has_error => Some(InputState::Error),
@@ -341,11 +338,11 @@ impl OnEvent for InputField {
                 InputState::Focus => {
                     match event {
                         MouseEvent{state: MouseState::Pressed, position: None} if self.has_error && !mustache::IS_MOBILE => {
-                            ctx.trigger_event(TextInputEvent::Deselect(self.id));
+                            ctx.trigger_event(InputFieldEvent::Deselect(self.id));
                             Some(InputState::Error)
                         },
                         MouseEvent{state: MouseState::Pressed, position: None} if !mustache::IS_MOBILE => {
-                            ctx.trigger_event(TextInputEvent::Deselect(self.id));
+                            ctx.trigger_event(InputFieldEvent::Deselect(self.id));
                             Some(InputState::Default)
                         },
                         _ => None
@@ -359,8 +356,8 @@ impl OnEvent for InputField {
                     }
                 }
             }.unwrap_or(self.state);
-        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key}) = event.downcast_ref() {
-            // return self.state == InputState::Focus;
+        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key: _}) = event.downcast_ref() {
+            return self.state == InputState::Focus;
         }
         true
     }
@@ -376,12 +373,12 @@ pub enum InputState {
 
 /// Event used to focus active input field on mobile and enable editing of the text input content.
 #[derive(Debug, Clone)]
-pub enum TextInputEvent {
+pub enum InputFieldEvent {
     Select(ElementID),
     Deselect(ElementID)
 }
 
-impl Event for TextInputEvent {
+impl Event for InputFieldEvent {
     fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
         children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }

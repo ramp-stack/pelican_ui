@@ -58,6 +58,7 @@ impl PelicanHome {
         let title = Text::new(ctx, "Welcome to Pelican UI", font_size.h4, TextStyle::Heading, Align::Center, None);
         let text = Text::new(ctx, "featherlight ui for heavy ideas", font_size.md, TextStyle::Primary, Align::Center, None);
         let content = Content::new(ctx, Offset::Center, vec![Box::new(illustration), Box::new(title), Box::new(text)]);
-        PelicanHome(Stack::default(), Page::new(None, content, None))
+        let header = Header::home(ctx, "Pelican UI", None);
+        PelicanHome(Stack::default(), Page::new(Some(header), content, None))
     }
 }
