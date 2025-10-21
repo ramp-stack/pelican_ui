@@ -180,7 +180,7 @@ impl UniformExpand {
 ///```rust
 /// let layout = Row::new(24.0, Offset::Center, Size::Fit, Padding::new(8.0));
 ///```
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Row(f32, Offset, Size, Padding);
 
 impl Row {
@@ -238,7 +238,7 @@ impl Layout for Row {
 ///```rust
 /// let layout = Column::new(24.0, Offset::Center, Size::Fit, Padding::new(8.0));
 ///```
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Column(f32, Offset, Size, Padding);
 
 impl Column {
@@ -301,6 +301,10 @@ impl Layout for Column {
 pub struct Stack(pub Offset, pub Offset, pub Size, pub Size, pub Padding);
 
 impl Stack {
+    pub fn new(x_offset: Offset, y_offset: Offset, x_size: Size, y_size: Size, padding: Padding) -> Self {
+        Stack(x_offset, y_offset, x_size, y_size, padding)
+    }
+
     pub fn center() -> Self {
         Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding::default())
     }

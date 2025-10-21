@@ -1,10 +1,10 @@
-use mustache::events::{OnEvent, TickEvent, Event};
-use mustache::drawable::{Align, Color};
+use mustache::events::{OnEvent, TickEvent, Event, KeyboardEvent, KeyboardState};
+use mustache::drawable::{Drawable, Align, Color};
 use mustache::{Context, Component};
 
-use crate::components::interactions::{SubmitCallback, self};
+use crate::components::interactions::{InputState, TextInputEvent, self};
 use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
-use crate::layout::{Padding, Column, Offset, Size, EitherOr};
+use crate::layout::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
 use crate::components::button::SecondaryIconButton;
 use crate::utils::ElementID;
 use crate::plugin::PelicanUI;
@@ -32,98 +32,144 @@ use std::sync::mpsc;
 /// ```
 #[derive(Debug, Component)]
 pub struct TextInput {
-    _layout: Column,
-    _label: Option<Text>,
-    _inner: interactions::InputField,
-    _hint: EitherOr<Option<ExpandableText>, ExpandableText>,
+    layout: Column,
+    label: Option<Text>,
+    pub inner: interactions::InputField,
+    hint: EitherOr<Option<ExpandableText>, ExpandableText>,
     #[skip] pub error: Option<String>,
-    #[skip] pub hint: Option<String>,
 }
 
-type TextInputButton = (&'static str, Box<dyn FnMut(&mut Context, &mut String)>);
+type InputCallback = Box<dyn FnMut(&mut Context, &mut String)>;
 
 impl TextInput {
     pub fn new(
         ctx: &mut Context,
         value: Option<&str>,
         label: Option<&str>,
-        placeholder: &str,
+        placeholder: Option<&str>,
         help_text: Option<&str>,
-        icon_button: Option<TextInputButton>,
+        icon_button: Option<(&str, InputCallback)>,
     ) -> Self {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
+        let background = |bg: Color, o: Color| Rectangle::new(bg, 8.0, Some((1.0, o)));
+        let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
 
-        let error = ExpandableText::new(ctx, "", size.sm, TextStyle::Error, Align::Left, None);
+        let id = ElementID::new();
+
+        let input_field = interactions::InputField::new(
+            background(Color::TRANSPARENT, colors.outline.secondary),
+            background(Color::TRANSPARENT, colors.outline.primary),
+            Some(background(colors.background.secondary, colors.outline.secondary)),
+            Some(background(Color::TRANSPARENT, colors.status.danger)),
+            _InputContent::new(ctx, value, placeholder, icon_button, id),
+            48.0,
+            id,
+        );
+
+        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size; 
+        let error = ExpandableText::new(ctx, "", size.sm, TextStyle::Error, Align::Left, None); 
         let help = help_text.map(|t| ExpandableText::new(ctx, t, size.sm, TextStyle::Secondary, Align::Left, None));
 
-        let icon_button = icon_button.map(|(icon, on_click)| {
-            let (sender, receiver) = mpsc::channel();
-            let icon_button = SecondaryIconButton::new(ctx, icon, move |_| {sender.send(0).unwrap();});
-            (icon_button.1, receiver, Box::new(on_click) as SubmitCallback)
-        });
-
-        let content = interactions::InputContent::new(
-            TextEditor::new(ctx, value.unwrap_or(""), size.md, TextStyle::Primary, Align::Left),
-            ExpandableText::new(ctx, value.unwrap_or(""), size.md, TextStyle::Primary, Align::Left, None),
-            ExpandableText::new(ctx, placeholder, size.md, TextStyle::Secondary, Align::Left, None),
-            icon_button,
-        );
-
-        let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
-        let input_field = interactions::InputField::new(
-            Self::new_background(Color::TRANSPARENT, colors.outline.secondary),
-            Self::new_background(colors.background.secondary, colors.outline.secondary),
-            Self::new_background(Color::TRANSPARENT, colors.outline.primary),
-            Self::new_background(Color::TRANSPARENT, colors.status.danger),
-            content,
-            48.0
-        );
-
-        TextInput {
-            _layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default()),
-            _label: label.map(|text| Text::new(ctx, text, size.h5, TextStyle::Heading, Align::Left, None)),
-            _inner: input_field,
-            _hint: EitherOr::new(help, error),
-            hint: help_text.map(|t| t.to_string()),
-            error: None,
+        TextInput { 
+            layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default()),
+            label: label.map(|text| Text::new(ctx, text, size.h5, TextStyle::Heading, Align::Left, None)),
+            inner: input_field, 
+            hint: EitherOr::new(help, error),
+            error: None
         }
     }
-
-    pub fn id(&self) -> &ElementID {&self._inner.id}
-
-    fn new_background(background: Color, outline: Color) -> Rectangle {
-        Rectangle::new(background, 8.0, Some((1.0, outline)))
-    }
-
-    // pub fn sync_input_value(&mut self, actual_value: &str) -> bool {
-    //     let changed = self.value != actual_value;
-    //     if *self._input.inner().state != InputState::Focus && !changed {
-    //         self.value = actual_value.to_string();
-    //     }
-    //     changed
-    // }
 }
 
-impl OnEvent for TextInput {
-    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if event.as_any().downcast_ref::<TickEvent>().is_some() {
-            self._inner.error = self.error.clone();
+impl OnEvent for TextInput { 
+    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool { 
+        if event.as_any().downcast_ref::<TickEvent>().is_some() { 
+            self.hint.display_left(self.error.is_some()); 
+            self.inner.error(self.error.is_some()); 
+            if let Some(e) = &self.error { 
+                self.hint.right().0.spans[0] = e.to_string(); 
+            } 
+        } 
+        true 
+    } 
+}
 
-            if let Some(e) = &self.error {
-                self._hint.display_left(false);
-                self._hint.right().0.spans[0] = e.to_string();
-            }
 
-            if let Some(h) = &self.hint {
-                self._hint.display_left(true);
-                if let Some(hint) = self._hint.left() {
-                    hint.0.spans[0] = h.to_string();
+#[derive(Component)]
+struct _InputContent {
+    layout: Row,
+    default: Opt<Bin<Stack, TextEditor>>,
+    empty: Opt<Bin<Stack, ExpandableText>>,
+    button: Option<SecondaryIconButton>,
+    #[skip] value: String,
+    #[skip] on_submit: Option<(mpsc::Receiver<u8>, InputCallback)>,
+    #[skip] id: ElementID,
+    #[skip] is_focused: bool,
+}
+
+
+impl std::fmt::Debug for _InputContent { 
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { 
+        write!(f, "_InputContent") 
+    } 
+}
+
+impl _InputContent {
+    pub fn new(
+        ctx: &mut Context,
+        value: Option<&str>,
+        placeholder: Option<&str>,
+        button: Option<(&str, InputCallback)>,
+        id: ElementID,
+    ) -> Self {
+        let (button, on_submit) = button.map(|(icon, cb)| {
+            let (s, r) = mpsc::channel();
+            let btn = SecondaryIconButton::medium(ctx, icon, move |_| { s.send(0).unwrap(); });
+            (Some(btn), Some((r, cb)))
+        }).unwrap_or((None, None));
+        
+        let font_size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.md; 
+        let default = TextEditor::new(ctx, value.unwrap_or_default(), font_size, TextStyle::Primary, Align::Left); 
+        let empty = ExpandableText::new(ctx, placeholder.unwrap_or("Enter text..."), font_size, TextStyle::Secondary, Align::Left, None);
+        _InputContent { 
+            layout: Row::new(0.0, Offset::End, Size::Fit, Padding(16.0, 8.0, 8.0, 8.0)), 
+            default: Opt::new(Bin(Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding(0.0, 8.0, 16.0, 8.0)), default), false), 
+            empty: Opt::new(Bin(Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding(0.0, 8.0, 16.0, 8.0)), empty), true), 
+            button,
+            value: value.unwrap_or_default().to_string(), 
+            on_submit,
+            id,
+            is_focused: false,
+        }
+    }
+}
+
+impl OnEvent for _InputContent { 
+    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool { 
+        if event.downcast_ref::<TickEvent>().is_some() { 
+            if let Some((receiver, on_submit)) = &mut self.on_submit { 
+                if receiver.try_recv().is_ok() { 
+                    on_submit(ctx, &mut self.value) 
+                } 
+
+                self.value = self.default.inner().inner().1.0.spans[0].clone();
+
+                self.default.display(self.is_focused);
+                self.empty.display(!self.is_focused);
+                self.default.inner().inner().display_cursor(self.is_focused);
+
+                if !self.is_focused {
+                    self.default.display(!self.value.is_empty());
+                    self.empty.display(self.value.is_empty());
                 }
             }
+        } else if let Some(TextInputEvent::Select(id)) = event.downcast_ref::<TextInputEvent>() { 
+            self.is_focused = *id == self.id;
+        } else if let Some(TextInputEvent::Deselect(id)) = event.downcast_ref::<TextInputEvent>() { 
+            self.is_focused = !(*id == self.id);
         }
         true
     }
 }
+
 
 // /// # Searchbar
 // /// 

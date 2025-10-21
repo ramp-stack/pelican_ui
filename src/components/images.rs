@@ -39,7 +39,7 @@ use crate::plugin::PelicanUI;
 pub struct Icon;
 impl Icon {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(ctx: &mut Context, name: &'static str, color: Color, size: f32) -> Image {
+    pub fn new(ctx: &mut Context, name: &str, color: Color, size: f32) -> Image {
         let icon = ctx.get::<PelicanUI>().get().0.theme().icons.get(name);
         Image{shape: ShapeType::Rectangle(0.0, (size, size), 0.0), image: icon, color: Some(color)}
     }

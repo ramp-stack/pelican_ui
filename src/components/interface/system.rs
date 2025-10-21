@@ -4,10 +4,10 @@ use mustache::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, Mous
 use mustache::drawable::{Align, Image, Color};
 use mustache::{Context, Component};
 
+use crate::components::interface::mobile::ShowKeyboard;
 use crate::components::{Text, TextStyle, Rectangle, Icon};
 use crate::layout::{Stack, Bin, Column, Row, Offset, Size, Padding};
 use crate::components::interactions::ButtonState;
-use crate::components::interactions::TextInputEvent;
 use crate::components::button::GhostIconButton;
 use crate::plugin::PelicanUI;
 
@@ -67,7 +67,7 @@ impl KeyboardIcons {
                 Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(1.0),  Padding::default()), 
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
-            GhostIconButton::new(ctx, "down_arrow", |ctx: &mut Context| ctx.trigger_event(TextInputEvent::ShowKeyboard(false))),
+            GhostIconButton::new(ctx, "down_arrow", |ctx: &mut Context| ctx.trigger_event(ShowKeyboard(false))),
         )
     }
 }

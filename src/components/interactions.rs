@@ -8,6 +8,7 @@ use std::sync::mpsc;
 use crate::utils::{Callback, ElementID};
 use crate::layout::{Stack, Bin, Opt, Offset, Size, Row, Padding, EitherOr};
 use crate::components::{ExpandableText, TextEditor};
+use crate::components::interface::mobile::ShowKeyboard;
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
 pub enum ButtonState {Default, Disabled, Selected, Pressed, Hover}
@@ -18,7 +19,6 @@ pub struct Button {
     default: Opt<Box<dyn Drawable>>,
     hover: Opt<Box<dyn Drawable>>,
     pressed: Opt<Box<dyn Drawable>>,
-    selected: Opt<Box<dyn Drawable>>,
     disabled: Opt<Box<dyn Drawable>>,
     #[skip] state: ButtonState,
     #[skip] on_click: Callback,
@@ -30,7 +30,6 @@ impl Button{
         default: impl Drawable + 'static,
         hover: impl Drawable + 'static,
         pressed: impl Drawable + 'static,
-        selected: impl Drawable + 'static,
         disabled: impl Drawable + 'static,
         state: ButtonState
     ) -> Self {
@@ -39,15 +38,10 @@ impl Button{
             on_click,
             default: Opt::new(Box::new(default), state == ButtonState::Default),
             disabled: Opt::new(Box::new(disabled), state == ButtonState::Disabled),
-            selected: Opt::new(Box::new(selected), state == ButtonState::Selected),
             pressed: Opt::new(Box::new(pressed), state == ButtonState::Pressed),
             hover: Opt::new(Box::new(hover), state == ButtonState::Hover),
             state,
         }
-    }
-
-    pub fn selected(&mut self, is_selected: bool) {
-        self.state = if is_selected {ButtonState::Selected} else {ButtonState::Default};
     }
 
     pub fn disabled(&mut self, is_disabled: bool) {
@@ -61,7 +55,6 @@ impl OnEvent for Button {
             self.default.display(self.state == ButtonState::Default);
             self.hover.display(self.state == ButtonState::Hover);
             self.pressed.display(self.state == ButtonState::Pressed);
-            self.selected.display(self.state == ButtonState::Selected);
             self.disabled.display(self.state == ButtonState::Disabled);
         } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
             let state = match self.state {
@@ -140,8 +133,8 @@ impl Selectable {
             default: Opt::new(Box::new(default), !is_selected),
             selected: Opt::new(Box::new(selected), is_selected),
             is_selected,
-            id: ElementID::new(),
             group_id,
+            id: ElementID::new(),
         }
     }
 
@@ -171,12 +164,6 @@ impl Event for SelectableEvent {
         children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }
-
-// start: f32, 
-// on_release: impl FnMut(&mut Context, f32) + 'static, 
-// background: impl Drawable + 'static, 
-// foreground: impl Drawable + 'static,
-// moveable: impl Drawable + 'static,
 
 type SliderClosure = Box<dyn FnMut(&mut Context, f32)>;
 
@@ -265,67 +252,73 @@ impl OnEvent for Slider {
 
 #[derive(Debug, Component)]
 pub struct InputField {
-    _layout: Stack,
-    _default: Opt<Box<dyn Drawable>>,
-    _hover: Opt<Box<dyn Drawable>>,
-    _focus: Opt<Box<dyn Drawable>>,
-    _error: Opt<Box<dyn Drawable>>,
-    _content: InputContent,
-    #[skip] _state: InputState,
+    layout: Stack,
+    default: Opt<Box<dyn Drawable>>,
+    focus: Opt<Box<dyn Drawable>>,
+    hover: Option<Opt<Box<dyn Drawable>>>,
+    error: Option<Opt<Box<dyn Drawable>>>,
+    content: Box<dyn Drawable>,
+    #[skip] state: InputState,
     #[skip] pub id: ElementID,
-    #[skip] pub error: Option<String>,
+    #[skip] pub has_error: bool
 }
 
 impl InputField {
     pub fn new(
         default: impl Drawable + 'static,
-        hover: impl Drawable + 'static,
         focus: impl Drawable + 'static,
-        error: impl Drawable + 'static,
-        content: InputContent,
+        hover: Option<impl Drawable + 'static>,
+        error: Option<impl Drawable + 'static>,
+        content: impl Drawable + 'static,
         height: f32,
+        id: ElementID,
     ) -> Self {
-        let height = Size::custom(move |heights: Vec<(f32, f32)>| (heights[4].0.max(height), heights[4].1.max(height)));
+        let height = Size::custom(move |h: Vec<(f32, f32)>| (h[4].0.max(height), h[4].1.max(height)));
         InputField {
-            _layout: Stack(Offset::Start, Offset::Start, Size::Fit, height, Padding::default()),
-            _default: Opt::new(Box::new(default), true),
-            _hover: Opt::new(Box::new(hover), false),
-            _focus: Opt::new(Box::new(focus), false),
-            _error: Opt::new(Box::new(error), false),
-            _content: content,
-            _state: InputState::Default,
-            id: ElementID::new(),
-            error: None,
+            layout: Stack(Offset::Start, Offset::Start, Size::Fit, height, Padding::default()),
+            default: Opt::new(Box::new(default), true),
+            focus: Opt::new(Box::new(focus), false),
+            hover: hover.map(|h| Opt::new(Box::new(h) as Box<dyn Drawable>, false)),
+            error: error.map(|e| Opt::new(Box::new(e) as Box<dyn Drawable>, false)),
+            content: Box::new(content),
+            state: InputState::Default,
+            id,
+            has_error: false,
         }
     }
-
-    pub fn focus(&mut self, is_focused: bool) {
-        self._state = if is_focused {InputState::Focus} else {InputState::Default};
+    
+    pub fn error(&mut self, is_errored: bool) {
+        self.has_error = is_errored;
+        // self.state = if is_errored {InputState::Error} else {InputState::Default};
     }
 }
 
 impl OnEvent for InputField {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
-            match (self._state, self.error.is_some()) {
-                (InputState::Default, true) => self._state = InputState::Error,
-                (InputState::Error, false) => self._state = InputState::Default,
-                _ => {}
-            };
+            self.default.display(self.state == InputState::Default);
+            self.focus.display(self.state == InputState::Focus);
 
-            self._content.state = self._state;
-            self._default.display(self._state == InputState::Default);
-            self._hover.display(self._state == InputState::Hover);
-            self._focus.display(self._state == InputState::Focus);
-            self._error.display(self._state == InputState::Error);
+            if let Some(h) = &mut self.hover {
+                h.display(self.state == InputState::Hover);
+            } else if self.state == InputState::Hover {
+                self.default.display(true);
+            }
+
+            if let Some(e) = &mut self.error {
+                e.display(self.state == InputState::Error);
+            } else if self.state == InputState::Error {
+                self.default.display(true);
+            }
+
         } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            self._state = match self._state {
+            self.state = match self.state {
                 InputState::Default => {
                     match event {
                         MouseEvent{state: MouseState::Pressed, position: Some(_)} => {
                             ctx.hardware.haptic();
-                            ctx.trigger_event(TextInputEvent::TextInputSelect(self.id));
-                            ctx.trigger_event(TextInputEvent::ShowKeyboard(false)); 
+                            ctx.trigger_event(ShowKeyboard(true)); 
+                            ctx.trigger_event(TextInputEvent::Select(self.id));
                             Some(InputState::Focus)
                         },
                         MouseEvent{state: MouseState::Moved, position: Some(_)} => Some(InputState::Hover),
@@ -335,18 +328,26 @@ impl OnEvent for InputField {
                 InputState::Hover => {
                     match event {
                         MouseEvent{state: MouseState::Pressed, position: Some(_)} => {
-                            ctx.trigger_event(TextInputEvent::TextInputSelect(self.id));
+                            ctx.hardware.haptic();
+                            ctx.trigger_event(ShowKeyboard(true)); 
+                            ctx.trigger_event(TextInputEvent::Select(self.id));
                             Some(InputState::Focus)
                         },
-                        MouseEvent{state: MouseState::Moved, position: None} if self.error.is_some() => Some(InputState::Error),
+                        MouseEvent{state: MouseState::Moved, position: None} if self.has_error => Some(InputState::Error),
                         MouseEvent{state: MouseState::Moved, position: None} => Some(InputState::Default),
                         _ => None
                     }
                 },
                 InputState::Focus => {
                     match event {
-                        MouseEvent{state: MouseState::Pressed, position: None} if self.error.is_some() && !mustache::IS_MOBILE => Some(InputState::Error),
-                        MouseEvent{state: MouseState::Pressed, position: None} if !mustache::IS_MOBILE => Some(InputState::Default),
+                        MouseEvent{state: MouseState::Pressed, position: None} if self.has_error && !mustache::IS_MOBILE => {
+                            ctx.trigger_event(TextInputEvent::Deselect(self.id));
+                            Some(InputState::Error)
+                        },
+                        MouseEvent{state: MouseState::Pressed, position: None} if !mustache::IS_MOBILE => {
+                            ctx.trigger_event(TextInputEvent::Deselect(self.id));
+                            Some(InputState::Default)
+                        },
                         _ => None
                     }
                 },
@@ -357,96 +358,10 @@ impl OnEvent for InputField {
                         _ => None
                     }
                 }
-            }.unwrap_or(self._state);
-        } else if let Some(input_event) = event.downcast_ref::<TextInputEvent>() {
-            match input_event {
-                TextInputEvent::TextInputSelect(id) => match *id == self.id { 
-                    true => self._state = InputState::Focus,
-                    false if self.error.is_some() => self._state = InputState::Error,
-                    false  => self._state = InputState::Default,
-                },
-                TextInputEvent::ShowKeyboard(false) if self._state == InputState::Focus => {
-                    self._state = if self.error.is_some() {InputState::Error} else {InputState::Default};
-                }
-                _ => {}
-            }
-        }
-        true
-    }
-}
-
-pub type SubmitCallback = Box<dyn FnMut(&mut Context, &mut String)>;
-
-#[derive(Component)]
-pub struct InputContent {
-    layout: Row,
-    default: Opt<EitherOr<ExpandableText, ExpandableText>>,
-    focus: Opt<TextEditor>,
-    button: Option<Bin<Stack, Button>>,
-    #[skip] state: InputState,
-    #[skip] on_submit: Option<(mpsc::Receiver<u8>, SubmitCallback)>,
-    #[skip] value: String,
-}
-
-impl InputContent {
-    pub fn new(
-        editor: TextEditor,
-        default: ExpandableText,
-        placeholder: ExpandableText,
-        button: Option<(Button, mpsc::Receiver<u8>, SubmitCallback)>,
-    ) -> Self {
-        let value = editor.1.0.spans[0].to_string();
-        let (button, on_submit) = button.map(|(b, r, c)| (Some(b), Some((r, c)))).unwrap_or((None, None));
-        let bin_layout = Stack(Offset::default(), Offset::End, Size::Fit, Size::Fit, Padding(-8.0, -8.0, -8.0, -8.0));
-        let button = button.map(|b| Bin(bin_layout, b));
-        InputContent {
-            layout: Row::new(0.0, Offset::Start, Size::Fit, Padding(16.0, 14.0, 16.0, 14.0)),
-            default: Opt::new(EitherOr::new(default, placeholder), true),
-            focus: Opt::new(editor, false),
-            button,
-            state: InputState::Default,
-            on_submit,
-            value,
-        }
-    }
-}
-
-impl std::fmt::Debug for InputContent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "InputContent")
-    }
-}
-
-impl OnEvent for InputContent {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
-            self.focus.display(self.state == InputState::Focus);
-            self.default.display(self.state != InputState::Focus);
-
-            if let Some((receiver, on_submit)) = &mut self.on_submit {
-                if receiver.try_recv().is_ok() {
-                    on_submit(ctx, &mut self.value)
-                }
-            }
-
-            if self.state != InputState::Focus {
-                self.default.inner().display_left(!self.value.is_empty());
-            }
-
-            self.default.inner().left().0.spans[0] = self.value.clone();
-            self.value = self.focus.inner().1.0.spans[0].clone();
-        } else if let Some(input_event) = event.downcast_ref::<TextInputEvent>() {
-            match input_event {
-                TextInputEvent::ClearActiveInput => self.focus.inner().1.0.spans[0] = String::new(),
-                TextInputEvent::SetActiveInput(s) => self.focus.inner().1.0.spans[0] = s.to_string(),
-                _ => {}
-            }
+            }.unwrap_or(self.state);
         } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key}) = event.downcast_ref() {
-            if self.state == InputState::Focus {
-                self.focus.inner().apply_edit(ctx, key);
-                ctx.trigger_event(TextInputEvent::InputEditedEvent);
-            }
-        } 
+            // return self.state == InputState::Focus;
+        }
         true
     }
 }
@@ -459,13 +374,11 @@ pub enum InputState {
     Error
 }
 
+/// Event used to focus active input field on mobile and enable editing of the text input content.
 #[derive(Debug, Clone)]
 pub enum TextInputEvent {
-    ShowKeyboard(bool),
-    ClearActiveInput,
-    SetActiveInput(String),
-    TextInputSelect(ElementID),
-    InputEditedEvent
+    Select(ElementID),
+    Deselect(ElementID)
 }
 
 impl Event for TextInputEvent {

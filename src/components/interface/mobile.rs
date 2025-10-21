@@ -5,7 +5,6 @@ use mustache::events::{Event, OnEvent};
 use crate::layout::{Column, Row, Padding, Offset, Size, Opt, Stack};
 
 use crate::components::Rectangle;
-use crate::components::interactions::TextInputEvent;
 use crate::components::interface::general::InterfaceTrait;
 use crate::components::interface::system::MobileKeyboard;
 use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelectable};
@@ -38,7 +37,7 @@ impl OnEvent for MobileInterface {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
         if event.downcast_mut::<NavigateEvent>().is_some() {
             self.2 = None;
-        } else if let Some(TextInputEvent::ShowKeyboard(b)) = event.downcast_ref::<TextInputEvent>() {
+        } else if let Some(ShowKeyboard(b)) = event.downcast_ref::<ShowKeyboard>() {
             self.2 = b.then_some(MobileKeyboard::new(ctx, true));
         }
         true
@@ -78,5 +77,15 @@ impl MobileNavigatorContent {
 
         let layout = Row::new(48.0, Offset::Center, Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));
         MobileNavigatorContent(layout, tabs)
+    }
+}
+
+/// Event used to open or close keyboard.
+#[derive(Debug, Clone)]
+pub struct ShowKeyboard(pub bool);
+
+impl Event for ShowKeyboard {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }

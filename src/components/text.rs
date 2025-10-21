@@ -1,4 +1,4 @@
-use mustache::events::{OnEvent, MouseState, MouseEvent, Event, TickEvent, Key, NamedKey};
+use mustache::events::{OnEvent, MouseState, MouseEvent, Event, TickEvent, Key, NamedKey, KeyboardEvent, KeyboardState};
 use mustache::layout::{Area, SizeRequest};
 use mustache::drawable::{Drawable, Color, Align, Span, Cursor}; //Shape, Cursor
 use mustache::drawable::Text as BasicText;
@@ -137,7 +137,7 @@ impl TextEditor {
     }
 
 
-    pub fn apply_edit(&mut self, _ctx: &mut Context, key: &Key) {
+    pub fn apply_edit(&mut self, key: &Key) {
         let index = self.1.0.inner.cursor.unwrap();
         match key {
             Key::Named(NamedKey::Enter) => {
@@ -194,6 +194,8 @@ impl OnEvent for TextEditor {
             if event.state == MouseState::Pressed && event.position.is_some() {
                 self.1.0.inner.cursor_click(event.position.unwrap().0, event.position.unwrap().1) 
             }
+        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key}) = event.downcast_ref() {
+            self.apply_edit(key);
         }
         
         true
