@@ -5,7 +5,6 @@ use mustache::{drawables, Context, Component};
 use crate::components::{Icon, Rectangle, Text, TextStyle};
 use mustache::layouts::{Offset, Padding, Row, Size, Stack};
 use crate::theme::ButtonColorScheme;
-use crate::components::interactions::ButtonState;
 use crate::components::interactions;
 use crate::plugin::PelicanUI;
 
@@ -31,6 +30,7 @@ impl PrimaryButton {
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
+        
         PrimaryButton(Stack::default(), interactions::Button::new(default, hover, pressed, disabled, is_disabled, Box::new(on_click)))
     }
     
