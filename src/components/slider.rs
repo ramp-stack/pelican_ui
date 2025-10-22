@@ -3,7 +3,7 @@ use mustache::drawable::Align;
 use mustache::{Context, Component};
 
 use crate::components::{Text, ExpandableText, TextStyle, Circle, Rectangle};
-use crate::layout::Column;
+use mustache::layouts::Column;
 use crate::plugin::PelicanUI;
 use crate::components::interactions;
 

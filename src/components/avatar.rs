@@ -3,7 +3,7 @@ use mustache::drawable::{Image, Color, Shape, ShapeType};
 use mustache::{Context, Component, resources};
 
 use crate::components::{Icon, Circle};
-use crate::layout::{Stack, Offset, Size, Padding};
+use mustache::layouts::{Stack, Offset, Size, Padding};
 use crate::utils::Callback;
 use crate::plugin::PelicanUI;
 

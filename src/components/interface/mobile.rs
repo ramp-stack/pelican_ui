@@ -2,7 +2,7 @@ use mustache::{Component, Context};
 use mustache::drawable::Drawable;
 use mustache::events::{Event, OnEvent};
 
-use crate::layout::{Column, Row, Padding, Offset, Size, Opt, Stack};
+use mustache::layouts::{Column, Row, Padding, Offset, Size, Opt, Stack};
 
 use crate::components::Rectangle;
 use crate::components::interface::general::InterfaceTrait;

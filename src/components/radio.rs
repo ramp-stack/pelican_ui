@@ -1,7 +1,7 @@
 use mustache::events::OnEvent;
 use mustache::{Context, Component};
 
-use crate::layout::Column;
+use mustache::layouts::Column;
 use crate::utils::Callback;
 use crate::utils::ElementID;
 

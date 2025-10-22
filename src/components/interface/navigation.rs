@@ -7,7 +7,7 @@ use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, IconButton};
 use crate::components::interactions;
 
-use crate::layout::{Stack, Offset};
+use mustache::layouts::{Stack, Offset};
 use crate::plugin::PelicanUI;
 use crate::utils::ElementID;
 

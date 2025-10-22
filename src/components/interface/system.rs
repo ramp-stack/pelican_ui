@@ -6,7 +6,7 @@ use mustache::{Context, Component};
 
 use crate::components::interface::mobile::ShowKeyboard;
 use crate::components::{Text, TextStyle, Rectangle, Icon};
-use crate::layout::{Stack, Bin, Column, Row, Offset, Size, Padding};
+use mustache::layouts::{Stack, Bin, Column, Row, Offset, Size, Padding};
 use crate::components::interactions::ButtonState;
 use crate::components::button::GhostIconButton;
 use crate::plugin::PelicanUI;

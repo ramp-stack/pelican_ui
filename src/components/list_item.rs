@@ -5,7 +5,7 @@ use mustache::{Context, Component};
 use crate::components::{Rectangle, Icon, Text, ExpandableText, TextStyle};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::interactions::ButtonState;
-use crate::layout::{Column, Stack, Row, Padding, Offset, Size};
+use mustache::layouts::{Column, Stack, Row, Padding, Offset, Size};
 use crate::plugin::PelicanUI;
 use crate::utils::Callback;
 use crate::utils::TitleSubtitle;

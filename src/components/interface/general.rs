@@ -9,7 +9,7 @@ use crate::components::interactions::InputFieldEvent;
 use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, PageBuilder};
 use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInterface, web::WebInterface};
 
-use crate::layout::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
+use mustache::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
 
 use crate::pages::Error;
 use crate::plugin::PelicanUI;

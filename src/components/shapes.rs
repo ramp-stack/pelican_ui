@@ -2,7 +2,7 @@ use mustache::events::OnEvent;
 use mustache::drawable::{Drawable, ShapeType, Shape, Color};
 use mustache::layout::{Area, SizeRequest};
 use mustache::{Context, Component};
-use crate::layout::Stack;
+use mustache::layouts::Stack;
 
 /// # Rectangle
 ///

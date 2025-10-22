@@ -3,7 +3,7 @@ use mustache::drawable::{Image, Drawable, Color, Align};
 use mustache::{drawables, Context, Component};
 
 use crate::components::{Icon, Rectangle, Text, TextStyle};
-use crate::layout::{Offset, Padding, Row, Size, Stack};
+use mustache::layouts::{Offset, Padding, Row, Size, Stack};
 use crate::theme::ButtonColorScheme;
 use crate::components::interactions::ButtonState;
 use crate::components::interactions;
@@ -24,7 +24,6 @@ pub struct PrimaryButton(Stack, pub interactions::Button);
 impl OnEvent for PrimaryButton {}
 impl PrimaryButton {
     pub fn new(ctx: &mut Context, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_disabled: bool) -> Self {
-        let state = if is_disabled {ButtonState::Disabled} else {ButtonState::Default};
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.primary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -32,7 +31,7 @@ impl PrimaryButton {
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
-        PrimaryButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, disabled, state))
+        PrimaryButton(Stack::default(), interactions::Button::new(default, hover, pressed, disabled, is_disabled, Box::new(on_click)))
     }
     
     pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
@@ -57,7 +56,7 @@ impl SecondaryButton {
         let buttons = [colors.default, colors.hover, colors.disabled];
         let [default, hover, disabled] = buttons.map(|colors| Self::_medium(ctx, icon, label, colors));
         let pressed = Self::_medium(ctx, icon, active_label.unwrap_or(label), colors.pressed);
-        SecondaryButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, disabled, ButtonState::Default))
+        SecondaryButton(Stack::default(), interactions::Button::new(default, hover, pressed, disabled, false, Box::new(on_click)))
     }
 
     fn _medium(ctx: &mut Context, icon: &str, label: &str, colors: ButtonColorScheme) -> Button {
@@ -76,7 +75,7 @@ impl SecondaryButton {
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
-        SecondaryButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, disabled, ButtonState::Default))
+        SecondaryButton(Stack::default(), interactions::Button::new(default, hover, pressed, disabled, false, Box::new(on_click)))
     }
 
     pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
@@ -102,7 +101,7 @@ impl SecondaryIconButton {
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             IconButton::new(ctx, icon, ButtonStyle::Secondary, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
-        SecondaryIconButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, disabled, ButtonState::Default))
+        SecondaryIconButton(Stack::default(), interactions::Button::new(default, hover, pressed, disabled, false, Box::new(on_click)))
     }
 
     pub fn medium(ctx: &mut Context, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
@@ -111,7 +110,7 @@ impl SecondaryIconButton {
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             IconButton::new(ctx, icon, ButtonStyle::Secondary, ButtonSize::Medium, colors.background, colors.outline, colors.label)
         });
-        SecondaryIconButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, disabled, ButtonState::Default))
+        SecondaryIconButton(Stack::default(), interactions::Button::new(default, hover, pressed, disabled, false, Box::new(on_click)))
     }
 
     pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}
@@ -137,7 +136,7 @@ impl GhostIconButton {
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
         });
-        GhostIconButton(Stack::default(), interactions::Button::new(Box::new(on_click), default, hover, pressed, disabled, ButtonState::Default))
+        GhostIconButton(Stack::default(), interactions::Button::new(default, hover, pressed, disabled, false, Box::new(on_click)))
     }
 
     pub fn inner(&mut self) -> &mut interactions::Button {&mut self.1}

@@ -4,7 +4,7 @@ use mustache::drawable::{Drawable, Color, Align, Span, Cursor}; //Shape, Cursor
 use mustache::drawable::Text as BasicText;
 use mustache::{Context, Component, resources};
 
-use crate::layout::{Stack, Offset, Size, Padding, Opt};
+use mustache::layouts::{Stack, Offset, Size, Padding, Opt};
 use crate::components::Rectangle;
 use crate::plugin::PelicanUI;
 

@@ -5,7 +5,7 @@ use mustache::drawable::{Color, Drawable, Image};
 use crate::components::{Rectangle, AspectRatioImage};
 use crate::components::interface::general::InterfaceTrait;
 use crate::components::interface::navigation::{AppPage, NavigatorEvent, NavigateInfo, NavigatorSelectable};
-use crate::layout::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
+use mustache::layouts::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 use crate::plugin::PelicanUI;
 use crate::utils::ElementID;
 

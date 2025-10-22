@@ -1,103 +1,169 @@
-use mustache::events::{MouseState, MouseEvent, OnEvent, Event, TickEvent, KeyboardState, KeyboardEvent};
+use mustache::events::{self, MouseState, MouseEvent, OnEvent, Event, TickEvent, KeyboardState, KeyboardEvent};
 use mustache::drawable::{Drawable};
 use mustache::{Context, Component};
+use mustache::layouts::{Enum, Stack, Bin, Opt, Offset, Size, Padding};
+use mustache::emitters;
 
 // use crate::components::avatar::{Avatar, AvatarContent};
 use crate::utils::{Callback, ElementID};
-use crate::layout::{Stack, Bin, Opt, Offset, Size, Padding};
 use crate::components::interface::mobile::ShowKeyboard;
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
 pub enum ButtonState {Default, Disabled, Selected, Pressed, Hover}
 
-#[derive(Component)]
-pub struct Button {
-    layout: Stack,
-    default: Opt<Box<dyn Drawable>>,
-    hover: Opt<Box<dyn Drawable>>,
-    pressed: Opt<Box<dyn Drawable>>,
-    disabled: Opt<Box<dyn Drawable>>,
-    #[skip] state: ButtonState,
-    #[skip] on_click: Callback,
-}
+#[derive(Debug, Component)]
+pub struct Button(Stack, emitters::Button<_Button>);
+impl OnEvent for Button {}
 
-impl Button{
+impl Button {
     pub fn new(
-        on_click: Callback,
         default: impl Drawable + 'static,
         hover: impl Drawable + 'static,
         pressed: impl Drawable + 'static,
         disabled: impl Drawable + 'static,
-        state: ButtonState
+        is_disabled: bool,
+        on_click: Callback,
     ) -> Self {
-        Button {
-            layout: Stack::default(),
-            on_click,
-            default: Opt::new(Box::new(default), state == ButtonState::Default),
-            disabled: Opt::new(Box::new(disabled), state == ButtonState::Disabled),
-            pressed: Opt::new(Box::new(pressed), state == ButtonState::Pressed),
-            hover: Opt::new(Box::new(hover), state == ButtonState::Hover),
-            state,
-        }
-    }
-
-    pub fn disabled(&mut self, is_disabled: bool) {
-        self.state = if is_disabled {ButtonState::Disabled} else {ButtonState::Default};
+        Button(Stack::default(), emitters::Button::new(_Button::new(default, hover, pressed, disabled, is_disabled, on_click)))
     }
 }
 
-impl OnEvent for Button {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if event.downcast_ref::<TickEvent>().is_some() {
-            self.default.display(self.state == ButtonState::Default);
-            self.hover.display(self.state == ButtonState::Hover);
-            self.pressed.display(self.state == ButtonState::Pressed);
-            self.disabled.display(self.state == ButtonState::Disabled);
-        } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            let state = match self.state {
-                ButtonState::Default if event.position.is_some() => {
-                    match event.state {
-                        MouseState::Pressed => {
-                            Some(ButtonState::Pressed)
-                        },
-                        MouseState::Moved | MouseState::Scroll(..) => Some(if mustache::IS_MOBILE {ButtonState::Default} else {ButtonState::Hover}),
-                        _ => None
-                    }
-                },
-                ButtonState::Pressed => {
-                    match event.state {
-                        MouseState::Released if event.position.is_some() => Some(if mustache::IS_MOBILE {ButtonState::Default} else {ButtonState::Hover}),
-                        MouseState::Moved | MouseState::Scroll(..) if event.position.is_none() => Some(ButtonState::Default),
-                        _ => None
-                    }
-                },
-                ButtonState::Hover => {
-                    match event.state {
-                        MouseState::Pressed if event.position.is_some() => Some(ButtonState::Pressed),
-                        MouseState::Moved | MouseState::Scroll(..) if event.position.is_none() => Some(ButtonState::Default),
-                        _ => None
-                    }
-                }
-                _ => None
-            };
+#[derive(Component)]
+pub struct _Button(Stack, Enum, #[skip] pub bool, #[skip] Callback);
 
-            if let Some(state) = state { self.state = state; }
-            if let MouseEvent { state: MouseState::Pressed, position: Some(_) } = event {
-                if matches!(self.state, ButtonState::Default | ButtonState::Hover | ButtonState::Pressed) {
-                    ctx.hardware.haptic();
-                    (self.on_click)(ctx);
-                }
-            }
-        }
-        true
+impl _Button {
+    pub fn new(
+        default: impl Drawable + 'static,
+        hover: impl Drawable + 'static,
+        pressed: impl Drawable + 'static,
+        disabled: impl Drawable + 'static,
+        is_disabled: bool,
+        on_click: Callback,
+    ) -> Self {
+        let start = if is_disabled {"disabled"} else {"default"};
+        _Button(Stack::default(), Enum::new(vec![
+            ("default", Box::new(default)),
+            ("hover", Box::new(hover)),
+            ("pressed", Box::new(pressed)),
+            ("disabled", Box::new(disabled)),
+        ], start), is_disabled, on_click)
     }
 }
 
-impl std::fmt::Debug for Button {
+impl std::fmt::Debug for _Button {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Button")
+        write!(f, "_Button")
     }
 }
+
+impl OnEvent for _Button {
+    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+        if let Some(event) = event.downcast_ref::<events::Button>() {
+            match event {
+                events::Button::Hover(true) => self.1.display("hover"),
+                events::Button::Hover(false) => self.1.display("default"),
+                events::Button::Pressed(false) => self.1.display("default"),
+                events::Button::Pressed(true) => {
+                    self.1.display("pressed");
+                    ctx.hardware.haptic();
+                    (self.3)(ctx);
+                },
+            }
+
+            if self.2 {self.1.display("disabled")}
+        }
+        false
+    }
+}
+
+// #[derive(Component)]
+// pub struct Button {
+//     layout: Stack,
+//     default: Opt<Box<dyn Drawable>>,
+//     hover: Opt<Box<dyn Drawable>>,
+//     pressed: Opt<Box<dyn Drawable>>,
+//     disabled: Opt<Box<dyn Drawable>>,
+//     #[skip] state: ButtonState,
+//     #[skip] on_click: Callback,
+// }
+
+// impl Button{
+//     pub fn new(
+//         on_click: Callback,
+//         default: impl Drawable + 'static,
+//         hover: impl Drawable + 'static,
+//         pressed: impl Drawable + 'static,
+//         disabled: impl Drawable + 'static,
+//         state: ButtonState
+//     ) -> Self {
+//         Button {
+//             layout: Stack::default(),
+//             on_click,
+//             default: Opt::new(Box::new(default), state == ButtonState::Default),
+//             disabled: Opt::new(Box::new(disabled), state == ButtonState::Disabled),
+//             pressed: Opt::new(Box::new(pressed), state == ButtonState::Pressed),
+//             hover: Opt::new(Box::new(hover), state == ButtonState::Hover),
+//             state,
+//         }
+//     }
+
+//     pub fn disabled(&mut self, is_disabled: bool) {
+//         self.state = if is_disabled {ButtonState::Disabled} else {ButtonState::Default};
+//     }
+// }
+
+// impl OnEvent for Button {
+//     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+//         if event.downcast_ref::<TickEvent>().is_some() {
+//             self.default.display(self.state == ButtonState::Default);
+//             self.hover.display(self.state == ButtonState::Hover);
+//             self.pressed.display(self.state == ButtonState::Pressed);
+//             self.disabled.display(self.state == ButtonState::Disabled);
+//         } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
+//             let state = match self.state {
+//                 ButtonState::Default if event.position.is_some() => {
+//                     match event.state {
+//                         MouseState::Pressed => {
+//                             Some(ButtonState::Pressed)
+//                         },
+//                         MouseState::Moved | MouseState::Scroll(..) => Some(if mustache::IS_MOBILE {ButtonState::Default} else {ButtonState::Hover}),
+//                         _ => None
+//                     }
+//                 },
+//                 ButtonState::Pressed => {
+//                     match event.state {
+//                         MouseState::Released if event.position.is_some() => Some(if mustache::IS_MOBILE {ButtonState::Default} else {ButtonState::Hover}),
+//                         MouseState::Moved | MouseState::Scroll(..) if event.position.is_none() => Some(ButtonState::Default),
+//                         _ => None
+//                     }
+//                 },
+//                 ButtonState::Hover => {
+//                     match event.state {
+//                         MouseState::Pressed if event.position.is_some() => Some(ButtonState::Pressed),
+//                         MouseState::Moved | MouseState::Scroll(..) if event.position.is_none() => Some(ButtonState::Default),
+//                         _ => None
+//                     }
+//                 }
+//                 _ => None
+//             };
+
+//             if let Some(state) = state { self.state = state; }
+//             if let MouseEvent { state: MouseState::Pressed, position: Some(_) } = event {
+//                 if matches!(self.state, ButtonState::Default | ButtonState::Hover | ButtonState::Pressed) {
+//                     ctx.hardware.haptic();
+//                     (self.on_click)(ctx);
+//                 }
+//             }
+//         }
+//         true
+//     }
+// }
+
+// impl std::fmt::Debug for Button {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "Button")
+//     }
+// }
 
 #[derive(Component)]
 pub struct Selectable {

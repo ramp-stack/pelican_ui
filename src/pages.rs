@@ -2,7 +2,7 @@ use mustache::events::OnEvent;
 use mustache::drawable::{Align};
 use mustache::{drawables, Context, Component};
 
-use crate::layout::{Offset, Stack};
+use mustache::layouts::{Offset, Stack};
 use crate::components::interface::general::{Page, Content, Header, Bumper};
 use crate::components::{TextStyle, Text, AspectRatioImage};
 use crate::components::button::PrimaryButton;
