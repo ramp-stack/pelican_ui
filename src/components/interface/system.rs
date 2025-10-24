@@ -7,11 +7,14 @@ use mustache::{Context, Component};
 use crate::components::interface::mobile::ShowKeyboard;
 use crate::components::{Text, TextStyle, Rectangle, Icon};
 use mustache::layouts::{Stack, Bin, Column, Row, Offset, Size, Padding};
-use crate::components::interactions::ButtonState;
+// use crate::components::interactions::ButtonState;
 use crate::components::button::GhostIconButton;
 use crate::plugin::PelicanUI;
 
 use std::sync::mpsc::{self, Receiver, Sender};
+
+#[derive(Copy, Clone, Debug)]
+enum ButtonState {Default, Pressed}
 
 #[derive(Component, Debug)]
 pub struct MobileKeyboard(Stack, Rectangle, KeyboardContent);
@@ -240,17 +243,11 @@ impl OnEvent for Key {
             *self.1.background() = match self.2 {
                 ButtonState::Default => Color::from_hex("ffffff", 110),
                 ButtonState::Pressed => Color::from_hex("ffffff", 180),
-                _ => Color::from_hex("ffffff", 110),
             };
 
             if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
-                match self.2 {
-                    ButtonState::Default | ButtonState::Hover | ButtonState::Pressed => {
-                        ctx.hardware.haptic();
-                        ctx.trigger_event(KeyboardEvent{state: KeyboardState::Pressed, key: self.3.clone()})
-                    },
-                    _ => {}
-                }
+                ctx.hardware.haptic();
+                ctx.trigger_event(KeyboardEvent{state: KeyboardState::Pressed, key: self.3.clone()})
             }
 
             false
@@ -286,7 +283,6 @@ impl OnEvent for Capslock {
             *self.1.background() = match self.2 {
                 ButtonState::Default => Color::from_hex("ffffff", 110),
                 ButtonState::Pressed => Color::from_hex("ffffff", 180),
-                _ => Color::from_hex("ffffff", 110),
             };
 
             if event.state == MouseState::Pressed && event.position.is_some() {
@@ -296,13 +292,7 @@ impl OnEvent for Capslock {
             }
 
             if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
-                match self.2 {
-                    ButtonState::Default | ButtonState::Hover | ButtonState::Pressed => {
-                        // ctx.hardware.vibrate();
-                        self.4.send(0).unwrap();
-                    }
-                    _ => {}
-                }
+                self.4.send(0).unwrap();
             }
             false
         } else {true}
@@ -336,7 +326,6 @@ impl OnEvent for Paginator {
             *self.1.background() = match self.2 {
                 ButtonState::Default => Color::from_hex("ffffff", 110),
                 ButtonState::Pressed => Color::from_hex("ffffff", 180),
-                _ => Color::from_hex("ffffff", 110),
             };
 
             if event.state == MouseState::Pressed && event.position.is_some() {
@@ -357,10 +346,7 @@ impl OnEvent for Paginator {
             }
 
             if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
-                match self.2 {
-                    ButtonState::Default | ButtonState::Hover | ButtonState::Pressed => self.4.send(1).unwrap(),
-                    _ => {}
-                }
+                self.4.send(1).unwrap()
             }
             false
         } else {true}

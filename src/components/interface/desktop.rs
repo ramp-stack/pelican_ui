@@ -1,13 +1,12 @@
 use mustache::{Component, Context};
 use mustache::events::OnEvent;
 use mustache::drawable::{Color, Drawable, Image};
+use mustache::layouts::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 
 use crate::components::{Rectangle, AspectRatioImage};
 use crate::components::interface::general::InterfaceTrait;
 use crate::components::interface::navigation::{AppPage, NavigatorEvent, NavigateInfo, NavigatorSelectable};
-use mustache::layouts::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 use crate::plugin::PelicanUI;
-use crate::utils::ElementID;
 
 #[derive(Component, Debug)]
 pub struct DesktopInterface(Row, Option<Opt<Box<dyn Drawable>>>, Bin<Stack, Rectangle>, Option<Box<dyn AppPage>>);
@@ -38,7 +37,7 @@ impl OnEvent for DesktopNavigator {}
 
 impl DesktopNavigator {
     pub fn new(ctx: &mut Context, navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
-        let group_id = ElementID::new();
+        let group_id = uuid::Uuid::new_v4();
         let (mut top_col, mut bot_col) = (Vec::new(), Vec::new());
         let mut i = 0;
 

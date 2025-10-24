@@ -19,7 +19,7 @@ pub struct Error(Stack, Page, #[skip] Box<dyn AppPage>);
 impl OnEvent for Error {}
 
 impl AppPage for Error {
-    fn mobile_navigator(&self) -> bool { false }
+    fn has_navigator(&self) -> bool { false }
     fn navigate(self: Box<Self>, _ctx: &mut Context, _index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> { Ok(self.2) }
 }
 
@@ -46,7 +46,7 @@ pub struct PelicanHome(Stack, Page);
 impl OnEvent for PelicanHome {}
 
 impl AppPage for PelicanHome {
-    fn mobile_navigator(&self) -> bool { false }
+    fn has_navigator(&self) -> bool { false }
     fn navigate(self: Box<Self>, _ctx: &mut Context, _index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> { Err(self) }
 }
 

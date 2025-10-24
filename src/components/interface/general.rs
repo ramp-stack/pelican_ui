@@ -1,15 +1,13 @@
 use mustache::{Component, Context, IS_MOBILE, IS_WEB};
-use mustache::events::{Event, OnEvent, MouseEvent, MouseState};
+use mustache::events::{Event, OnEvent, MouseEvent, MouseState, self};
 use mustache::drawable::{Drawable, Align};
+use mustache::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
 
 use crate::components::{Rectangle, TextStyle, ExpandableText};
 use crate::components::button::GhostIconButton;
 use crate::components::text_input::TextInput;
-use crate::components::interactions::InputFieldEvent;
 use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, PageBuilder};
 use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInterface, web::WebInterface};
-
-use mustache::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
 
 use crate::pages::Error;
 use crate::plugin::PelicanUI;
@@ -69,11 +67,9 @@ impl OnEvent for Interface {
             let page = self.2.app_page().take().unwrap();
             *self.2.app_page() = Some(page.navigate(ctx, *index).unwrap_or_else(|e| Box::new(Error::new(ctx, "404 Page Not Found", e))));
 
-            if IS_MOBILE {
-                let display = self.2.app_page().as_ref().map(|s| s.mobile_navigator()).unwrap_or(false);
-                if let Some(navigator) = self.2.navigator() {
-                    navigator.display(display);
-                }
+            let display = self.2.app_page().as_ref().map(|s| s.has_navigator()).unwrap_or(false);
+            if let Some(navigator) = self.2.navigator() {
+                navigator.display(display);
             }
         } else if let Some(NavigatorEvent(index)) = event.downcast_mut::<NavigatorEvent>() {
             if let Some(pages) = self.3.as_mut() { *self.2.app_page() = Some(pages[*index](ctx)); }
@@ -193,12 +189,12 @@ impl OnEvent for Content {
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.0.adjust_scroll(*a);
-        } else if let Some(InputFieldEvent::Select(id)) = event.downcast_ref::<InputFieldEvent>() {
+        } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
             if mustache::IS_MOBILE {
                 let mut total_height = 0.0;
                 for item in self.items().iter_mut() {
                     match item.as_any_mut().downcast_mut::<TextInput>() {
-                        Some(input) if input.inner.id == *id => {
+                        Some(input) if input.inner.inner.5 == *id => {
                             self.0.set_scroll(total_height);
                             break;
                         }

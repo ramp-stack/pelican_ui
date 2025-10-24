@@ -1,15 +1,15 @@
 use mustache::{Component, Context, drawables};
 use mustache::events::{Event, OnEvent};
 use mustache::drawable::{Drawable, Align};
+use mustache::interactions;
+
 
 use crate::components::{TextStyle, Text, Icon};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, IconButton};
-use crate::components::interactions;
 
 use mustache::layouts::{Stack, Offset};
 use crate::plugin::PelicanUI;
-use crate::utils::ElementID;
 
 pub type PageBuilder = Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>;
 
@@ -43,8 +43,8 @@ pub trait AppPage: Drawable + std::fmt::Debug + 'static {
     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) 
         -> Result<Box<dyn AppPage>, Box<dyn AppPage>>;
 
-    /// Returns whether a navigation bar is visible (mobile specific).
-    fn mobile_navigator(&self) -> bool {true}
+    /// Returns whether a navigation bar is visible
+    fn has_navigator(&self) -> bool {true}
 }
 
 /// Event used to navigate between pages of the app.
@@ -89,7 +89,7 @@ impl NavigateInfo {
 pub struct NavigatorSelectable(Stack, interactions::Selectable);
 impl OnEvent for NavigatorSelectable {}
 impl NavigatorSelectable {
-    pub fn desktop_icon(ctx: &mut Context, icon: &'static str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: ElementID) -> Self {
+    pub fn desktop_icon(ctx: &mut Context, icon: &'static str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font(ctx);
@@ -98,10 +98,10 @@ impl NavigatorSelectable {
             let icon = Icon::new(ctx, icon, colors.label, icon_size);
             Button::new(drawables![icon, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
-        NavigatorSelectable(Stack::default(), interactions::Selectable::new(on_click, default, selected, is_selected, group_id))
+        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, on_click, group_id))
     }
 
-    pub fn desktop_avatar(ctx: &mut Context, avatar: AvatarContent, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: ElementID) -> Self {
+    pub fn desktop_avatar(ctx: &mut Context, avatar: AvatarContent, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font(ctx);
@@ -109,23 +109,23 @@ impl NavigatorSelectable {
             let avatar = Avatar::new(ctx, avatar.clone(), None, false, AvatarSize::Xs, None);
             Button::new(drawables![avatar, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
-        NavigatorSelectable(Stack::default(), interactions::Selectable::new(on_click, default, selected, is_selected, group_id))
+        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, on_click, group_id))
     }
 
-    pub fn mobile(ctx: &mut Context, icon: &'static str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: ElementID) -> Self {
+    pub fn mobile(ctx: &mut Context, icon: &'static str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
             IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
-        NavigatorSelectable(Stack::default(), interactions::Selectable::new(on_click, default, selected, is_selected, group_id))
+        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, on_click, group_id))
     }
 
     pub fn inner(&mut self) -> &mut interactions::Selectable {&mut self.1}
 }
 
-/// Selects the [`NavigationButton`] with the given [`ElementID`].
+/// Selects the [`NavigationButton`] with the given [`uuid::Uuid`].
 #[derive(Debug, Clone)]
-pub struct NavigatorSelect(pub ElementID);
+pub struct NavigatorSelect(pub uuid::Uuid);
 
 impl Event for NavigatorSelect {
     fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {

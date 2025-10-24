@@ -9,7 +9,6 @@ use crate::components::interface::navigation::{AppPage, NavigateInfo, NavigatorE
 
 use mustache::layouts::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 use crate::plugin::PelicanUI;
-use crate::utils::ElementID;
 
 #[derive(Component, Debug)]
 pub struct WebInterface(Column, Option<Opt<Box<dyn Drawable>>>, Option<Box<dyn AppPage>>, Option<WebFooter>);
@@ -44,7 +43,7 @@ impl WebNavigator {
         mut navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>),
     ) -> Self {
         let mut buttons = Vec::new();
-        let group_id = ElementID::new();
+        let group_id = uuid::Uuid::new_v4();
 
         if let Some(n) = navigation.2 { navigation.1.extend(n); }
         for (index, info) in navigation.1.into_iter().enumerate() {

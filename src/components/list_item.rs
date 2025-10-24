@@ -1,13 +1,12 @@
-use mustache::events::{OnEvent, MouseState, MouseEvent, Event};
+use mustache::events::OnEvent;
 use mustache::drawable::{Align, Color, Image};
 use mustache::{Context, Component};
+use mustache::interactions;
 
 use crate::components::{Rectangle, Icon, Text, ExpandableText, TextStyle};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
-use crate::components::interactions::ButtonState;
 use mustache::layouts::{Column, Stack, Row, Padding, Offset, Size};
 use crate::plugin::PelicanUI;
-use crate::utils::Callback;
 use crate::utils::TitleSubtitle;
 
 /// ## List Item
@@ -32,8 +31,9 @@ use crate::utils::TitleSubtitle;
 ///     |ctx: &mut Context| println!("Clicked Wi-Fi")
 /// );
 /// ```
-#[derive(Component)]
-pub struct ListItem(Stack, Rectangle, ListItemContent, #[skip] ButtonState, #[skip] Callback, #[skip] bool);
+#[derive(Debug, Component)]
+pub struct ListItem(Stack, interactions::Button);
+impl OnEvent for ListItem {}
 
 impl ListItem {
     pub fn new(
@@ -45,33 +45,35 @@ impl ListItem {
         icon_r: Option<&'static str>,
         on_click: impl FnMut(&mut Context) + 'static,
     ) -> Self {
+        let list_item = _ListItem::new(ctx, avatar, left, right, icon_l, icon_r);
+        ListItem(Stack::default(), interactions::Button::new(list_item, None::<_ListItem>, None::<_ListItem>, None::<_ListItem>, false, false, Box::new(on_click)))
+    }
+}
+
+#[derive(Component)]
+pub struct _ListItem(Stack, Rectangle, ListItemContent);
+
+impl _ListItem {
+    pub fn new(
+        ctx: &mut Context,
+        avatar: Option<AvatarContent>,
+        left: ListItemInfoLeft,
+        right: Option<TitleSubtitle>,
+        icon_l: Option<&'static str>,
+        icon_r: Option<&'static str>,
+    ) -> Self {
         let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
         let content = ListItemContent::new(ctx, avatar, left, right, icon_l, icon_r);
         let layout = Stack(Offset::Start, Offset::Center, Size::Fill, Size::custom(|heights: Vec<(f32, f32)>| heights[1]), Padding(0.0, 16.0, 0.0, 16.0));
-        ListItem(layout, Rectangle::new(background, 0.0, None), content, ButtonState::Default, Box::new(on_click), false)
+        _ListItem(layout, Rectangle::new(background, 0.0, None), content)
     }
 }
 
-impl OnEvent for ListItem {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
-                self.5 = true;
-            } else if let MouseEvent{state: MouseState::Released, position: Some(_)} = event {
-                if self.5 && matches!(self.3, ButtonState::Default | ButtonState::Hover | ButtonState::Pressed) {
-                    ctx.hardware.haptic();
-                    (self.4)(ctx)
-                }
-                self.5 = false;
-            }
-        }
-        false
-    }
-}
+impl OnEvent for _ListItem {}
 
-impl std::fmt::Debug for ListItem {
+impl std::fmt::Debug for _ListItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ListItem")
+        write!(f, "_ListItem")
     }
 }
 

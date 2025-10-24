@@ -26,7 +26,5 @@ pub use shapes::*;
 mod text;
 pub use text::*;
 
-pub mod interactions;
-
 /// Interface.
 pub mod interface;

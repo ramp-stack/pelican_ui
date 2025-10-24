@@ -9,7 +9,6 @@ use crate::components::interface::general::InterfaceTrait;
 use crate::components::interface::system::MobileKeyboard;
 use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelectable};
 use crate::plugin::PelicanUI;
-use crate::utils::ElementID;
 
 #[derive(Component, Debug)]
 pub struct MobileInterface(Column, Option<Box<dyn AppPage>>, Option<MobileKeyboard>, Option<Opt<Box<dyn Drawable>>>);
@@ -67,7 +66,7 @@ impl OnEvent for MobileNavigatorContent {}
 
 impl MobileNavigatorContent {
     fn new(ctx: &mut Context, mut navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
-        let group_id = ElementID::new();
+        let group_id = uuid::Uuid::new_v4();
         let mut tabs = Vec::new();
         if let Some(n) = navigation.2 { navigation.1.extend(n); }
         for (i, info) in navigation.1.into_iter().enumerate() {
