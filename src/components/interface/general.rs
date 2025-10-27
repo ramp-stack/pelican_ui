@@ -194,7 +194,7 @@ impl OnEvent for Content {
                 let mut total_height = 0.0;
                 for item in self.items().iter_mut() {
                     match item.as_any_mut().downcast_mut::<TextInput>() {
-                        Some(input) if input.inner.inner.5 == *id => {
+                        Some(input) if input.inner.5 == *id => {
                             self.0.set_scroll(total_height);
                             break;
                         }

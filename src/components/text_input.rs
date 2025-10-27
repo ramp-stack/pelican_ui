@@ -80,7 +80,7 @@ impl OnEvent for TextInput {
     fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool { 
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
             self.hint.display_left(self.error.is_some()); 
-            self.inner.inner.3 = self.error.is_some();
+            self.inner.3 = self.error.is_some();
             if let Some(e) = &self.error { 
                 self.hint.right().0.spans[0] = e.to_string(); 
             } 
