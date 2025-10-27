@@ -1,11 +1,10 @@
 use mustache::{Component, Context, IS_MOBILE, IS_WEB};
-use mustache::events::{Event, OnEvent, MouseEvent, MouseState, self};
+use mustache::events::{Event, OnEvent, MouseEvent, MouseState};
 use mustache::drawable::{Drawable, Align};
 use mustache::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
 
 use crate::components::{Rectangle, TextStyle, ExpandableText};
 use crate::components::button::GhostIconButton;
-use crate::components::text_input::TextInput;
 use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, PageBuilder};
 use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInterface, web::WebInterface};
 
@@ -186,25 +185,25 @@ impl Content {
 }
 
 impl OnEvent for Content {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
         if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.0.adjust_scroll(*a);
-        } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
-            if mustache::IS_MOBILE {
-                let mut total_height = 0.0;
-                for item in self.items().iter_mut() {
-                    match item.as_any_mut().downcast_mut::<TextInput>() {
-                        Some(input) if input.inner.5 == *id => {
-                            self.0.set_scroll(total_height);
-                            break;
-                        }
-                        _ => {
-                            let size = item.request_size(ctx);
-                            total_height += size.max_height();
-                        }
-                    }
-                }
-            }
+        // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
+        //     if mustache::IS_MOBILE {
+        //         let mut total_height = 0.0;
+        //         for item in self.items().iter_mut() {
+        //             match item.as_any_mut().downcast_mut::<TextInput>() {
+        //                 Some(input) if input.inner.5 == *id => {
+        //                     self.0.set_scroll(total_height);
+        //                     break;
+        //                 }
+        //                 _ => {
+        //                     let size = item.request_size(ctx);
+        //                     total_height += size.max_height();
+        //                 }
+        //             }
+        //         }
+        //     }
         } else if let Some(MouseEvent { state: MouseState::Scroll(_, y), position: Some(_) }) = event.downcast_ref::<MouseEvent>() {
             self.0.adjust_scroll(*y);
         }

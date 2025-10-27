@@ -50,16 +50,13 @@ impl TextInput {
         let background = |bg: Color, o: Color| Rectangle::new(bg, 8.0, Some((1.0, o)));
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
 
-        let id = uuid::Uuid::new_v4();
-
         let input_field = interactions::InputField::new(
             background(Color::TRANSPARENT, colors.outline.secondary),
             background(Color::TRANSPARENT, colors.outline.primary),
             Some(background(colors.background.secondary, colors.outline.secondary)),
             Some(background(Color::TRANSPARENT, colors.status.danger)),
-            _InputContent::new(ctx, value, placeholder, icon_button, id),
+            _InputContent::new(ctx, value, placeholder, icon_button),
             48.0,
-            id,
         );
 
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size; 
@@ -98,7 +95,6 @@ struct _InputContent {
     button: Option<SecondaryIconButton>,
     #[skip] value: String,
     #[skip] on_submit: Option<InputCallback>,
-    #[skip] id: uuid::Uuid,
     #[skip] is_focused: bool,
 }
 
@@ -115,7 +111,6 @@ impl _InputContent {
         value: Option<&str>,
         placeholder: Option<&str>,
         button: Option<(&str, InputCallback)>,
-        id: uuid::Uuid,
     ) -> Self {
         let (button, on_submit) = button.map(|(icon, cb)| {
             let btn = SecondaryIconButton::medium(ctx, icon, |ctx: &mut Context| ctx.trigger_event(events::InputField::Submit));
@@ -132,7 +127,6 @@ impl _InputContent {
             button,
             value: value.unwrap_or_default().to_string(), 
             on_submit,
-            id,
             is_focused: false,
         }
     }
@@ -140,6 +134,9 @@ impl _InputContent {
 
 impl OnEvent for _InputContent { 
     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool { 
+        if let Some(events::Button::Pressed(x)) = mustache::emitters::Button::get(event) {
+            self.is_focused = x;
+        }
         if event.downcast_ref::<TickEvent>().is_some() {
             self.value = self.default.inner().inner().1.0.spans[0].clone();
 
@@ -151,8 +148,6 @@ impl OnEvent for _InputContent {
                 self.default.display(!self.value.is_empty());
                 self.empty.display(self.value.is_empty());
             }
-        } else if let Some(events::InputField::Select(id, b)) = event.downcast_ref::<events::InputField>() { 
-            self.is_focused = *b == (*id == self.id);
         } else if let Some(events::InputField::Submit) = event.downcast_ref::<events::InputField>() { 
             if let Some(on_submit) = &mut self.on_submit {
                 (on_submit)(ctx, &mut self.value);
