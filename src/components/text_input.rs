@@ -2,8 +2,9 @@ use mustache::events::{OnEvent, TickEvent, Event, self};
 use mustache::drawable::{Align, Color};
 use mustache::{Context, Component};
 use mustache::layouts::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
-use mustache::interactions;
+use mustache::emitters;
 
+use crate::interactions;
 use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
 use crate::components::button::SecondaryIconButton;
 use crate::plugin::PelicanUI;
@@ -31,7 +32,7 @@ use crate::plugin::PelicanUI;
 pub struct TextInput {
     layout: Column,
     label: Option<Text>,
-    pub inner: interactions::InputField,
+    pub inner: emitters::TextInput<interactions::InputField>,
     hint: EitherOr<Option<ExpandableText>, ExpandableText>,
     #[skip] pub error: Option<String>,
 }
@@ -74,15 +75,15 @@ impl TextInput {
 }
 
 impl OnEvent for TextInput { 
-    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool { 
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
             self.hint.display_left(self.error.is_some()); 
-            self.inner.3 = self.error.is_some();
+            self.inner.1.3 = self.error.is_some();
             if let Some(e) = &self.error { 
                 self.hint.right().0.spans[0] = e.to_string(); 
             } 
         } 
-        true 
+        vec![event] 
     } 
 }
 
@@ -133,11 +134,10 @@ impl _InputContent {
 }
 
 impl OnEvent for _InputContent { 
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool { 
-        if let Some(events::Button::Pressed(x)) = mustache::emitters::Button::get(event) {
-            self.is_focused = x;
-        }
-        if event.downcast_ref::<TickEvent>().is_some() {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
+        if let Some(events::Button::Pressed(x)) = event.downcast_ref::<events::Button>() {
+            self.is_focused = *x;
+        } else if event.downcast_ref::<TickEvent>().is_some() {
             self.value = self.default.inner().inner().1.0.spans[0].clone();
 
             self.default.display(self.is_focused);
@@ -153,7 +153,7 @@ impl OnEvent for _InputContent {
                 (on_submit)(ctx, &mut self.value);
             }
         }
-        true
+        vec![event]
     }
 }
 
@@ -170,7 +170,7 @@ impl OnEvent for _InputContent {
 // }
 
 // impl OnEvent for Searchbar {
-//     fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+//     fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> bool {
 //         if event.downcast_ref::<InputEditedEvent>().is_some() && self.1.2.3 == InputState::Focus {
 //             ctx.trigger_event(SearchEvent(self.1.value().clone()))
 //         }

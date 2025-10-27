@@ -61,7 +61,7 @@ impl std::fmt::Debug for Interface {
 }
 
 impl OnEvent for Interface {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, ctx: &mut Context, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(NavigateEvent(index)) = event.downcast_mut::<NavigateEvent>() {
             let page = self.2.app_page().take().unwrap();
             *self.2.app_page() = Some(page.navigate(ctx, *index).unwrap_or_else(|e| Box::new(Error::new(ctx, "404 Page Not Found", e))));
@@ -74,7 +74,7 @@ impl OnEvent for Interface {
             if let Some(pages) = self.3.as_mut() { *self.2.app_page() = Some(pages[*index](ctx)); }
         }
 
-        true
+        vec![event]
     }
 }
 
@@ -185,7 +185,7 @@ impl Content {
 }
 
 impl OnEvent for Content {
-    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.0.adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
@@ -207,7 +207,7 @@ impl OnEvent for Content {
         } else if let Some(MouseEvent { state: MouseState::Scroll(_, y), position: Some(_) }) = event.downcast_ref::<MouseEvent>() {
             self.0.adjust_scroll(*y);
         }
-        true
+        vec![event]
     }
 }
 

@@ -33,13 +33,13 @@ impl MobileInterface {
 }
 
 impl OnEvent for MobileInterface {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, ctx: &mut Context, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_mut::<NavigateEvent>().is_some() {
             self.2 = None;
         } else if let Some(ShowKeyboard(b)) = event.downcast_ref::<ShowKeyboard>() {
             self.2 = b.then_some(MobileKeyboard::new(ctx, true));
         }
-        true
+        vec![event]
     }
 }
 
@@ -84,7 +84,7 @@ impl MobileNavigatorContent {
 pub struct ShowKeyboard(pub bool);
 
 impl Event for ShowKeyboard {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
-        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }

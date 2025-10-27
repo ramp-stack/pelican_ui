@@ -1,8 +1,9 @@
 use mustache::events::OnEvent;
 use mustache::{Context, Component};
 use mustache::layouts::Column;
-use mustache::interactions;
+use mustache::emitters;
 
+use crate::interactions;
 use crate::utils::Callback;
 use crate::components::list_item::ListItem;
 use crate::components::list_item::ListItemInfoLeft;
@@ -23,7 +24,7 @@ use crate::components::list_item::ListItemInfoLeft;
 /// ]);
 /// ```
 #[derive(Debug, Component)]
-pub struct RadioSelector(Column, pub Vec<interactions::Selectable>);
+pub struct RadioSelector(Column, pub Vec<emitters::Selectable<interactions::Selectable>>);
 impl OnEvent for RadioSelector {}
 impl RadioSelector {
     pub fn new(ctx: &mut Context, index: usize, items: Vec<(&str, &str, Callback)>) -> Self {

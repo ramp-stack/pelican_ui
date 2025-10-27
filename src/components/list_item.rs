@@ -1,11 +1,12 @@
 use mustache::events::OnEvent;
 use mustache::drawable::{Align, Color, Image};
+use mustache::layouts::{Column, Stack, Row, Padding, Offset, Size};
 use mustache::{Context, Component};
-use mustache::interactions;
+use mustache::emitters;
 
+use crate::interactions;
 use crate::components::{Rectangle, Icon, Text, ExpandableText, TextStyle};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
-use mustache::layouts::{Column, Stack, Row, Padding, Offset, Size};
 use crate::plugin::PelicanUI;
 use crate::utils::TitleSubtitle;
 
@@ -32,7 +33,7 @@ use crate::utils::TitleSubtitle;
 /// );
 /// ```
 #[derive(Debug, Component)]
-pub struct ListItem(Stack, interactions::Button);
+pub struct ListItem(Stack, emitters::Button<interactions::Button>);
 impl OnEvent for ListItem {}
 
 impl ListItem {
@@ -46,7 +47,7 @@ impl ListItem {
         on_click: impl FnMut(&mut Context) + 'static,
     ) -> Self {
         let list_item = _ListItem::new(ctx, avatar, left, right, icon_l, icon_r);
-        ListItem(Stack::default(), interactions::Button::new(list_item, None::<_ListItem>, None::<_ListItem>, None::<_ListItem>, false, false, Box::new(on_click)))
+        ListItem(Stack::default(), interactions::Button::new(list_item, None::<_ListItem>, None::<_ListItem>, None::<_ListItem>, false, Box::new(on_click)))
     }
 }
 

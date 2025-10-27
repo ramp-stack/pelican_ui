@@ -1,9 +1,9 @@
 use mustache::{Component, Context, drawables};
 use mustache::events::{Event, OnEvent};
 use mustache::drawable::{Drawable, Align};
-use mustache::interactions;
+use mustache::emitters;
 
-
+use crate::interactions;
 use crate::components::{TextStyle, Text, Icon};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, IconButton};
@@ -52,8 +52,8 @@ pub trait AppPage: Drawable + std::fmt::Debug + 'static {
 pub struct NavigateEvent(pub usize);
 
 impl Event for NavigateEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
-        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }
 
@@ -86,7 +86,7 @@ impl NavigateInfo {
 
 
 #[derive(Debug, Component)]
-pub struct NavigatorSelectable(Stack, interactions::Selectable);
+pub struct NavigatorSelectable(Stack, emitters::Selectable<interactions::Selectable>);
 impl OnEvent for NavigatorSelectable {}
 impl NavigatorSelectable {
     pub fn desktop_icon(ctx: &mut Context, icon: &'static str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
@@ -119,8 +119,6 @@ impl NavigatorSelectable {
         });
         NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, on_click, group_id))
     }
-
-    pub fn inner(&mut self) -> &mut interactions::Selectable {&mut self.1}
 }
 
 /// Selects the [`NavigationButton`] with the given [`uuid::Uuid`].
@@ -128,8 +126,8 @@ impl NavigatorSelectable {
 pub struct NavigatorSelect(pub uuid::Uuid);
 
 impl Event for NavigatorSelect {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
-        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }
 
@@ -138,7 +136,7 @@ impl Event for NavigatorSelect {
 pub struct NavigatorEvent(pub usize);
 
 impl Event for NavigatorEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
-        children.into_iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }

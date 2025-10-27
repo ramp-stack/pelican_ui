@@ -76,7 +76,7 @@ impl KeyboardIcons {
 }
 
 impl OnEvent for KeyboardIcons {
-    // fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    // fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
     //     if event.downcast_ref::<TickEvent>().is_some() {
     //         if let Ok((bytes, orientation)) = self.4.try_recv() {
     //             if let Some(s) = EncodedImage::encode(bytes, orientation) {ctx.trigger_event(AttachmentEvent(s));}
@@ -115,16 +115,16 @@ impl KeyboardContent {
 }
 
 impl OnEvent for KeyboardContent {
-    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
             match self.6.try_recv() {
                 Ok(0) => {println!("CAPSLOCK"); self.update();},
                 Ok(1) => {println!("PAGINATOR"); self.update();},
                 _ => {}
             }
-            
-            true
-        } else {true}
+        }
+
+        vec![event]
     }
 }
 
@@ -236,7 +236,7 @@ impl Key {
 }
 
 impl OnEvent for Key {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
 
@@ -250,9 +250,9 @@ impl OnEvent for Key {
                 ctx.trigger_event(KeyboardEvent{state: KeyboardState::Pressed, key: self.3.clone()})
             }
 
-            false
-        } else {true}
-
+            return Vec::new();
+        }
+        vec![event]
     }
 }
 
@@ -276,7 +276,7 @@ impl std::fmt::Debug for Capslock {
 }
 
 impl OnEvent for Capslock {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
 
@@ -294,8 +294,10 @@ impl OnEvent for Capslock {
             if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
                 self.4.send(0).unwrap();
             }
-            false
-        } else {true}
+
+            return Vec::new();
+        }
+        vec![event]
     }
 }
 
@@ -319,7 +321,7 @@ impl std::fmt::Debug for Paginator {
 }
 
 impl OnEvent for Paginator {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
 
@@ -348,8 +350,11 @@ impl OnEvent for Paginator {
             if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
                 self.4.send(1).unwrap()
             }
-            false
-        } else {true}
+
+            return Vec::new();
+        }
+
+        vec![event]
     }
 }
 

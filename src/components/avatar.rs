@@ -67,7 +67,7 @@ impl Avatar {
 }
 
 impl OnEvent for Avatar {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, ctx: &mut Context, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.as_any_mut().downcast_mut::<MouseEvent>() {
             if let Some(on_click) = &mut self.on_click {
                 ctx.hardware.haptic();
@@ -84,7 +84,7 @@ impl OnEvent for Avatar {
             self._avatar.3 = self.outline.then(|| Circle::new(self._size.get(), Color::BLACK, true));
             self._flair = self.flair.map(|(name, style)| Flair::new(ctx, name, style, self._size));
         }
-        false
+        vec![event]
     }
 }
 

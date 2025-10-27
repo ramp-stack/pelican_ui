@@ -50,7 +50,7 @@ pub struct Text {
 }
 
 impl OnEvent for Text {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             let (color, font) = self.style.get(ctx);
             self.inner.align = self.align;
@@ -63,7 +63,7 @@ impl OnEvent for Text {
                 s.kerning = self.kerning;
             });
         }
-        true
+        vec![event]
     }
 }
 
@@ -185,7 +185,7 @@ impl TextEditor {
 }
 
 impl OnEvent for TextEditor {
-    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() && self.1.0.inner.cursor.is_some() {
             let cursor_pos = self.1.0.inner.cursor_position();
             *self.2.x_offset() = Offset::Static(cursor_pos.0);
@@ -198,7 +198,7 @@ impl OnEvent for TextEditor {
             self.apply_edit(key);
         }
         
-        true
+        vec![event]
     }
 }
 

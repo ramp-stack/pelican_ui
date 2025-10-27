@@ -41,6 +41,7 @@
 //!```
 //!
 
+pub mod interactions;
 pub mod components;
 pub mod utils;
 pub mod plugin;
