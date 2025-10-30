@@ -32,10 +32,10 @@ impl InputField {
 
 impl OnEvent for InputField {
     fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(e) = event.downcast_ref::<events::Button>() {
+        if let Some(e) = event.downcast_ref::<events::TextInput>() {
             match e {
-                events::Button::Hover(true) => self.1.display("hover"),
-                events::Button::Pressed(true) => {
+                events::TextInput::Hover(true) => self.1.display("hover"),
+                events::TextInput::Pressed(true) => {
                     ctx.hardware.haptic();
                     self.1.display("focus");
                 },

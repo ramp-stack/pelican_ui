@@ -11,7 +11,17 @@ use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, Ic
 use mustache::layouts::{Stack, Offset};
 use crate::plugin::PelicanUI;
 
-pub type PageBuilder = Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>;
+pub enum PelicanError {
+    Err(String, Option<Box<dyn AppPage>>),
+    InvalidPage(Option<Box<dyn AppPage>>),
+    NoOutlet
+}
+
+impl From<String> for PelicanError {
+    fn from(s: String) -> PelicanError {
+        PelicanError::Err(s, None)
+    }
+}
 
 /// This trait is used to define pages in the application.
 /// 
@@ -32,16 +42,16 @@ pub trait AppPage: Drawable + std::fmt::Debug + 'static {
     /// ```rust
     /// fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) {
     ///     match index {
-    ///         0 => Ok(Box::new(Home::new(ctx))),
-    ///         1 => Ok(Box::new(Settings::new(ctx))),
-    ///         2 => Ok(Box::new(Search::new(ctx))),
-    ///         _ => Err(self),
+    ///         0 => page!(Home::new(ctx)),
+    ///         1 => page!(Settings::new(ctx))),
+    ///         2 => page!(Search::new(ctx))),
+    ///         _ => Err(PelicanError::InvalidPage(Some(self))),
     ///     }
     /// }
     /// ```
     ///
     fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) 
-        -> Result<Box<dyn AppPage>, Box<dyn AppPage>>;
+        -> Result<Box<dyn AppPage>, PelicanError>;
 
     /// Returns whether a navigation bar is visible
     fn has_navigator(&self) -> bool {true}
@@ -57,6 +67,8 @@ impl Event for NavigateEvent {
     }
 }
 
+pub type PageBuilder = Box<dyn FnMut(&mut Context) -> Result<Box<dyn AppPage>, String>>;
+
 pub struct NavigateInfo {
     pub(crate) icon: &'static str,
     pub(crate) label: String,
@@ -65,7 +77,7 @@ pub struct NavigateInfo {
 }
 
 impl NavigateInfo {
-    pub fn icon(icon: &'static str, label: &str, get_page: impl FnMut(&mut Context) -> Box<dyn AppPage> + 'static) -> Self {
+    pub fn icon(icon: &'static str, label: &str, get_page: impl FnMut(&mut Context) -> Result<Box<dyn AppPage>, String> + 'static) -> Self {
         NavigateInfo {
             icon,
             label: label.to_string(),
@@ -74,7 +86,7 @@ impl NavigateInfo {
         }
     }
 
-    pub fn avatar(avatar: AvatarContent, label: &str, get_page: impl FnMut(&mut Context) -> Box<dyn AppPage> + 'static) -> Self {
+    pub fn avatar(avatar: AvatarContent, label: &str, get_page: impl FnMut(&mut Context) -> Result<Box<dyn AppPage>, String> + 'static) -> Self {
         NavigateInfo {
             icon: "profile",
             label: label.to_string(),
@@ -139,4 +151,13 @@ impl Event for NavigatorEvent {
     fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
         children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
+}
+
+#[macro_export]
+macro_rules! page {
+    ($result:expr, $self:expr) => {
+        $result
+            .map(|p| Box::new(p) as Box<dyn AppPage>)
+            .map_err(|e| PelicanError::Err(e, Some($self)))
+    };
 }

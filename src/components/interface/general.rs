@@ -33,9 +33,9 @@ impl Interface {
     pub fn new(
         ctx: &mut Context, 
         start_page: impl AppPage,
-        mut navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
+        mut navigation: Option<(Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
     ) -> Self {
-        let pages = navigation.as_mut().map(|(_, a, b)| {
+        let pages = navigation.as_mut().map(|(a, b)| {
             let new: Vec<&mut NavigateInfo> = match b {
                 Some(nav) => a.iter_mut().chain(nav.iter_mut()).collect(),
                 None => a.iter_mut().collect(),
@@ -64,14 +64,17 @@ impl OnEvent for Interface {
     fn on_event(&mut self, ctx: &mut Context, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(NavigateEvent(index)) = event.downcast_mut::<NavigateEvent>() {
             let page = self.2.app_page().take().unwrap();
-            *self.2.app_page() = Some(page.navigate(ctx, *index).unwrap_or_else(|e| Box::new(Error::new(ctx, "404 Page Not Found", e))));
+            let new_page: Box<dyn AppPage> = page.navigate(ctx, *index)
+                .unwrap_or_else(|e| Box::new(Error::new(ctx, e)));
+
+            *self.2.app_page() = Some(new_page);
 
             let display = self.2.app_page().as_ref().map(|s| s.has_navigator()).unwrap_or(false);
-            if let Some(navigator) = self.2.navigator() {
-                navigator.display(display);
-            }
+            if let Some(navigator) = self.2.navigator() { navigator.display(display); }
         } else if let Some(NavigatorEvent(index)) = event.downcast_mut::<NavigatorEvent>() {
-            if let Some(pages) = self.3.as_mut() { *self.2.app_page() = Some(pages[*index](ctx)); }
+            if let Some(pages) = self.3.as_mut() { 
+                *self.2.app_page() = Some(pages[*index](ctx).unwrap_or_else(|e| Box::new(Error::new(ctx, e.into())))); 
+            }
         }
 
         vec![event]
@@ -91,12 +94,12 @@ pub trait InterfaceTrait: Drawable + std::fmt::Debug + 'static {
 ///      alt="Page Example"
 ///      width="250">
 #[derive(Debug, Component)]
-pub struct Page(Column, Option<Header>, Content, Option<Bumper>);
+pub struct Page(Column, Header, Content, Option<Bumper>);
 impl OnEvent for Page {}
 
 impl Page {
     /// Creates a new [`Page`] from an optional [`Header`], [`Content`], and optional [`Bumper`]
-    pub fn new(header: Option<Header>, content: Content, bumper: Option<Bumper>) -> Self {
+    pub fn new(header: Header, content: Content, bumper: Option<Bumper>) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, f32::MAX));
         Page(
             Column::new(12.0, Offset::Center, width, Padding::default()),
@@ -107,7 +110,7 @@ impl Page {
     }
 
     /// Returns the header if it exists.
-    pub fn header(&mut self) -> &mut Option<Header> {&mut self.1}
+    pub fn header(&mut self) -> &mut Header {&mut self.1}
     /// Returns the content.
     pub fn content(&mut self) -> &mut Content {&mut self.2}
     /// Returns the bumper if it exists.
@@ -242,48 +245,54 @@ impl Header {
     ///
     /// ```rust
     /// let header = Header::home(ctx, "My Account", None);
+    /// let header = Header::home(ctx, "Explore", Some(("search", 1)))
     /// ```
     pub fn home(ctx: &mut Context, title: &str, icon: Option<(&'static str, usize)>) -> Self {
-        let icon = icon.map(|(i,u)| {
-            let c = move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(u));
-            HeaderIcon::new(ctx, i, c)
-        }).unwrap_or_default();
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h3;
-        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, Some(1));
-        Header::_new(HeaderIcon::none(), title, icon)
+        Self::_new(ctx, title, None, icon, size)
     }
 
     /// A `Header` preset used for in-flow pages.
+    /// This header contains a back button that always navigates to index 0.
     ///
     /// ```rust
-    /// let header = Header::stack(ctx, 0, "Select role");
+    /// let header = Header::stack(ctx, "Select role");
     /// ```
-    pub fn stack(ctx: &mut Context, back_index: usize, title: &str, icon: Option<(&'static str, usize)>) -> Self {
-        let back = HeaderIcon::new(ctx, "left", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(back_index)));
+    pub fn stack(ctx: &mut Context, title: &str) -> Self {
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h4;
-        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, Some(1));
-        let icon = icon.map(|(i,u)| {
-            let c = move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(u));
-            HeaderIcon::new(ctx, i, c)
-        }).unwrap_or_default();
-        Header::_new(back, title, icon)
+        Self::_new(ctx, title, Some(("left", 0)), None, size)
     }
 
     /// A `Header` preset used for end-of-flow pages.
+    /// This header contains a close button that always navigates to index 0.
     ///
     /// ```rust
     /// let header = Header::stack_end(ctx, 0, "Select role");
     /// ```
-    pub fn stack_end(ctx: &mut Context, next_index: usize, title: &str) -> Self {
-        let back = HeaderIcon::new(ctx, "close", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(next_index)));
+    pub fn stack_end(ctx: &mut Context, title: &str) -> Self {
         let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h4;
-        let title = ExpandableText::new(ctx, title, size, TextStyle::Heading, Align::Center, Some(1));
-        Header::_new(back, title, HeaderIcon::none())
+        Self::_new(ctx, title, Some(("close", 0)), None, size)
     }
 
-    fn _new(left: HeaderIcon, content: impl Drawable, right: HeaderIcon) -> Self {
+
+    fn _new(
+        ctx: &mut Context,
+        title: &str,
+        left_icon: Option<(&'static str, usize)>,
+        right_icon: Option<(&'static str, usize)>,
+        size: f32,
+    ) -> Self {
+        let clean: String = title.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
+        let title = clean[..1].to_uppercase() + &clean[1..].to_lowercase();
+        let text = ExpandableText::new(ctx, &title, size, TextStyle::Heading, Align::Center, Some(1));
+
+        let mut make_icon = |icon: Option<(&'static str, usize)>| icon.map(|(name, idx)| {
+            let cb = move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(idx));
+            HeaderIcon::new(ctx, name, cb)
+        }).unwrap_or_default();
+
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0));
-        Header(layout, left, Box::new(content), right)
+        Header(layout, make_icon(left_icon), Box::new(text), make_icon(right_icon))
     }
 }
 

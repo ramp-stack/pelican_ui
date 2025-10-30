@@ -23,7 +23,7 @@ impl WebInterface {
     pub fn new(
         ctx: &mut Context, 
         start_page: impl AppPage,
-        navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
+        navigation: Option<(Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
         socials: Option<Vec<(&'static str, String)>>
     ) -> Self {
         let navigator = navigation.map(|n| Opt::new(Box::new(WebNavigator::new(ctx, n)) as Box<dyn Drawable>, true));
@@ -40,15 +40,15 @@ impl OnEvent for WebNavigator {}
 impl WebNavigator {
     pub fn new(
         ctx: &mut Context, 
-        mut navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>),
+        mut navigation: (Vec<NavigateInfo>, Option<Vec<NavigateInfo>>),
     ) -> Self {
         let mut buttons = Vec::new();
         let group_id = uuid::Uuid::new_v4();
 
-        if let Some(n) = navigation.2 { navigation.1.extend(n); }
-        for (index, info) in navigation.1.into_iter().enumerate() {
+        if let Some(n) = navigation.1 { navigation.0.extend(n); }
+        for (index, info) in navigation.0.into_iter().enumerate() {
             let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(index));
-            buttons.push(NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == index, group_id));
+            buttons.push(NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, 0 == index, group_id));
         }
 
         let wordmark = ctx.get::<PelicanUI>().get().0.theme().brand.wordmark.clone();

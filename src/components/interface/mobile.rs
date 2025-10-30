@@ -22,7 +22,7 @@ impl MobileInterface {
     pub fn new(
         ctx: &mut Context, 
         start_page: impl AppPage,
-        navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>
+        navigation: Option<(Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>
     ) -> Self {
         let navigator = navigation.map(|n| Opt::new(Box::new(MobileNavigator::new(ctx, n)) as Box<dyn Drawable>, true));
         let insets = ctx.hardware.safe_area_insets();
@@ -48,7 +48,7 @@ pub struct MobileNavigator(Stack, Rectangle, MobileNavigatorContent);
 impl OnEvent for MobileNavigator {}
 
 impl MobileNavigator {
-    pub fn new(ctx: &mut Context, navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
+    pub fn new(ctx: &mut Context, navigation: (Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
 
@@ -65,13 +65,13 @@ struct MobileNavigatorContent(Row, Vec<NavigatorSelectable>);
 impl OnEvent for MobileNavigatorContent {}
 
 impl MobileNavigatorContent {
-    fn new(ctx: &mut Context, mut navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
+    fn new(ctx: &mut Context, mut navigation: (Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let mut tabs = Vec::new();
-        if let Some(n) = navigation.2 { navigation.1.extend(n); }
-        for (i, info) in navigation.1.into_iter().enumerate() {
+        if let Some(n) = navigation.1 { navigation.0.extend(n); }
+        for (i, info) in navigation.0.into_iter().enumerate() {
             let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
-            tabs.push(NavigatorSelectable::mobile(ctx, info.icon, closure, navigation.0 == i, group_id));
+            tabs.push(NavigatorSelectable::mobile(ctx, info.icon, closure, 0 == i, group_id));
         }
 
         let layout = Row::new(48.0, Offset::Center, Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));

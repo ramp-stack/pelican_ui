@@ -21,7 +21,7 @@ impl DesktopInterface {
     pub fn new(
         ctx: &mut Context, 
         start_page: impl AppPage,
-        navigation: Option<(usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
+        navigation: Option<( Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
     ) -> Self {
         let color = ctx.get::<PelicanUI>().get().0.theme().colors.outline.secondary;
         let navigator = navigation.map(|n| Opt::new(Box::new(DesktopNavigator::new(ctx, n)) as Box<dyn Drawable>, true));
@@ -36,34 +36,34 @@ pub struct DesktopNavigator(Column, Image, ButtonColumn, Option<Bin<Stack, Recta
 impl OnEvent for DesktopNavigator {}
 
 impl DesktopNavigator {
-    pub fn new(ctx: &mut Context, navigation: (usize, Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
+    pub fn new(ctx: &mut Context, navigation: (Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let (mut top_col, mut bot_col) = (Vec::new(), Vec::new());
         let mut i = 0;
 
-        let spacer = navigation.2.as_ref().map(|_| {
+        let spacer = navigation.1.as_ref().map(|_| {
             let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, widths[1].1));
             let spacer = Stack(Offset::Center, Offset::Center, width, Size::Fill, Padding::default());
             Bin(spacer, Rectangle::new(Color::TRANSPARENT, 0.0, None))
         });
 
-        navigation.1.into_iter().for_each(|info| {
+        navigation.0.into_iter().for_each(|info| {
             let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
 
             top_col.push(match info.avatar {
-                Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, navigation.0 == i, group_id),
-                None => NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == i, group_id)
+                Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, 0 == i, group_id),
+                None => NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, 0 == i, group_id)
             });
             i += 1;
         });
 
-        if let Some(n) = navigation.2 {
+        if let Some(n) = navigation.1 {
             n.into_iter().for_each(|info| {
                 let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
 
                 bot_col.push(match info.avatar {
-                    Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, navigation.0 == i, group_id),
-                    None => NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, navigation.0 == i, group_id)
+                    Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, 0 == i, group_id),
+                    None => NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, 0 == i, group_id)
                 });
                 i += 1;
             });

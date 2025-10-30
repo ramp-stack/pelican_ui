@@ -83,27 +83,11 @@ impl Timestamp {
 
 pub type Callback = Box<dyn FnMut(&mut Context)>;
 
-/// Represents a unique identifier for an element in the user interface.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ElementID(uuid::Uuid);
-
-impl ElementID {
-    /// A new `ElementID` with a random UUID.
-    pub fn new() -> Self {
-        ElementID(uuid::Uuid::new_v4())
-    }
-
-    /// Returns the underlying UUID of the `ElementID`.
-    pub fn as_uuid(&self) -> uuid::Uuid {
-        self.0
-    }
-}
-
-impl Default for ElementID {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// impl From<String> for PelicanError {
+//     fn from(s: String, ap: impl AppPage) -> Self {
+//         PelicanError::Err(s, ap)
+//     }
+// }
 
 pub struct TitleSubtitle {
     pub title: String, 

@@ -9,31 +9,46 @@ use crate::components::button::PrimaryButton;
 use crate::plugin::PelicanUI;
 use crate::components::interface::navigation::AppPage;
 use crate::components::interface::navigation::NavigateEvent;
+use crate::components::interface::navigation::PelicanError;
+
 
 /// Error page that will be shown when the user is navigated to an invalid index.
 ///
 /// This page typically appears when `AppPage::navigate` returns `Err(self)`.
 /// The `self` page acts as a **"go back"** button, allowing the user to return to the previous page.
 #[derive(Debug, Component)]
-pub struct Error(Stack, Page, #[skip] Box<dyn AppPage>);
+pub struct Error(Stack, Page, #[skip] Option<Box<dyn AppPage>>);
 impl OnEvent for Error {}
 
 impl AppPage for Error {
     fn has_navigator(&self) -> bool { false }
-    fn navigate(self: Box<Self>, _ctx: &mut Context, _index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> { Ok(self.2) }
+    fn navigate(self: Box<Self>, _ctx: &mut Context, _index: usize) 
+        -> Result<Box<dyn AppPage>, PelicanError> {
+        match self.2 {
+            Some(page) => Ok(page),
+            None => Err(PelicanError::NoOutlet)
+        }
+    }
 }
 
 impl Error {
-    pub fn new(ctx: &mut Context, error: &str, home: Box<dyn AppPage>) -> Self {
+    pub fn new(ctx: &mut Context, error: PelicanError) -> Self {
+        let (home, error) = match error {
+            PelicanError::InvalidPage(p) => (p, "404 Page Not Found".to_string()),
+            PelicanError::Err(s, p) => (p, s),
+            PelicanError::NoOutlet => (None, "404 Page Not Found".to_string()),
+        };
+
         let error_illustration = ctx.get::<PelicanUI>().get().0.theme().brand.error.clone();
         let font_size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         let illustration = AspectRatioImage::new(error_illustration, (300.0, 300.0));
         let title = Text::new(ctx, "Something went wrong.", font_size.h4, TextStyle::Heading, Align::Left, None);
-        let text = Text::new(ctx, error, font_size.md, TextStyle::Primary, Align::Center, None);
+        let text = Text::new(ctx, &error, font_size.md, TextStyle::Primary, Align::Center, None);
         let content = Content::new(ctx, Offset::Center, drawables![illustration, title, text]);
         let button = PrimaryButton::new(ctx, "Go Back", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(0)), false);
         let bumper = Bumper::new(ctx, drawables![button]);
-        Error(Stack::default(), Page::new(None, content, Some(bumper)), home)
+        let header = Header::home(ctx, "Error", None);
+        Error(Stack::default(), Page::new(header, content, Some(bumper)), home)
     }
 }
 
@@ -47,7 +62,10 @@ impl OnEvent for PelicanHome {}
 
 impl AppPage for PelicanHome {
     fn has_navigator(&self) -> bool { false }
-    fn navigate(self: Box<Self>, _ctx: &mut Context, _index: usize) -> Result<Box<dyn AppPage>, Box<dyn AppPage>> { Err(self) }
+    fn navigate(self: Box<Self>, _ctx: &mut Context, _index: usize) 
+        -> Result<Box<dyn AppPage>, PelicanError> {
+        Err(PelicanError::NoOutlet)
+    }
 }
 
 impl PelicanHome {
@@ -59,6 +77,6 @@ impl PelicanHome {
         let text = Text::new(ctx, "featherlight ui for heavy ideas", font_size.md, TextStyle::Primary, Align::Center, None);
         let content = Content::new(ctx, Offset::Center, vec![Box::new(illustration), Box::new(title), Box::new(text)]);
         let header = Header::home(ctx, "Pelican UI", None);
-        PelicanHome(Stack::default(), Page::new(Some(header), content, None))
+        PelicanHome(Stack::default(), Page::new(header, content, None))
     }
 }
