@@ -1,8 +1,8 @@
-use mustache::events::{self, OnEvent, Event};
-use mustache::drawable::{Drawable};
-use mustache::{Context, Component};
-use mustache::layouts::{Enum, Stack};
-use mustache::emitters;
+use roost::events::{self, OnEvent, Event};
+use roost::drawable::{Drawable};
+use roost::{Context, Component};
+use roost::layouts::{Enum, Stack};
+use roost::emitters;
 
 #[derive(Component)]
 pub struct Selectable(Stack, Enum, #[skip] Box<dyn FnMut(&mut Context)>);
@@ -25,7 +25,7 @@ impl Selectable {
 
 impl OnEvent for Selectable {
     fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(events::Selectable(b)) = event.downcast_ref::<events::Selectable>() {
+        if let Some(events::Selectable::Selected(b)) = event.downcast_ref::<events::Selectable>() {
             match b {
                 false => self.1.display("default"),
                 true => {

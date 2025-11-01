@@ -1,4 +1,4 @@
-use mustache::drawable::Color;
+use roost::drawable::Color;
 
 /// Represents a collection of color resources used throughout the UI, including background, text, button, and status colors.
 #[derive(Clone, Debug, Default, Copy)]

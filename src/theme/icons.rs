@@ -1,4 +1,4 @@
-use mustache::{Assets, resources};
+use roost::{Assets, resources};
 
 use std::collections::HashMap;
 

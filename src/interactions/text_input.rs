@@ -1,8 +1,8 @@
-use mustache::events::{self, OnEvent, Event};
-use mustache::drawable::{Drawable};
-use mustache::{Context, Component};
-use mustache::layouts::{Enum, Stack, Size, Offset, Padding};
-use mustache::emitters;
+use roost::events::{self, OnEvent, Event};
+use roost::drawable::{Drawable};
+use roost::{Context, Component};
+use roost::layouts::{Enum, Stack, Size, Offset, Padding};
+use roost::emitters;
 
 
 #[derive(Debug, Component)]
@@ -35,7 +35,7 @@ impl OnEvent for InputField {
         if let Some(e) = event.downcast_ref::<events::TextInput>() {
             match e {
                 events::TextInput::Hover(true) => self.1.display("hover"),
-                events::TextInput::Pressed(true) => {
+                events::TextInput::Focused(true) => {
                     ctx.hardware.haptic();
                     self.1.display("focus");
                 },

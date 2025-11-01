@@ -1,8 +1,8 @@
-use mustache::events::{OnEvent, TickEvent, Event, self};
-use mustache::drawable::{Align, Color};
-use mustache::{Context, Component};
-use mustache::layouts::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
-use mustache::emitters;
+use roost::events::{OnEvent, TickEvent, Event, self};
+use roost::drawable::{Align, Color};
+use roost::{Context, Component};
+use roost::layouts::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
+use roost::emitters;
 
 use crate::interactions;
 use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
@@ -114,7 +114,7 @@ impl _InputContent {
         button: Option<(&str, InputCallback)>,
     ) -> Self {
         let (button, on_submit) = button.map(|(icon, cb)| {
-            let btn = SecondaryIconButton::medium(ctx, icon, |ctx: &mut Context| ctx.trigger_event(events::TextInput::Submit));
+            let btn = SecondaryIconButton::medium(ctx, icon, |ctx: &mut Context| ctx.trigger_event(TextInputEvent::Submit));
             (Some(btn), Some(cb))
         }).unwrap_or((None, None));
         
@@ -135,7 +135,7 @@ impl _InputContent {
 
 impl OnEvent for _InputContent { 
     fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
-        if let Some(events::TextInput::Pressed(x)) = event.downcast_ref::<events::TextInput>() {
+        if let Some(events::TextInput::Focused(x)) = event.downcast_ref::<events::TextInput>() {
             self.is_focused = *x;
         } else if event.downcast_ref::<TickEvent>().is_some() {
             self.value = self.default.inner().inner().1.0.spans[0].clone();
@@ -148,12 +148,23 @@ impl OnEvent for _InputContent {
                 self.default.display(!self.value.is_empty());
                 self.empty.display(self.value.is_empty());
             }
-        } else if let Some(events::TextInput::Submit) = event.downcast_ref::<events::TextInput>() { 
+        } else if let Some(TextInputEvent::Submit) = event.downcast_ref::<TextInputEvent>() { 
             if let Some(on_submit) = &mut self.on_submit {
                 (on_submit)(ctx, &mut self.value);
             }
         }
         vec![event]
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum TextInputEvent {
+    Submit,
+}
+
+impl Event for TextInputEvent {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }
 

@@ -1,4 +1,4 @@
-use mustache::{Assets, resources};
+use roost::{Assets, resources};
 
 /// Represents a collection of font resources, including fonts and font sizes.
 #[derive(Clone)]
