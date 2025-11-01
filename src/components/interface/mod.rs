@@ -32,3 +32,9 @@ pub mod web;
 /// system input and replacement behaviors.
 ///
 pub mod system;
+
+/// ## Navigation system
+///
+/// Navigation handling
+///
+pub mod navigation;

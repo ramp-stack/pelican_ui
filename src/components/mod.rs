@@ -1,49 +1,30 @@
-/// ## Common
-///
-/// Reusable building blocks like text, buttons, inputs, and sliders.  
-/// These provide standard interaction patterns across applications.
-///
-pub mod common;
-pub use common::*;
+/// Interactive buttons.
+pub mod button;
 
-/// ## Interface
-///
-/// Higher-level, page-structuring components such as headers,  
-/// bumpers, and platform-specific setups.
-///
+/// User avatar display.
+pub mod avatar;
+
+/// List items.
+pub mod list_item;
+
+/// Text input fields.
+mod text_input;
+pub use text_input::TextInput;
+
+/// Radio button groups.
+mod radio;
+pub use radio::RadioSelector;
+
+/// Sliders.
+mod slider;
+pub use slider::Slider;
+
+mod images;
+pub use images::*;
+mod shapes;
+pub use shapes::*;
+mod text;
+pub use text::*;
+
+/// Interface.
 pub mod interface;
-
-// pub use common::{
-//     Button,
-//     ButtonStyle,
-//     ButtonSize,
-//     ButtonState,
-//     ButtonWidth,
-//     IconButton,
-//     QuickActions,
-//     Alert,
-//     Avatar,
-//     AvatarContent,
-//     AvatarIconStyle,
-//     DataItem,
-//     ListItem,
-//     ListItemGroup,
-//     ListItemSelector,
-//     TextInput,
-//     Searchbar,
-//     QRCode,
-//     QRCodeScanner,
-//     Slider,
-// };
-
-
-// pub mod interface;
-// pub use interface::{
-//     Interface, 
-//     Page,
-//     Bumper,
-//     Content, 
-//     Header, 
-//     HeaderIcon,
-//     HeaderContent,
-// };

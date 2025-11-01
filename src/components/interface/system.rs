@@ -1,16 +1,20 @@
-use pelican_ui::events::Key as WinitKey;
-use pelican_ui::maverick_os::hardware::ImageOrientation;
-use pelican_ui::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey, SmolStr};
-use pelican_ui::drawable::{Drawable, Component, Align, Image, Color};
-use pelican_ui::layout::{Area, SizeRequest, Layout};
-use pelican_ui::{Context, Component};
+use roost::events::Key as WinitKey;
+// use roost::maverick_os::hardware::ImageOrientation;
+use roost::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey, SmolStr};
+use roost::drawable::{Align, Image, Color};
+use roost::{Context, Component};
 
-use crate::components::{Text, TextStyle, Rectangle, Icon, EncodedImage};
-use crate::events::{KeyboardActiveEvent, AttachmentEvent};
-use crate::components::button::{IconButton, ButtonState};
-use crate::layout::{Stack, Bin, Column, Row, Offset, Size, Padding};
+use crate::components::interface::mobile::ShowKeyboard;
+use crate::components::{Text, TextStyle, Rectangle, Icon};
+use roost::layouts::{Stack, Bin, Column, Row, Offset, Size, Padding};
+// use crate::components::interactions::ButtonState;
+use crate::components::button::GhostIconButton;
+use crate::plugin::PelicanUI;
 
 use std::sync::mpsc::{self, Receiver, Sender};
+
+#[derive(Copy, Clone, Debug)]
+enum ButtonState {Default, Pressed}
 
 #[derive(Component, Debug)]
 pub struct MobileKeyboard(Stack, Rectangle, KeyboardContent);
@@ -19,9 +23,10 @@ impl OnEvent for MobileKeyboard {}
 impl MobileKeyboard {
     pub fn new(ctx: &mut Context, actions: bool) -> Self {
         let height = Size::custom(|heights: Vec<(f32, f32)>| heights[1]);
+        let color = ctx.get::<PelicanUI>().get().0.theme().colors.background.secondary;
         MobileKeyboard(
-            Stack(Offset::Start, Offset::Start, Size::Fill(200.0, f32::MAX), height, Padding::default()), 
-            Rectangle::new(ctx.theme.colors.background.secondary, 0.0, None),
+            Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default()), 
+            Rectangle::new(color, 0.0, None),
             KeyboardContent::new(ctx, actions)
         )
     }
@@ -34,28 +39,27 @@ impl OnEvent for KeyboardHeader {}
 impl KeyboardHeader {
     fn new(ctx: &mut Context, actions: bool) -> Self {
         let layout = Stack(Offset::default(), Offset::default(), Size::Fit, Size::Static(1.0), Padding(0.0,0.0,0.0,2.0));
-        KeyboardHeader(
-            Column::new(0.0, Offset::Start, Size::Fit, Padding::default()),
+        KeyboardHeader(Column::start(0.0),
             KeyboardIcons::new(ctx, actions),
-            Bin(layout, Rectangle::new(ctx.theme.colors.outline.secondary, 0.0, None))
+            Bin(layout, Rectangle::new(ctx.get::<PelicanUI>().get().0.theme().colors.outline.secondary, 0.0, None))
         )
     }
 }
 
 #[derive(Component, Debug)]
-pub struct KeyboardActions(Stack, Vec<IconButton>);
+pub struct KeyboardActions(Stack, Vec<GhostIconButton>);
 impl OnEvent for KeyboardActions {}
 
 #[derive(Component, Debug)]
-struct KeyboardIcons(Row, Option<KeyboardActions>, Bin<Stack, Rectangle>, IconButton, #[skip] Receiver<(Vec<u8>, ImageOrientation)>);
+struct KeyboardIcons(Row, Option<KeyboardActions>, Bin<Stack, Rectangle>, GhostIconButton);
 
 impl KeyboardIcons {
     fn new(ctx: &mut Context, icons: bool) -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, _) = mpsc::channel();
         let actions = vec![
             // IconButton::keyboard(ctx, "emoji", |_ctx: &mut Context| ()),
             // IconButton::keyboard(ctx, "gif", |_ctx: &mut Context| ()),
-            IconButton::keyboard(ctx, "photos", move |ctx: &mut Context| ctx.hardware.open_photo_picker(sender.clone())),
+            GhostIconButton::new(ctx, "photos", move |ctx: &mut Context| ctx.hardware.open_photo_picker(sender.clone())),
             // IconButton::keyboard(ctx, "camera", |_ctx: &mut Context| ()),
         ];
 
@@ -63,24 +67,23 @@ impl KeyboardIcons {
             Row::new(16.0, Offset::Start, Size::Fit, Padding(12.0, 6.0, 12.0, 6.0)), 
             icons.then(|| KeyboardActions(Stack::default(), actions)),
             Bin (
-                Stack(Offset::Center, Offset::Center, Size::Fill(1.0, f32::MAX), Size::Static(1.0),  Padding::default()), 
+                Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(1.0),  Padding::default()), 
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
-            IconButton::keyboard(ctx, "down_arrow", |ctx: &mut Context| ctx.trigger_event(KeyboardActiveEvent(None))),
-            receiver
+            GhostIconButton::new(ctx, "down_arrow", |ctx: &mut Context| ctx.trigger_event(ShowKeyboard(false))),
         )
     }
 }
 
 impl OnEvent for KeyboardIcons {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
-        if event.downcast_ref::<TickEvent>().is_some() {
-            if let Ok((bytes, orientation)) = self.4.try_recv() {
-                if let Some(s) = EncodedImage::encode(bytes, orientation) {ctx.trigger_event(AttachmentEvent(s));}
-            }
-        }
-        true
-    }
+    // fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    //     if event.downcast_ref::<TickEvent>().is_some() {
+    //         if let Ok((bytes, orientation)) = self.4.try_recv() {
+    //             if let Some(s) = EncodedImage::encode(bytes, orientation) {ctx.trigger_event(AttachmentEvent(s));}
+    //         }
+    //     }
+    //     true
+    // }
 }
 
 
@@ -112,16 +115,16 @@ impl KeyboardContent {
 }
 
 impl OnEvent for KeyboardContent {
-    fn on_event(&mut self, _ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
             match self.6.try_recv() {
                 Ok(0) => {println!("CAPSLOCK"); self.update();},
                 Ok(1) => {println!("PAGINATOR"); self.update();},
                 _ => {}
             }
-            
-            true
-        } else {true}
+        }
+
+        vec![event]
     }
 }
 
@@ -178,20 +181,20 @@ impl KeyboardRow {
     
         if let Some(spacebar) = &mut self.4 {
             if let Some(text) = spacebar.1.character().get_text().as_mut() {
-                text.text().spans[0].text = format_text("space");
+                text.spans = vec![format_text("space")];
             }
         }
     
         if let Some(newline) = &mut self.5 {
             if let Some(text) = newline.1.character().get_text().as_mut() {
-                text.text().spans[0].text = format_text("return");
+                text.spans = vec![format_text("return")];
             }
         }
 
         if let Some(keys) = &mut self.3 {
             keys.keys().iter_mut().enumerate().for_each(|(i, k)| {
                 if let Some(text) = k.1.character().get_text().as_mut() {
-                    text.text().spans[0].text = format_text(new[i]);
+                    text.spans = vec![format_text(new[i])];
                 }
                 let key = format_text(new[i]);
                 k.3 = WinitKey::Character(SmolStr::new(key.as_str()));
@@ -233,29 +236,23 @@ impl Key {
 }
 
 impl OnEvent for Key {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
 
             *self.1.background() = match self.2 {
                 ButtonState::Default => Color::from_hex("ffffff", 110),
                 ButtonState::Pressed => Color::from_hex("ffffff", 180),
-                _ => Color::from_hex("ffffff", 110),
             };
 
             if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
-                match self.2 {
-                    ButtonState::Default | ButtonState::Hover | ButtonState::Pressed => {
-                        ctx.hardware.haptic();
-                        ctx.trigger_event(KeyboardEvent{state: KeyboardState::Pressed, key: self.3.clone()})
-                    },
-                    _ => {}
-                }
+                ctx.hardware.haptic();
+                ctx.trigger_event(KeyboardEvent{state: KeyboardState::Pressed, key: self.3.clone()})
             }
 
-            false
-        } else {true}
-
+            return Vec::new();
+        }
+        vec![event]
     }
 }
 
@@ -279,14 +276,13 @@ impl std::fmt::Debug for Capslock {
 }
 
 impl OnEvent for Capslock {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
 
             *self.1.background() = match self.2 {
                 ButtonState::Default => Color::from_hex("ffffff", 110),
                 ButtonState::Pressed => Color::from_hex("ffffff", 180),
-                _ => Color::from_hex("ffffff", 110),
             };
 
             if event.state == MouseState::Pressed && event.position.is_some() {
@@ -296,16 +292,12 @@ impl OnEvent for Capslock {
             }
 
             if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
-                match self.2 {
-                    ButtonState::Default | ButtonState::Hover | ButtonState::Pressed => {
-                        // ctx.hardware.vibrate();
-                        self.4.send(0).unwrap();
-                    }
-                    _ => {}
-                }
+                self.4.send(0).unwrap();
             }
-            false
-        } else {true}
+
+            return Vec::new();
+        }
+        vec![event]
     }
 }
 
@@ -329,21 +321,18 @@ impl std::fmt::Debug for Paginator {
 }
 
 impl OnEvent for Paginator {
-    fn on_event(&mut self, ctx: &mut Context, event: &mut dyn Event) -> bool {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
 
             *self.1.background() = match self.2 {
                 ButtonState::Default => Color::from_hex("ffffff", 110),
                 ButtonState::Pressed => Color::from_hex("ffffff", 180),
-                _ => Color::from_hex("ffffff", 110),
             };
 
             if event.state == MouseState::Pressed && event.position.is_some() {
-                // ctx.hardware.vibrate();
-
-                let highlight = ctx.theme.colors.text.heading;
-                let dim = ctx.theme.colors.text.secondary;
+                let highlight = TextStyle::Keyboard;
+                let dim = TextStyle::Secondary;
                 let next = if self.3 == 2 { 0 } else { self.3 + 1 };
                 self.3 = next;
 
@@ -353,19 +342,19 @@ impl OnEvent for Paginator {
                     _ => (dim, dim, highlight),
                 };
 
-                self.1.character().2.as_mut().unwrap().text().spans[0].color = styles.0;
-                self.1.character().3.as_mut().unwrap().text().spans[0].color = styles.1;
-                self.1.character().4.as_mut().unwrap().text().spans[0].color = styles.2;
+                self.1.character().2.as_mut().unwrap().style = styles.0;
+                self.1.character().3.as_mut().unwrap().style = styles.1;
+                self.1.character().4.as_mut().unwrap().style = styles.2;
             }
 
             if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
-                match self.2 {
-                    ButtonState::Default | ButtonState::Hover | ButtonState::Pressed => self.4.send(1).unwrap(),
-                    _ => {}
-                }
+                self.4.send(1).unwrap()
             }
-            false
-        } else {true}
+
+            return Vec::new();
+        }
+
+        vec![event]
     }
 }
 
@@ -375,8 +364,9 @@ impl OnEvent for KeyContent {}
 
 impl KeyContent {
     fn new(_ctx: &mut Context, size: f32, offset: Offset, content: KeyCharacter) -> Self {
+        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, size));
         KeyContent(
-            Stack(Offset::Center, offset, Size::Fill(20.0, size), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
+            Stack(Offset::Center, offset, width, Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
             Rectangle::new(Color::from_hex("ffffff", 110), 4.0, None),
             content
         )
@@ -392,28 +382,28 @@ impl OnEvent for KeyCharacter {}
 
 impl KeyCharacter {
     fn char(ctx: &mut Context, key: &str) -> Self {
-        let size = ctx.theme.fonts.size.xl;
+        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.xl;
         KeyCharacter(
             Row::new(0.0, Offset::Center, Size::Fit, Padding(0.0, 0.0, 0.0, 10.0)),
             None,
-            Some(Text::new(ctx, key, TextStyle::Keyboard, size, Align::Left)),
+            Some(Text::new(ctx, key, size, TextStyle::Keyboard, Align::Left, None)),
             None, None
         )
     }
 
     fn text(ctx: &mut Context, key: &str) -> Self {
-        let size = ctx.theme.fonts.size.md;
-        KeyCharacter(Row::center(0.0), None, Some(Text::new(ctx, key, TextStyle::Keyboard, size, Align::Left)), None, None)
+        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.md;
+        KeyCharacter(Row::center(0.0), None, Some(Text::new(ctx, key, size, TextStyle::Keyboard, Align::Left, None)), None, None)
     }
 
     fn icon(ctx: &mut Context, i: &'static str) -> Self {
-        let c = ctx.theme.colors.text.heading;
+        let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.heading;
         KeyCharacter(Row::center(0.0), Some(Icon::new(ctx, i, c, 36.0)), None, None, None)
     }
 
     fn paginator(ctx: &mut Context, page: u32) -> Self {
-        let size = ctx.theme.fonts.size.h2;
-        let (highlight, dim) = (TextStyle::White, TextStyle::Secondary);
+        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h2;
+        let (highlight, dim) = (TextStyle::Keyboard, TextStyle::Secondary);
 
         let styles = match page {
             0 => (highlight, dim, dim),
@@ -424,9 +414,9 @@ impl KeyCharacter {
         KeyCharacter(
             Row::center(1.0),
             None,
-            Some(Text::new(ctx, "•", styles.0, size, Align::Left)),
-            Some(Text::new(ctx, "•", styles.1, size, Align::Left)),
-            Some(Text::new(ctx, "•", styles.2, size, Align::Left)),
+            Some(Text::new(ctx, "•", size, styles.0, Align::Left, None)),
+            Some(Text::new(ctx, "•", size, styles.1, Align::Left, None)),
+            Some(Text::new(ctx, "•", size, styles.2, Align::Left, None)),
         )
     }
 

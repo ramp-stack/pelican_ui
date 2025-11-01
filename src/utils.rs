@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local, Datelike, Timelike, TimeZone};
 use serde::{Serialize, Deserialize};
-use pelican_ui::Context;
+use roost::Context;
 
 // pub use pelican_macro::AppPage as derive_AppPage;
 
@@ -51,7 +51,7 @@ impl Timestamp {
     /// - **Otherwise**: `"MM/DD/YY"`
     ///
     /// Returns `None` if the timestamp cannot be converted to a local datetime.
-    pub fn direct(&self) -> Option<String> {
+    pub fn friendly(&self) -> Option<String> {
         let dt = self.to_datetime()?;
         let today = Local::now().date_naive();
         let date = dt.date_naive();
@@ -75,40 +75,6 @@ impl Timestamp {
         }
     }
 
-    /// Returns a “friendly” human-readable representation of the timestamp.
-    ///
-    /// Formats the timestamp based on how recent it is:
-    /// - **Today:** `"H:MM AM/PM"`
-    /// - **Yesterday:** `"Yesterday"` (time omitted)
-    /// - **Same week:** day of the week (e.g., `"Monday"`)
-    /// - **Same year:** `"Month D"` (e.g., `"August 16"`)
-    /// - **Other years:** `"MM/DD/YY"`
-    ///
-    /// Returns `None` if the timestamp cannot be converted to a local datetime.
-    pub fn friendly(&self) -> Option<String> {
-        let dt = self.to_datetime()?;
-        let today = Local::now().date_naive();
-        let date = dt.date_naive();
-
-        match date == today {
-            true => {
-                let hour = dt.hour();
-                let minute = dt.minute();
-                let (hour12, am_pm) = match hour == 0 {
-                    true => (12, "AM"),
-                    false if hour < 12 => (hour, "AM"),
-                    false if hour == 12 => (12, "PM"),
-                    false => (hour - 12, "PM")
-                };
-                format!("{hour12}:{minute:02} {am_pm}").into()
-            },
-            false if date == today.pred_opt().unwrap_or(today) => "Yesterday".to_string().into(),
-            false if date.iso_week() == today.iso_week() => format!("{}", dt.format("%A")).into(),
-            false if date.year() == today.year() => format!("{}", dt.format("%B %-d")).into(),
-            false => format!("{}", dt.format("%m/%d/%y")).into()
-        }
-    }
-
     /// Returns the date.
     pub fn date(&self) -> String {self.0.clone()}
     /// Returns the time.
@@ -117,25 +83,22 @@ impl Timestamp {
 
 pub type Callback = Box<dyn FnMut(&mut Context)>;
 
-/// Represents a unique identifier for an element in the user interface.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ElementID(uuid::Uuid);
+// impl From<String> for PelicanError {
+//     fn from(s: String, ap: impl AppPage) -> Self {
+//         PelicanError::Err(s, ap)
+//     }
+// }
 
-impl ElementID {
-    /// A new `ElementID` with a random UUID.
-    pub fn new() -> Self {
-        ElementID(uuid::Uuid::new_v4())
-    }
-
-    /// Returns the underlying UUID of the `ElementID`.
-    pub fn as_uuid(&self) -> uuid::Uuid {
-        self.0
-    }
+pub struct TitleSubtitle {
+    pub title: String, 
+    pub subtitle: String
 }
 
-impl Default for ElementID {
-    fn default() -> Self {
-        Self::new()
+impl TitleSubtitle {
+    pub fn new(title: &str, subtitle: &str) -> Self {
+        TitleSubtitle{
+            title: title.to_string(), 
+            subtitle: subtitle.to_string()
+        }
     }
 }
-
