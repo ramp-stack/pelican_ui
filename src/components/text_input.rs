@@ -5,7 +5,7 @@ use roost::layouts::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Sta
 use roost::emitters;
 
 use crate::interactions;
-use crate::components::{Rectangle, ExpandableText, Text, TextStyle, TextEditor};
+use crate::components::{Rectangle, ExpandableText, Text, TextSize, TextStyle, TextEditor};
 use crate::components::button::SecondaryIconButton;
 use crate::plugin::PelicanUI;
 
@@ -60,13 +60,12 @@ impl TextInput {
             48.0,
         );
 
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size; 
-        let error = ExpandableText::new(ctx, "", size.sm, TextStyle::Error, Align::Left, None); 
-        let help = help_text.map(|t| ExpandableText::new(ctx, t, size.sm, TextStyle::Secondary, Align::Left, None));
+        let error = ExpandableText::new(ctx, "", TextSize::Sm, TextStyle::Error, Align::Left, None); 
+        let help = help_text.map(|t| ExpandableText::new(ctx, t, TextSize::Sm, TextStyle::Secondary, Align::Left, None));
 
         TextInput { 
             layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default()),
-            label: label.map(|text| Text::new(ctx, text, size.h5, TextStyle::Heading, Align::Left, None)),
+            label: label.map(|text| Text::new(ctx, text, TextSize::H5, TextStyle::Heading, Align::Left, None)),
             inner: input_field, 
             hint: EitherOr::new(help, error),
             error: None
@@ -118,9 +117,8 @@ impl _InputContent {
             (Some(btn), Some(cb))
         }).unwrap_or((None, None));
         
-        let font_size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.md; 
-        let default = TextEditor::new(ctx, value.unwrap_or_default(), font_size, TextStyle::Primary, Align::Left); 
-        let empty = ExpandableText::new(ctx, placeholder.unwrap_or("Enter text..."), font_size, TextStyle::Secondary, Align::Left, None);
+        let default = TextEditor::new(ctx, value.unwrap_or_default(), TextSize::Md, TextStyle::Primary, Align::Left); 
+        let empty = ExpandableText::new(ctx, placeholder.unwrap_or("Enter text..."), TextSize::Md, TextStyle::Secondary, Align::Left, None);
         _InputContent { 
             layout: Row::new(0.0, Offset::End, Size::Fit, Padding(16.0, 8.0, 8.0, 8.0)), 
             default: Opt::new(Bin(Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding(0.0, 8.0, 16.0, 8.0)), default), false), 

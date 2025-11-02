@@ -5,7 +5,7 @@ use roost::drawable::{Align, Image, Color};
 use roost::{Context, Component};
 
 use crate::components::interface::mobile::ShowKeyboard;
-use crate::components::{Text, TextStyle, Rectangle, Icon};
+use crate::components::{Text, TextStyle, TextSize, Rectangle, Icon};
 use roost::layouts::{Stack, Bin, Column, Row, Offset, Size, Padding};
 // use crate::components::interactions::ButtonState;
 use crate::components::button::GhostIconButton;
@@ -382,18 +382,16 @@ impl OnEvent for KeyCharacter {}
 
 impl KeyCharacter {
     fn char(ctx: &mut Context, key: &str) -> Self {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.xl;
         KeyCharacter(
             Row::new(0.0, Offset::Center, Size::Fit, Padding(0.0, 0.0, 0.0, 10.0)),
             None,
-            Some(Text::new(ctx, key, size, TextStyle::Keyboard, Align::Left, None)),
+            Some(Text::new(ctx, key, TextSize::Xl, TextStyle::Keyboard, Align::Left, None)),
             None, None
         )
     }
 
     fn text(ctx: &mut Context, key: &str) -> Self {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.md;
-        KeyCharacter(Row::center(0.0), None, Some(Text::new(ctx, key, size, TextStyle::Keyboard, Align::Left, None)), None, None)
+        KeyCharacter(Row::center(0.0), None, Some(Text::new(ctx, key, TextSize::Md, TextStyle::Keyboard, Align::Left, None)), None, None)
     }
 
     fn icon(ctx: &mut Context, i: &'static str) -> Self {
@@ -402,7 +400,6 @@ impl KeyCharacter {
     }
 
     fn paginator(ctx: &mut Context, page: u32) -> Self {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h2;
         let (highlight, dim) = (TextStyle::Keyboard, TextStyle::Secondary);
 
         let styles = match page {
@@ -414,9 +411,9 @@ impl KeyCharacter {
         KeyCharacter(
             Row::center(1.0),
             None,
-            Some(Text::new(ctx, "•", size, styles.0, Align::Left, None)),
-            Some(Text::new(ctx, "•", size, styles.1, Align::Left, None)),
-            Some(Text::new(ctx, "•", size, styles.2, Align::Left, None)),
+            Some(Text::new(ctx, "•", TextSize::H2, styles.0, Align::Left, None)),
+            Some(Text::new(ctx, "•", TextSize::H2, styles.1, Align::Left, None)),
+            Some(Text::new(ctx, "•", TextSize::H2, styles.2, Align::Left, None)),
         )
     }
 

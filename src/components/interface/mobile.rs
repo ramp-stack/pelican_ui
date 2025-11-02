@@ -1,13 +1,12 @@
 use roost::{Component, Context};
 use roost::drawable::Drawable;
 use roost::events::{Event, OnEvent};
-
 use roost::layouts::{Column, Row, Padding, Offset, Size, Opt, Stack};
 
 use crate::components::Rectangle;
 use crate::components::interface::general::InterfaceTrait;
 use crate::components::interface::system::MobileKeyboard;
-use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, NavigatorSelectable};
+use crate::components::interface::navigation::{AppPage, NavigateEvent, RootInfo, NavigatorEvent, NavigatorSelectable};
 use crate::plugin::PelicanUI;
 
 #[derive(Component, Debug)]
@@ -21,14 +20,14 @@ impl InterfaceTrait for MobileInterface {
 impl MobileInterface {
     pub fn new(
         ctx: &mut Context, 
-        start_page: impl AppPage,
-        navigation: Option<(Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>
+        start_page: Box<dyn AppPage>,
+        navigation: Option<(Vec<RootInfo>, Option<Vec<RootInfo>>)>
     ) -> Self {
         let navigator = navigation.map(|n| Opt::new(Box::new(MobileNavigator::new(ctx, n)) as Box<dyn Drawable>, true));
         let insets = ctx.hardware.safe_area_insets();
         let padding = Padding(insets.0, insets.2, insets.1, insets.3);
         let layout = Column::new(0.0, Offset::Center, Size::Fit, padding);
-        MobileInterface(layout, Some(Box::new(start_page)), None, navigator)
+        MobileInterface(layout, Some(start_page), None, navigator)
     }
 }
 
@@ -48,7 +47,7 @@ pub struct MobileNavigator(Stack, Rectangle, MobileNavigatorContent);
 impl OnEvent for MobileNavigator {}
 
 impl MobileNavigator {
-    pub fn new(ctx: &mut Context, navigation: (Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
+    pub fn new(ctx: &mut Context, navigation: (Vec<RootInfo>, Option<Vec<RootInfo>>)) -> Self {
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
 
@@ -65,7 +64,7 @@ struct MobileNavigatorContent(Row, Vec<NavigatorSelectable>);
 impl OnEvent for MobileNavigatorContent {}
 
 impl MobileNavigatorContent {
-    fn new(ctx: &mut Context, mut navigation: (Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
+    fn new(ctx: &mut Context, mut navigation: (Vec<RootInfo>, Option<Vec<RootInfo>>)) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let mut tabs = Vec::new();
         if let Some(n) = navigation.1 { navigation.0.extend(n); }

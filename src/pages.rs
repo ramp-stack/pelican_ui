@@ -4,7 +4,7 @@ use roost::{drawables, Context, Component};
 
 use roost::layouts::{Offset, Stack};
 use crate::components::interface::general::{Page, Content, Header, Bumper};
-use crate::components::{TextStyle, Text, AspectRatioImage};
+use crate::components::{TextStyle, Text, TextSize, AspectRatioImage};
 use crate::components::button::PrimaryButton;
 use crate::plugin::PelicanUI;
 use crate::components::interface::navigation::AppPage;
@@ -40,10 +40,9 @@ impl Error {
         };
 
         let error_illustration = ctx.get::<PelicanUI>().get().0.theme().brand.error.clone();
-        let font_size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         let illustration = AspectRatioImage::new(error_illustration, (300.0, 300.0));
-        let title = Text::new(ctx, "Something went wrong.", font_size.h4, TextStyle::Heading, Align::Left, None);
-        let text = Text::new(ctx, &error, font_size.md, TextStyle::Primary, Align::Center, None);
+        let title = Text::new(ctx, "Something went wrong.", TextSize::H4, TextStyle::Heading, Align::Left, None);
+        let text = Text::new(ctx, &error, TextSize::Md, TextStyle::Primary, Align::Center, None);
         let content = Content::new(ctx, Offset::Center, drawables![illustration, title, text]);
         let button = PrimaryButton::new(ctx, "Go Back", move |ctx: &mut Context| ctx.trigger_event(NavigateEvent(0)), false);
         let bumper = Bumper::new(ctx, drawables![button]);
@@ -71,10 +70,9 @@ impl AppPage for PelicanHome {
 impl PelicanHome {
     pub fn new(ctx: &mut Context) -> Self {
         let logo = ctx.get::<PelicanUI>().get().0.theme().brand.logo.clone();
-        let font_size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         let illustration = AspectRatioImage::new(logo, (150.0, 150.0));
-        let title = Text::new(ctx, "Welcome to Pelican UI", font_size.h4, TextStyle::Heading, Align::Center, None);
-        let text = Text::new(ctx, "featherlight ui for heavy ideas", font_size.md, TextStyle::Primary, Align::Center, None);
+        let title = Text::new(ctx, "Welcome to Pelican UI", TextSize::H4, TextStyle::Heading, Align::Center, None);
+        let text = Text::new(ctx, "featherlight ui for heavy ideas", TextSize::Md, TextStyle::Primary, Align::Center, None);
         let content = Content::new(ctx, Offset::Center, vec![Box::new(illustration), Box::new(title), Box::new(text)]);
         let header = Header::home(ctx, "Pelican UI", None);
         PelicanHome(Stack::default(), Page::new(header, content, None))

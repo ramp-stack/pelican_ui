@@ -5,7 +5,7 @@ use roost::layouts::{Offset, Padding, Row, Size, Stack};
 use roost::emitters;
 
 use crate::interactions;
-use crate::components::{Icon, Rectangle, Text, TextStyle};
+use crate::components::{Icon, Rectangle, Text, TextSize, TextStyle};
 use crate::theme::ButtonColorScheme;
 use crate::plugin::PelicanUI;
 
@@ -27,7 +27,7 @@ impl PrimaryButton {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.primary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
-            let font_size = ButtonSize::Large.font(ctx);
+            let font_size = ButtonSize::Large.font();
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
@@ -59,7 +59,7 @@ impl SecondaryButton {
     }
 
     fn _medium(ctx: &mut Context, icon: &str, label: &str, colors: ButtonColorScheme) -> Button {
-        let font_size = ButtonSize::Medium.font(ctx);
+        let font_size = ButtonSize::Medium.font();
         let icon_size = ButtonSize::Medium.icon();
         let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
         let icon = Icon::new(ctx, icon, colors.label, icon_size);
@@ -70,7 +70,7 @@ impl SecondaryButton {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
-            let font_size = ButtonSize::Large.font(ctx);
+            let font_size = ButtonSize::Large.font();
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
@@ -216,11 +216,10 @@ impl ButtonSize {
     }
 
     /// Regular button font size
-    pub(crate) fn font(&self, ctx: &mut Context) -> f32 {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
+    pub(crate) fn font(&self) -> TextSize {
         match self {
-            ButtonSize::Medium => size.md,
-            ButtonSize::Large => size.lg,
+            ButtonSize::Medium => TextSize::Md,
+            ButtonSize::Large => TextSize::Lg,
         }
     }
 
