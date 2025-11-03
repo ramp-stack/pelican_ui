@@ -62,7 +62,7 @@ impl SecondaryButton {
         let font_size = ButtonSize::Medium.font();
         let icon_size = ButtonSize::Medium.icon();
         let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-        let icon = Icon::new(ctx, icon, colors.label, icon_size);
+        let icon = Icon::new(ctx, icon, Some(colors.label), icon_size);
         Button::new(drawables![icon, text], ButtonSize::Medium, ButtonWidth::Fit, Offset::Center, colors.background, colors.outline)
     }
 
@@ -150,7 +150,7 @@ impl IconButton {
         label: Color,
     ) -> Self {
         let (size, icon_size, radius) = size.icon_button(style);
-        let icon = Icon::new(ctx, icon, label, icon_size);
+        let icon = Icon::new(ctx, icon, Some(label), icon_size);
         let background = Rectangle::new(background, radius, Some((1.0, outline)));
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(size), Size::Static(size), Padding::default());
         IconButton(layout, background, icon)

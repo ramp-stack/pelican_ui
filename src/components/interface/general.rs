@@ -356,7 +356,7 @@ impl Bumper {
     /// let bumper = Bumper::stack_end(ctx);
     /// ```
     pub fn stack_end(ctx: &mut Context) -> Self {
-        let button = SecondaryButton::large(ctx, "Continue", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
+        let button = SecondaryButton::large(ctx, "Done", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
         Self::new(ctx, drawables![button])
     }
 

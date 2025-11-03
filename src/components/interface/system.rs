@@ -396,7 +396,7 @@ impl KeyCharacter {
 
     fn icon(ctx: &mut Context, i: &'static str) -> Self {
         let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.heading;
-        KeyCharacter(Row::center(0.0), Some(Icon::new(ctx, i, c, 36.0)), None, None, None)
+        KeyCharacter(Row::center(0.0), Some(Icon::new(ctx, i, Some(c), 36.0)), None, None, None)
     }
 
     fn paginator(ctx: &mut Context, page: u32) -> Self {

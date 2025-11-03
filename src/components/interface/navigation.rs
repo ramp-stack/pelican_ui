@@ -107,7 +107,7 @@ impl NavigatorSelectable {
             let font_size = ButtonSize::Large.font();
             let icon_size = ButtonSize::Large.icon();
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-            let icon = Icon::new(ctx, icon, colors.label, icon_size);
+            let icon = Icon::new(ctx, icon, Some(colors.label), icon_size);
             Button::new(drawables![icon, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
         NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, on_click, group_id))

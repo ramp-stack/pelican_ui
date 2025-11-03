@@ -94,8 +94,8 @@ impl ListItemContent {
     ) -> Self {
         let avatar = avatar.map(|data| Avatar::new(ctx, data, None, false, AvatarSize::Md, None));
         let content = ListItemData::new(ctx, left, right);
-        let icon_l = icon_l.map(|i| {let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.primary; Icon::new(ctx, i, c, 24.0)});
-        let icon_r = icon_r.map(|i| {let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.primary; Icon::new(ctx, i, c, 16.0)});
+        let icon_l = icon_l.map(|i| {let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.primary; Icon::new(ctx, i, Some(c), 24.0)});
+        let icon_r = icon_r.map(|i| {let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.primary; Icon::new(ctx, i, Some(c), 16.0)});
         ListItemContent(Row::center(16.0), icon_l, avatar, content, icon_r)
     }
 }
@@ -131,7 +131,7 @@ impl TitleRow {
     fn new(ctx: &mut Context, title: &str, flair: Option<(&'static str, Color)>) -> Self {
         let layout = Row::new(4.0, Offset::Center, Size::Fit, Padding::default());
         let text = Text::new(ctx, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
-        let flair = flair.map(|(name, color)| Icon::new(ctx, name, color, 16.0));
+        let flair = flair.map(|(name, color)| Icon::new(ctx, name, Some(color), 16.0));
         TitleRow(layout, text, flair)
     }
 }
