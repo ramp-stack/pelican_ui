@@ -8,5 +8,3 @@ pub mod text_input;
 pub use text_input::*;
 pub mod toggle;
 pub use toggle::*;
-pub mod scrollable;
-pub use scrollable::*;

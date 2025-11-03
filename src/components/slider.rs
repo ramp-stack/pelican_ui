@@ -2,7 +2,6 @@ use roost::events::OnEvent;
 use roost::drawable::Align;
 use roost::{Context, Component};
 use roost::layouts::Column;
-use roost::emitters;
 
 use crate::interactions;
 use crate::components::{Text, TextSize, ExpandableText, TextStyle, Circle, Rectangle};
@@ -29,7 +28,7 @@ use crate::plugin::PelicanUI;
 /// );
 /// ```
 #[derive(Debug, Component)]
-pub struct Slider(Column, Option<Text>, Option<ExpandableText>, emitters::Slider<interactions::Slider>); // last f32 = value 0.0..1.0
+pub struct Slider(Column, Option<Text>, Option<ExpandableText>, interactions::Slider); // last f32 = value 0.0..1.0
 impl OnEvent for Slider {}
 impl Slider {
     pub fn new(
@@ -46,7 +45,7 @@ impl Slider {
         Slider(Column::start(8.0),
             label.map(|l| Text::new(ctx, l, TextSize::H5, TextStyle::Heading, Align::Left, None)),
             description.map(|t| ExpandableText::new(ctx, t, TextSize::Md, TextStyle::Primary, Align::Left, None)),
-            emitters::Slider::new(interactions::Slider::new(ctx, start, background, foreground, handle, on_change)),
+            interactions::Slider::new(ctx, start, background, foreground, handle, on_change),
         )
     }
 }

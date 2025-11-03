@@ -2,7 +2,6 @@ use roost::events::OnEvent;
 use roost::drawable::{Image, Drawable, Color, Align};
 use roost::{drawables, Context, Component};
 use roost::layouts::{Offset, Padding, Row, Size, Stack};
-use roost::emitters;
 
 use crate::interactions;
 use crate::components::{Icon, Rectangle, Text, TextSize, TextStyle};
@@ -20,7 +19,7 @@ use crate::plugin::PelicanUI;
 /// let button = PrimaryButton::new(ctx, "Label", |ctx: &mut Context| println!("This button has been clicked!"), false);
 /// ```
 #[derive(Debug, Component)]
-pub struct PrimaryButton(Stack, pub emitters::Button<interactions::Button>);
+pub struct PrimaryButton(Stack, pub interactions::Button);
 impl OnEvent for PrimaryButton {}
 impl PrimaryButton {
     pub fn new(ctx: &mut Context, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_disabled: bool) -> Self {
@@ -47,7 +46,7 @@ impl PrimaryButton {
 /// let button = SecondaryButton::medium(ctx, "edit", "Copy", Some("Copied"), |ctx: &mut Context| println!("This button has been clicked!"));
 /// ```
 #[derive(Debug, Component)]
-pub struct SecondaryButton(Stack, pub emitters::Button<interactions::Button>);
+pub struct SecondaryButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryButton {}
 impl SecondaryButton {
     pub fn medium(ctx: &mut Context, icon: &str, label: &str, active_label: Option<&str>, on_click: impl FnMut(&mut Context) + 'static) -> Self {
@@ -89,7 +88,7 @@ impl SecondaryButton {
 /// let button = SecondaryIconButton::new(ctx, "info", |ctx: &mut Context| println!("This button has been clicked!"));
 /// ```
 #[derive(Debug, Component)]
-pub struct SecondaryIconButton(Stack, pub emitters::Button<interactions::Button>);
+pub struct SecondaryIconButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryIconButton {}
 impl SecondaryIconButton {
     pub fn large(ctx: &mut Context, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
@@ -122,7 +121,7 @@ impl SecondaryIconButton {
 /// let button = GhostIconButton::new(ctx, "explore", |ctx: &mut Context| println!("This button has been clicked!"));
 /// ```
 #[derive(Debug, Component)]
-pub struct GhostIconButton(Stack, pub emitters::Button<interactions::Button>);
+pub struct GhostIconButton(Stack, pub interactions::Button);
 impl OnEvent for GhostIconButton {}
 impl GhostIconButton {
     pub fn new(ctx: &mut Context, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {

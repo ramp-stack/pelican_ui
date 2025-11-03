@@ -1,7 +1,6 @@
 use roost::{Component, Context, drawables};
 use roost::events::{Event, OnEvent};
 use roost::drawable::{Drawable, Align};
-use roost::emitters;
 
 use crate::interactions;
 use crate::components::{TextStyle, Text, Icon};
@@ -98,7 +97,7 @@ impl RootInfo {
 
 
 #[derive(Debug, Component)]
-pub struct NavigatorSelectable(Stack, emitters::Selectable<interactions::Selectable>);
+pub struct NavigatorSelectable(Stack, interactions::Selectable);
 impl OnEvent for NavigatorSelectable {}
 impl NavigatorSelectable {
     pub fn desktop_icon(ctx: &mut Context, icon: &'static str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {

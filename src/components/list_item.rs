@@ -2,7 +2,6 @@ use roost::events::OnEvent;
 use roost::drawable::{Align, Color, Image};
 use roost::layouts::{Column, Stack, Row, Padding, Offset, Size};
 use roost::{Context, Component};
-use roost::emitters;
 
 use crate::interactions;
 use crate::components::{Rectangle, Icon, Text, TextSize, ExpandableText, TextStyle};
@@ -33,7 +32,7 @@ use crate::utils::TitleSubtitle;
 /// );
 /// ```
 #[derive(Debug, Component)]
-pub struct ListItem(Stack, emitters::Button<interactions::Button>);
+pub struct ListItem(Stack, interactions::Button);
 impl OnEvent for ListItem {}
 
 impl ListItem {
@@ -124,13 +123,13 @@ impl LeftData {
 }
 
 #[derive(Debug, Component)]
-struct TitleRow(Row, Text, Option<Image>);
+struct TitleRow(Row, ExpandableText, Option<Image>);
 impl OnEvent for TitleRow {}
 
 impl TitleRow {
     fn new(ctx: &mut Context, title: &str, flair: Option<(&'static str, Color)>) -> Self {
         let layout = Row::new(4.0, Offset::Center, Size::Fit, Padding::default());
-        let text = Text::new(ctx, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
+        let text = ExpandableText::new(ctx, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
         let flair = flair.map(|(name, color)| Icon::new(ctx, name, Some(color), 16.0));
         TitleRow(layout, text, flair)
     }

@@ -1,10 +1,36 @@
 use roost::events::{self, TickEvent, OnEvent, Event};
 use roost::drawable::{Drawable};
-use roost::{Context, Component};
+use roost::{emitters, Context, Component};
 use roost::layouts::{Stack, Size, Offset, Padding, Bin};
 
+#[derive(Component, Debug)]
+pub struct Slider(Stack, emitters::Slider<_Slider>);
+impl OnEvent for Slider {}
+impl Slider {
+    pub fn new(
+        ctx: &mut Context,
+        start: f32, 
+        background: impl Drawable + 'static,
+        foreground: impl Drawable + 'static,
+        handle: impl Drawable + 'static,
+        callback: impl FnMut(&mut Context, f32) + 'static
+    ) -> Self {
+        let slider = _Slider::new(ctx, start, background, foreground, handle, callback);
+        Self(Stack::default(), emitters::Slider::new(slider))
+    }
+}
+
+impl std::ops::Deref for Slider {
+    type Target = _Slider;
+    fn deref(&self) -> &Self::Target {&self.1.1}
+}
+
+impl std::ops::DerefMut for Slider {
+    fn deref_mut(&mut self) -> &mut Self::Target {&mut self.1.1}
+}
+
 #[derive(Component)]
-pub struct Slider {
+pub struct _Slider {
     layout: Stack,
     pub background: Bin<Stack, Box<dyn Drawable>>,
     pub foreground: Bin<Stack, Box<dyn Drawable>>,
@@ -13,7 +39,7 @@ pub struct Slider {
     #[skip] closure: SliderClosure,
 }
 
-impl Slider {
+impl _Slider {
     pub fn new(
         ctx: &mut Context,
         start: f32, 
@@ -29,7 +55,7 @@ impl Slider {
         let k_layout = Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default());
         let layout = Stack(Offset::Start, Offset::Center, Size::Fit, Size::Fit, Padding::default());
 
-        Slider {
+        _Slider {
             layout,
             background: Bin(b_layout, Box::new(background)),
             foreground: Bin(f_layout, Box::new(foreground)),
@@ -45,7 +71,7 @@ impl Slider {
     }
 }
 
-impl OnEvent for Slider {
+impl OnEvent for _Slider {
     fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<events::Slider>() {
             (self.closure)(ctx, self.value);
@@ -69,9 +95,9 @@ impl OnEvent for Slider {
     }
 }
 
-impl std::fmt::Debug for Slider {
+impl std::fmt::Debug for _Slider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Slider")
+        write!(f, "_Slider")
     }
 }
 

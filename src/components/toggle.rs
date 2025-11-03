@@ -4,13 +4,12 @@ use roost::drawable::{Shape, Align};
 use roost::layouts::{Bin, Column, Stack, Size, Offset, Padding};
 use crate::components::{TextSize, TextStyle, ExpandableText, Rectangle, Circle};
 use crate::plugin::PelicanUI;
-use roost::emitters;
 
 use crate::interactions;
 
 /// Toggle
 #[derive(Debug, Component)]
-pub struct Toggle(Column, ExpandableText, pub emitters::Button<interactions::Toggle>);
+pub struct Toggle(Column, ExpandableText, pub interactions::Toggle);
 impl OnEvent for Toggle {}
 impl Toggle {
     pub fn new(ctx: &mut Context, label: &str, is_selected: bool, on_click: impl FnMut(&mut Context, bool) + 'static) -> Self {

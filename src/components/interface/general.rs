@@ -10,7 +10,6 @@ use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInte
 
 use crate::pages::Error;
 use crate::plugin::PelicanUI;
-use crate::interactions;
 
 /// The top-level interface of an app built with Pelican.
 ///
@@ -125,7 +124,7 @@ impl Page {
 /// let content = Content::new(ctx, Offset::Center, vec![Box::new(text)]);
 /// ```
 #[derive(Debug, Component)]
-pub struct Content (Scroll, emitters::Scrollable<interactions::Scrollable<ContentChildren>>);
+pub struct Content (Scroll, emitters::Scrollable<ContentChildren>);
 
 impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
@@ -137,7 +136,7 @@ impl Content {
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
         let scroll = Scroll::new(Offset::Center, offset, width, height, Padding::default(), anchor, ScrollDirection::Vertical);
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }
-        Content(scroll, interactions::Scrollable::new(ContentChildren::new(content, layout.content_padding))) 
+        Content(scroll, emitters::Scrollable::new(ContentChildren::new(content, layout.content_padding))) 
     }
 
     /// Find an item in the content. Will return the first instance of the type.
@@ -173,7 +172,7 @@ impl Content {
     }
 
     /// Returns all the items in the content
-    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.inner.1.1}
+    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.inner.1}
     /// Returns the offset of the items.
     pub fn offset(&mut self) -> &mut Offset {self.0.offset()}
 }
