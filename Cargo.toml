@@ -1,5 +1,5 @@
 [package]
-name = "pelican"
+name = "pelican_ui"
 version = "0.3.1"
 authors = ["Ella Mae <ellaammae@email.com>"]
 edition = "2021"
