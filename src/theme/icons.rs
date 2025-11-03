@@ -94,6 +94,9 @@ impl IconResources {
     }
 
     pub fn get(&self, name: &str) -> resources::Image {
-        self.0.get(name).unwrap_or_else(|| self.0.get("pelican_ui").unwrap()).clone()
+        self.0.get(name).unwrap_or_else(|| {
+            println!("Failed to get icon by name {name:?}. Defaulting to pelican_ui");
+            self.0.get("pelican_ui").unwrap()
+        }).clone()
     }
 }

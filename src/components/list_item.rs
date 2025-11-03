@@ -163,3 +163,13 @@ impl ListItemInfoLeft {
         }
     }
 }
+
+#[derive(Debug, Component)]
+pub struct ListItemGroup(Column, Vec<ListItem>);
+impl OnEvent for ListItemGroup {}
+
+impl ListItemGroup {
+    pub fn new(items: Vec<ListItem>) -> Self {
+        ListItemGroup(Column::start(0.0), items)
+    }
+}

@@ -59,7 +59,7 @@ impl KeyboardIcons {
         let actions = vec![
             // IconButton::keyboard(ctx, "emoji", |_ctx: &mut Context| ()),
             // IconButton::keyboard(ctx, "gif", |_ctx: &mut Context| ()),
-            GhostIconButton::new(ctx, "photos", move |ctx: &mut Context| ctx.hardware.open_photo_picker(sender.clone())),
+            GhostIconButton::new(ctx, "photos", move |ctx: &mut Context| ctx.hardware.photo_picker(sender.clone())),
             // IconButton::keyboard(ctx, "camera", |_ctx: &mut Context| ()),
         ];
 
