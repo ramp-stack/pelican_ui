@@ -172,7 +172,7 @@ impl Content {
     }
 
     /// Returns all the items in the content
-    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.inner.1}
+    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.1.inner.1}
     /// Returns the offset of the items.
     pub fn offset(&mut self) -> &mut Offset {self.0.offset()}
 }
