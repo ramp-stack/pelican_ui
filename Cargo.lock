@@ -2016,7 +2016,7 @@ dependencies = [
 
 [[package]]
 name = "maverick_os"
-version = "0.2.1"
+version = "0.2.3"
 dependencies = [
  "active_rusqlite",
  "air",
@@ -2995,7 +2995,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pelican_ui"
-version = "2.0.1"
+version = "2.0.2"
 dependencies = [
  "base64",
  "chrono",
@@ -3551,7 +3551,7 @@ checksum = "57397d16646700483b67d2dd6511d79318f9d057fdbd21a4066aeac8b41d310a"
 
 [[package]]
 name = "roost_ui"
-version = "2.0.1"
+version = "2.0.2"
 dependencies = [
  "downcast-rs 2.0.1",
  "image 0.25.6",

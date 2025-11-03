@@ -5,7 +5,7 @@ use roost::layouts::{Enum, Stack};
 use roost::emitters;
 
 #[derive(Component)]
-pub struct Button(Stack, Enum, #[skip] pub bool, #[skip] Box<dyn FnMut(&mut Context)>);
+pub struct Button(Stack, Enum, #[skip] pub bool, #[skip] bool, #[skip] Box<dyn FnMut(&mut Context)>);
 
 impl Button {
     pub fn new(
@@ -22,25 +22,37 @@ impl Button {
         if let Some(h) = hover { items.push(("hover", Box::new(h))) }
         if let Some(p) = pressed { items.push(("pressed", Box::new(p))) }
         if let Some(d) = disabled { items.push(("disabled", Box::new(d))) }
-        emitters::Button::new(Button(Stack::default(), Enum::new(items, start), is_disabled, Box::new(callback)))
+        emitters::Button::new(Button(Stack::default(), Enum::new(items, start), is_disabled, false, Box::new(callback)))
     }
 }
 
 impl OnEvent for Button {
     fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(event) = event.downcast_ref::<events::Button>() {
-            match event {
-                events::Button::Hover(true) => self.1.display("hover"),
-                events::Button::Hover(false) => self.1.display("default"),
-                events::Button::Pressed(false) => self.1.display("default"),
-                events::Button::Pressed(true) => {
-                    self.1.display("pressed");
-                    ctx.hardware.haptic();
-                    (self.3)(ctx);
+        if event.downcast_ref::<events::TickEvent>().is_some() {
+            match self.2 {
+                true => self.1.display("disabled"),
+                false if self.3 => self.1.display("hover"),
+                false => self.1.display("default")
+            }
+        } else if let Some(event) = event.downcast_ref::<events::Button>() {
+            if !self.2 {
+                match event {
+                    events::Button::Hover(true) => {
+                        self.3 = true;
+                        self.1.display("hover")
+                    },
+                    events::Button::Pressed(true) => {
+                        self.3 = false;
+                        self.1.display("pressed");
+                        ctx.hardware.haptic();
+                        (self.4)(ctx);
+                    }
+                    _ => {
+                        self.3 = false;
+                        self.1.display("default")
+                    },
                 }
             }
-
-            if self.2 {self.1.display("disabled")}
         }
 
         vec![event]

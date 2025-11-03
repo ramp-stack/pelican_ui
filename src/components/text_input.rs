@@ -71,6 +71,10 @@ impl TextInput {
             error: None
         }
     }
+
+    pub fn value(&mut self) -> String {
+        self.inner.1.2.as_any().downcast_ref::<_InputContent>().unwrap().value.to_string()
+    }  
 }
 
 impl OnEvent for TextInput { 
@@ -93,7 +97,7 @@ struct _InputContent {
     default: Opt<Bin<Stack, TextEditor>>,
     empty: Opt<Bin<Stack, ExpandableText>>,
     button: Option<SecondaryIconButton>,
-    #[skip] value: String,
+    #[skip] pub value: String,
     #[skip] on_submit: Option<InputCallback>,
     #[skip] is_focused: bool,
 }

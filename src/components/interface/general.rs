@@ -1,4 +1,4 @@
-use roost::{drawables, Component, Context, IS_MOBILE, IS_WEB};
+use roost::{emitters, drawables, Component, Context, IS_MOBILE, IS_WEB};
 use roost::events::{Event, OnEvent, MouseEvent, MouseState};
 use roost::drawable::{Drawable, Align};
 use roost::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
@@ -10,6 +10,7 @@ use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInte
 
 use crate::pages::Error;
 use crate::plugin::PelicanUI;
+use crate::interactions;
 
 /// The top-level interface of an app built with Pelican.
 ///
@@ -124,7 +125,7 @@ impl Page {
 /// let content = Content::new(ctx, Offset::Center, vec![Box::new(text)]);
 /// ```
 #[derive(Debug, Component)]
-pub struct Content (Scroll, ContentChildren);
+pub struct Content (Scroll, emitters::Scrollable<interactions::Scrollable<ContentChildren>>);
 
 impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
@@ -136,7 +137,7 @@ impl Content {
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
         let scroll = Scroll::new(Offset::Center, offset, width, height, Padding::default(), anchor, ScrollDirection::Vertical);
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }
-        Content(scroll, ContentChildren::new(content, layout.content_padding)) 
+        Content(scroll, interactions::Scrollable::new(ContentChildren::new(content, layout.content_padding))) 
     }
 
     /// Find an item in the content. Will return the first instance of the type.
@@ -145,7 +146,7 @@ impl Content {
     /// let text = content.find::<Text>().expect("Could not find text in content");
     /// ```
     pub fn find<T: std::any::Any>(&mut self) -> Option<&mut T> {
-        self.items().iter_mut().find_map(|item| item.as_any_mut().downcast_mut::<T>())
+        self.items().iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Find an item in the bumper at a specific index.
@@ -154,7 +155,7 @@ impl Content {
     /// let text_input = content.find_at::<TextInput>(0).expect("Could not find text input at first index in content");
     /// ```
     pub fn find_at<T: std::any::Any>(&mut self, i: usize) -> Option<&mut T> {
-        self.items().get_mut(i)?.as_any_mut().downcast_mut::<T>()
+        self.items().get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Remove an item from the content. Will remove the first instance of the type.
@@ -163,7 +164,7 @@ impl Content {
     /// let text = content.remove::<Text>().expect("Could not remove text from content");
     /// ```
     pub fn remove<T: std::any::Any>(&mut self) -> Option<T> {
-        if let Some(pos) = self.items().iter().position(|item| item.as_any().is::<T>()) {
+        if let Some(pos) = self.items().iter().position(|item| (**item).as_any().is::<T>()) {
             let boxed = self.items().remove(pos);
             boxed.into_any().downcast::<T>().ok().map(|b| *b)
         } else {
@@ -172,7 +173,7 @@ impl Content {
     }
 
     /// Returns all the items in the content
-    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.1}
+    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.inner.1.1}
     /// Returns the offset of the items.
     pub fn offset(&mut self) -> &mut Offset {self.0.offset()}
 }
@@ -380,7 +381,7 @@ impl Bumper {
     /// let button = bumper.find::<Button>().expect("Could not find button in bumper");
     /// ```
     pub fn find<T: std::any::Any>(&mut self) -> Option<&mut T> {
-        self.items().iter_mut().find_map(|item| item.as_any_mut().downcast_mut::<T>())
+        self.items().iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Find an item in the bumper at a specific index.
@@ -389,7 +390,7 @@ impl Bumper {
     /// let button = bumper.find_at::<Button>(0).expect("Could not find button at the first index in the bumper");
     /// ```
     pub fn find_at<T: std::any::Any>(&mut self, i: usize) -> Option<&mut T> {
-        self.items().get_mut(i)?.as_any_mut().downcast_mut::<T>()
+        self.items().get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 }
 

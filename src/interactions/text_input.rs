@@ -6,7 +6,7 @@ use roost::emitters;
 
 
 #[derive(Debug, Component)]
-pub struct InputField(Stack, Enum, Box<dyn Drawable>, #[skip] pub bool);
+pub struct InputField(Stack, Enum, pub Box<dyn Drawable>, #[skip] pub bool);
 
 impl InputField {
     pub fn new(
