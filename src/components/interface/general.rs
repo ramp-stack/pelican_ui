@@ -1,11 +1,11 @@
-use roost::{Component, Context, IS_MOBILE, IS_WEB};
+use roost::{drawables, Component, Context, IS_MOBILE, IS_WEB};
 use roost::events::{Event, OnEvent, MouseEvent, MouseState};
 use roost::drawable::{Drawable, Align};
 use roost::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
 
-use crate::components::{Rectangle, TextStyle, ExpandableText};
-use crate::components::button::GhostIconButton;
-use crate::components::interface::navigation::{AppPage, NavigateEvent, NavigateInfo, NavigatorEvent, PageBuilder};
+use crate::components::{Rectangle, TextStyle, TextSize, ExpandableText};
+use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
+use crate::components::interface::navigation::{AppPage, NavigateEvent, RootInfo, NavigatorEvent, PageBuilder};
 use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInterface, web::WebInterface};
 
 use crate::pages::Error;
@@ -13,35 +13,26 @@ use crate::plugin::PelicanUI;
 
 /// The top-level interface of an app built with Pelican.
 ///
-/// This interface automatically adapts to the platform
-///
-/// The background color is taken from `ctx.theme.colors.background.primary` by default.
-/// You can customize it by setting ctx.theme to a customized [`Theme`] object.
-///
-/// # Required
-/// - A [`impl AppPage`] to serve as the starting page.
-///
-/// # Optional
-/// - A navigation bar, which requires:
-///   - The index of the starting page.
-///   - Two vectors of [`NavigateInfo`], which define top and bottom sections of the navigator on desktop.
-///     On web and mobile, these vectors are combined with no visual separation.
+/// This interface automatically adapts to the platform.
 #[derive(Component)]
 pub struct Interface(Stack, Rectangle, Box<dyn InterfaceTrait>, #[skip] Option<Vec<PageBuilder>>);
 
 impl Interface {
-    pub fn new(
-        ctx: &mut Context, 
-        start_page: impl AppPage,
-        mut navigation: Option<(Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
+    pub fn new(ctx: &mut Context,
+        mut navigation: (Vec<RootInfo>, Option<Vec<RootInfo>>),
     ) -> Self {
-        let pages = navigation.as_mut().map(|(a, b)| {
-            let new: Vec<&mut NavigateInfo> = match b {
-                Some(nav) => a.iter_mut().chain(nav.iter_mut()).collect(),
-                None => a.iter_mut().collect(),
-            };
-            new.into_iter().map(|t| t.get_page.take().unwrap()).collect::<Vec<_>>()
-        });
+        let mut pages: Vec<PageBuilder> = navigation.0
+            .iter_mut().chain(navigation.1.iter_mut().flatten())
+            .map(|nav| nav.get_page.take().unwrap()).collect();
+
+        let navigation = match navigation.0.len() <= 1 && navigation.1.is_none() 
+        || navigation.0.is_empty() && navigation.1.as_ref().map(|n| n.len() <= 1).unwrap_or(false) {
+            true => None,
+            false => Some(navigation)
+        };
+
+        if pages.is_empty() {panic!("You must provide at least one RootInfo to the Interface")}
+        let start_page = pages[0](ctx);
 
         let visual: Box<dyn InterfaceTrait> = match IS_WEB {
             true => Box::new(WebInterface::new(ctx, start_page, navigation, None)),
@@ -50,7 +41,7 @@ impl Interface {
         };
 
         let color = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
-        Interface(Stack::default(), Rectangle::new(color, 0.0, None), visual, pages)
+        Interface(Stack::default(), Rectangle::new(color, 0.0, None), visual, Some(pages))
     }
 }
 
@@ -73,7 +64,7 @@ impl OnEvent for Interface {
             if let Some(navigator) = self.2.navigator() { navigator.display(display); }
         } else if let Some(NavigatorEvent(index)) = event.downcast_mut::<NavigatorEvent>() {
             if let Some(pages) = self.3.as_mut() { 
-                *self.2.app_page() = Some(pages[*index](ctx).unwrap_or_else(|e| Box::new(Error::new(ctx, e.into())))); 
+                *self.2.app_page() = Some(pages[*index](ctx)); 
             }
         }
 
@@ -88,7 +79,7 @@ pub trait InterfaceTrait: Drawable + std::fmt::Debug + 'static {
 
 /// # Page
 ///
-/// A Page is a UI container that holds optional [`Header`], [`Content`], and optional [`Bumper`] components.
+/// A Page is a UI container that holds [`Header`], [`Content`], and optional [`Bumper`] components.
 ///
 /// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/page.png"
 ///      alt="Page Example"
@@ -129,7 +120,6 @@ impl Page {
 ///      width="250">
 ///
 /// ```rust
-/// let text_size = ctx.theme.fonts.size.lg;
 /// let text = Text::new(ctx, "Set up a name, description, and team before starting your project.", TextStyle::Primary, text_size, Align::Center);
 /// let content = Content::new(ctx, Offset::Center, vec![Box::new(text)]);
 /// ```
@@ -248,8 +238,7 @@ impl Header {
     /// let header = Header::home(ctx, "Explore", Some(("search", 1)))
     /// ```
     pub fn home(ctx: &mut Context, title: &str, icon: Option<(&'static str, usize)>) -> Self {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h3;
-        Self::_new(ctx, title, None, icon, size)
+        Self::_new(ctx, title, None, icon, TextSize::H3)
     }
 
     /// A `Header` preset used for in-flow pages.
@@ -259,8 +248,7 @@ impl Header {
     /// let header = Header::stack(ctx, "Select role");
     /// ```
     pub fn stack(ctx: &mut Context, title: &str) -> Self {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h4;
-        Self::_new(ctx, title, Some(("left", 0)), None, size)
+        Self::_new(ctx, title, Some(("left", 0)), None, TextSize::H4)
     }
 
     /// A `Header` preset used for end-of-flow pages.
@@ -270,8 +258,7 @@ impl Header {
     /// let header = Header::stack_end(ctx, 0, "Select role");
     /// ```
     pub fn stack_end(ctx: &mut Context, title: &str) -> Self {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h4;
-        Self::_new(ctx, title, Some(("close", 0)), None, size)
+        Self::_new(ctx, title, Some(("close", 0)), None, TextSize::H4)
     }
 
 
@@ -280,7 +267,7 @@ impl Header {
         title: &str,
         left_icon: Option<(&'static str, usize)>,
         right_icon: Option<(&'static str, usize)>,
-        size: f32,
+        size: TextSize,
     ) -> Self {
         let clean: String = title.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
         let title = clean[..1].to_uppercase() + &clean[1..].to_lowercase();
@@ -339,6 +326,40 @@ pub struct Bumper (Stack, Rectangle, BumperContent);
 impl OnEvent for Bumper {}
 
 impl Bumper {
+    /// A `Bumper` preset used for home pages.
+    ///
+    /// ```rust
+    /// let bumper = Header::home(ctx, "New Message", None); // navigates to 1
+    /// let bumper = Header::home(ctx, "Receive", Some("Send")) // navigates to 1 and 2
+    /// ```
+    pub fn home(ctx: &mut Context, first: &str, second: Option<&str>) -> Self {
+        let first = PrimaryButton::new(ctx, first, |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)), false);
+        let second = second.map(|l| PrimaryButton::new(ctx, l, |ctx: &mut Context| ctx.trigger_event(NavigateEvent(2)), false));
+        Self::new(ctx, drawables![first, second])
+    }
+
+    /// A `Bumper` preset used for in-flow pages.
+    /// This bumper contains a button labeled "Continue" that always navigates to index 1.
+    ///
+    /// ```rust
+    /// let bumper = Bumper::stack(ctx, false);
+    /// ```
+    pub fn stack(ctx: &mut Context, is_disabled: bool) -> Self {
+        let button = PrimaryButton::new(ctx, "Continue", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)), is_disabled);
+        Self::new(ctx, drawables![button])
+    }
+
+    /// A `Bumper` preset used for end-of-flow pages.
+    /// This bumper contains a button labeled "Done" that always navigates to index 1.
+    ///
+    /// ```rust
+    /// let bumper = Bumper::stack_end(ctx);
+    /// ```
+    pub fn stack_end(ctx: &mut Context) -> Self {
+        let button = SecondaryButton::large(ctx, "Continue", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
+        Self::new(ctx, drawables![button])
+    }
+
     /// Creates a new `Bumper` from a vector of boxed [`Drawables`](Drawable)
     pub fn new(ctx: &mut Context, content: Vec<Box<dyn Drawable>>) -> Self {
         let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;

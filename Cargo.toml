@@ -1,6 +1,6 @@
 [package]
 name = "pelican"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Ella Mae <ellaammae@email.com>"]
 edition = "2021"
 description = "Standard UI tools and components built off Pelican UI of the RAMP stack."
@@ -26,6 +26,6 @@ qrc = "0.0.5"
 downcast-rs = "2.0.1"
 fast_image_resize = "5.1.4"
 base64 = "0.22.1"
-roost = { version = "2.0.0", package = "roost_ui" }
+roost = { version = "2.0.1", package = "roost_ui" }
 png = "0.18.0"
 include_dir = "0.7.4"

@@ -5,7 +5,7 @@ use roost::{Context, Component};
 use roost::emitters;
 
 use crate::interactions;
-use crate::components::{Rectangle, Icon, Text, ExpandableText, TextStyle};
+use crate::components::{Rectangle, Icon, Text, TextSize, ExpandableText, TextStyle};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::plugin::PelicanUI;
 use crate::utils::TitleSubtitle;
@@ -117,9 +117,8 @@ impl OnEvent for LeftData {}
 impl LeftData {
     pub fn new(ctx: &mut Context, info: ListItemInfoLeft) -> Self {
         let layout = Column::new(4.0, Offset::Start, Size::Fill, Padding::default());
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.xs;
-        let subtitle = ExpandableText::new(ctx, &info.title.subtitle, size, TextStyle::Secondary, Align::Left, Some(2));
-        let description = info.description.map(|text| ExpandableText::new(ctx, &text, size, TextStyle::Secondary, Align::Left, Some(2)));
+        let subtitle = ExpandableText::new(ctx, &info.title.subtitle, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2));
+        let description = info.description.map(|text| ExpandableText::new(ctx, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
         LeftData(layout, TitleRow::new(ctx, &info.title.title, info.flair), subtitle, description)
     }
 }
@@ -131,8 +130,7 @@ impl OnEvent for TitleRow {}
 impl TitleRow {
     fn new(ctx: &mut Context, title: &str, flair: Option<(&'static str, Color)>) -> Self {
         let layout = Row::new(4.0, Offset::Center, Size::Fit, Padding::default());
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size.h5;
-        let text = Text::new(ctx, title, size, TextStyle::Heading, Align::Left, Some(1));
+        let text = Text::new(ctx, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
         let flair = flair.map(|(name, color)| Icon::new(ctx, name, color, 16.0));
         TitleRow(layout, text, flair)
     }
@@ -144,9 +142,8 @@ impl OnEvent for RightData {}
 
 impl RightData {
     fn new(ctx: &mut Context, info: TitleSubtitle) -> Self {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
-        let title = Text::new(ctx, &info.title, size.h5, TextStyle::Heading, Align::Left, Some(1));
-        let subtitle = Text::new(ctx, &info.subtitle, size.xs, TextStyle::Secondary, Align::Left, Some(2));
+        let title = Text::new(ctx, &info.title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
+        let subtitle = Text::new(ctx, &info.subtitle, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2));
         RightData(Column::end(4.0), title, subtitle)
     }
 }
@@ -164,5 +161,15 @@ impl ListItemInfoLeft {
             description: description.map(|text| text.to_string()),
             flair,
         }
+    }
+}
+
+#[derive(Debug, Component)]
+pub struct ListItemGroup(Column, Vec<ListItem>);
+impl OnEvent for ListItemGroup {}
+
+impl ListItemGroup {
+    pub fn new(items: Vec<ListItem>) -> Self {
+        ListItemGroup(Column::start(0.0), items)
     }
 }

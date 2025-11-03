@@ -19,6 +19,10 @@ pub use radio::RadioSelector;
 mod slider;
 pub use slider::Slider;
 
+/// Toggle.
+mod toggle;
+pub use toggle::Toggle;
+
 mod images;
 pub use images::*;
 mod shapes;

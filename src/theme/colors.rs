@@ -251,7 +251,7 @@ impl ButtonColorSet {
             },
             hover: ButtonColorScheme {
                 background: if is_light {Color::from_hex("#dcdbda", 255)} else {Color::from_hex("#262322", 255)},
-                label: Color::WHITE,
+                label: if is_light {Color::BLACK} else {Color::WHITE},
                 outline: Color::from_hex("#585250", 255),
             },
             pressed: ButtonColorScheme {

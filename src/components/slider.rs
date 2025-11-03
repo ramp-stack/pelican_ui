@@ -5,7 +5,7 @@ use roost::layouts::Column;
 use roost::emitters;
 
 use crate::interactions;
-use crate::components::{Text, ExpandableText, TextStyle, Circle, Rectangle};
+use crate::components::{Text, TextSize, ExpandableText, TextStyle, Circle, Rectangle};
 use crate::plugin::PelicanUI;
 
 /// ## Slider
@@ -39,14 +39,13 @@ impl Slider {
         description: Option<&str>,
         on_change: impl FnMut(&mut Context, f32) + 'static,
     ) -> Self {
-        let size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
         let background = Rectangle::new(colors.outline.primary, 3.0, None);
         let foreground = Rectangle::new(colors.brand, 3.0, None);
         let handle = Circle::new(18.0, colors.brand, false);
         Slider(Column::start(8.0),
-            label.map(|l| Text::new(ctx, l, size.h5, TextStyle::Heading, Align::Left, None)),
-            description.map(|t| ExpandableText::new(ctx, t, size.md, TextStyle::Primary, Align::Left, None)),
+            label.map(|l| Text::new(ctx, l, TextSize::H5, TextStyle::Heading, Align::Left, None)),
+            description.map(|t| ExpandableText::new(ctx, t, TextSize::Md, TextStyle::Primary, Align::Left, None)),
             emitters::Slider::new(interactions::Slider::new(ctx, start, background, foreground, handle, on_change)),
         )
     }

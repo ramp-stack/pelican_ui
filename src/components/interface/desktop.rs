@@ -5,7 +5,7 @@ use roost::layouts::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 
 use crate::components::{Rectangle, AspectRatioImage};
 use crate::components::interface::general::InterfaceTrait;
-use crate::components::interface::navigation::{AppPage, NavigatorEvent, NavigateInfo, NavigatorSelectable};
+use crate::components::interface::navigation::{AppPage, NavigatorEvent, RootInfo, NavigatorSelectable};
 use crate::plugin::PelicanUI;
 
 #[derive(Component, Debug)]
@@ -20,14 +20,14 @@ impl InterfaceTrait for DesktopInterface {
 impl DesktopInterface {
     pub fn new(
         ctx: &mut Context, 
-        start_page: impl AppPage,
-        navigation: Option<( Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)>,
+        start_page: Box<dyn AppPage>,
+        navigation: Option<(Vec<RootInfo>, Option<Vec<RootInfo>>)>,
     ) -> Self {
         let color = ctx.get::<PelicanUI>().get().0.theme().colors.outline.secondary;
         let navigator = navigation.map(|n| Opt::new(Box::new(DesktopNavigator::new(ctx, n)) as Box<dyn Drawable>, true));
         let line_layout = Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default());
         let separator = Bin(line_layout, Rectangle::new(color, 0.0, None));
-        DesktopInterface(Row::start(0.0), navigator, separator, Some(Box::new(start_page)))
+        DesktopInterface(Row::start(0.0), navigator, separator, Some(start_page))
     }
 }
 
@@ -36,7 +36,7 @@ pub struct DesktopNavigator(Column, Image, ButtonColumn, Option<Bin<Stack, Recta
 impl OnEvent for DesktopNavigator {}
 
 impl DesktopNavigator {
-    pub fn new(ctx: &mut Context, navigation: (Vec<NavigateInfo>, Option<Vec<NavigateInfo>>)) -> Self {
+    pub fn new(ctx: &mut Context, navigation: (Vec<RootInfo>, Option<Vec<RootInfo>>)) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let (mut top_col, mut bot_col) = (Vec::new(), Vec::new());
         let mut i = 0;

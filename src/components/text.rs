@@ -37,12 +37,51 @@ impl TextStyle {
     }
 }
 
+/// Defines a struct that holds font sizes for various UI elements.
+#[derive(Copy, Clone, Debug, Default)]
+pub enum TextSize {
+    Title, 
+    H1,
+    H2,
+    H3,
+    H4,
+    H5,
+    H6, 
+    Xl, 
+    #[default]
+    Lg,
+    Md,
+    Sm,
+    Xs
+}
+
+impl TextSize {
+    /// Returns the default font sizes used throughout the application.
+    fn get(&self, ctx: &mut Context) -> f32 {
+        let font_size = ctx.get::<PelicanUI>().get().0.theme().fonts.size;
+        match self {
+            TextSize::Title => font_size.title,
+            TextSize::H1 => font_size.h1,
+            TextSize::H2 => font_size.h2,
+            TextSize::H3 => font_size.h3,
+            TextSize::H4 => font_size.h4,
+            TextSize::H5 => font_size.h5,
+            TextSize::H6 => font_size.h6,
+            TextSize::Xl => font_size.xl,
+            TextSize::Lg => font_size.lg,
+            TextSize::Md => font_size.md,
+            TextSize::Sm => font_size.sm,
+            TextSize::Xs => font_size.xs,
+        }
+    }
+}
+
 #[derive(Component, Debug)]
 pub struct Text {
     layout: Stack,
     inner: BasicText,
     #[skip] pub spans: Vec<String>,
-    #[skip] pub size: f32,
+    #[skip] pub size: TextSize,
     #[skip] pub style: TextStyle,
     #[skip] pub align: Align,
     #[skip] pub max_lines: Option<u32>,
@@ -57,7 +96,7 @@ impl OnEvent for Text {
             self.inner.max_lines = self.max_lines;
             self.inner.spans.iter_mut().enumerate().for_each(|(i, s)| {
                 s.text = self.spans[i].to_string();
-                s.font_size = self.size;
+                s.font_size = self.size.get(ctx);
                 s.color = color;
                 s.font = font.clone();
                 s.kerning = self.kerning;
@@ -68,10 +107,11 @@ impl OnEvent for Text {
 }
 
 impl Text {
-    pub fn new(ctx: &mut Context, text: &str, size: f32, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
+    pub fn new(ctx: &mut Context, text: &str, text_size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         let (color, font) = style.get(ctx);
+        let size = text_size.get(ctx);
         let inner = BasicText::new(vec![Span::new(text.to_string(), size, Some(size*1.25), font, color, 0.0)], None, align, max_lines);
-        Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size, style, align, max_lines, kerning: 0.0}
+        Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size: text_size, style, align, max_lines, kerning: 0.0}
     }
 }
 
@@ -107,7 +147,7 @@ pub struct ExpandableText(pub Text);
 impl OnEvent for ExpandableText {}
 
 impl ExpandableText {
-    pub fn new(ctx: &mut Context, text: &str, size: f32, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
+    pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         ExpandableText(Text::new(ctx, text, size, style, align, max_lines))
     }
 }
@@ -130,7 +170,7 @@ impl Component for ExpandableText {
 pub struct TextEditor(Stack, pub ExpandableText, TextCursor);
 
 impl TextEditor {
-    pub fn new(ctx: &mut Context, text: &str, size: f32, style: TextStyle, align: Align) -> Self {
+    pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
         let mut text = ExpandableText::new(ctx, text, size, style, align, None);
         text.0.inner.cursor = Some(Cursor::default());
         TextEditor(Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default()), text, TextCursor::new(ctx, style, size))
@@ -208,8 +248,9 @@ pub struct TextCursor(Stack, Opt<Rectangle>);
 impl OnEvent for TextCursor {}
 
 impl TextCursor {
-    pub fn new(ctx: &mut Context, style: TextStyle, size: f32) -> Self {
+    pub fn new(ctx: &mut Context, style: TextStyle, size: TextSize) -> Self {
         let (color, _) = style.get(ctx);
+        let size = size.get(ctx);
         TextCursor(
             Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()), 
             Opt::new(Rectangle::new(color, 0.0, None), true)

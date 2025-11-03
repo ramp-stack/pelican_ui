@@ -67,18 +67,18 @@ impl Event for NavigateEvent {
     }
 }
 
-pub type PageBuilder = Box<dyn FnMut(&mut Context) -> Result<Box<dyn AppPage>, String>>;
+pub type PageBuilder = Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>;
 
-pub struct NavigateInfo {
+pub struct RootInfo {
     pub(crate) icon: &'static str,
     pub(crate) label: String,
     pub(crate) avatar: Option<AvatarContent>,
     pub(crate) get_page: Option<PageBuilder>
 }
 
-impl NavigateInfo {
-    pub fn icon(icon: &'static str, label: &str, get_page: impl FnMut(&mut Context) -> Result<Box<dyn AppPage>, String> + 'static) -> Self {
-        NavigateInfo {
+impl RootInfo {
+    pub fn icon(icon: &'static str, label: &str, get_page: impl FnMut(&mut Context) -> Box<dyn AppPage> + 'static) -> Self {
+        RootInfo {
             icon,
             label: label.to_string(),
             avatar: None,
@@ -86,8 +86,8 @@ impl NavigateInfo {
         }
     }
 
-    pub fn avatar(avatar: AvatarContent, label: &str, get_page: impl FnMut(&mut Context) -> Result<Box<dyn AppPage>, String> + 'static) -> Self {
-        NavigateInfo {
+    pub fn avatar(avatar: AvatarContent, label: &str, get_page: impl FnMut(&mut Context) -> Box<dyn AppPage> + 'static) -> Self {
+        RootInfo {
             icon: "profile",
             label: label.to_string(),
             avatar: Some(avatar),
@@ -104,7 +104,7 @@ impl NavigatorSelectable {
     pub fn desktop_icon(ctx: &mut Context, icon: &'static str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
-            let font_size = ButtonSize::Large.font(ctx);
+            let font_size = ButtonSize::Large.font();
             let icon_size = ButtonSize::Large.icon();
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             let icon = Icon::new(ctx, icon, colors.label, icon_size);
@@ -116,7 +116,7 @@ impl NavigatorSelectable {
     pub fn desktop_avatar(ctx: &mut Context, avatar: AvatarContent, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
-            let font_size = ButtonSize::Large.font(ctx);
+            let font_size = ButtonSize::Large.font();
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             let avatar = Avatar::new(ctx, avatar.clone(), None, false, AvatarSize::Xs, None);
             Button::new(drawables![avatar, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
