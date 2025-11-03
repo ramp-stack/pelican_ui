@@ -3553,7 +3553,9 @@ checksum = "57397d16646700483b67d2dd6511d79318f9d057fdbd21a4066aeac8b41d310a"
 
 [[package]]
 name = "roost_ui"
-version = "0.3.1"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc535deb93e7c34ee491d37709334c95e06ec412064e6b4323c3820e124e7f3f"
 dependencies = [
  "downcast-rs 2.0.1",
  "image 0.25.6",
