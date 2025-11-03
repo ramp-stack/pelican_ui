@@ -1,6 +1,6 @@
 [package]
 name = "pelican_ui"
-version = "0.3.1"
+version = "2.0.1"
 authors = ["Ella Mae <ellaammae@email.com>"]
 edition = "2021"
 description = "Standard UI tools and components built off Pelican UI of the RAMP stack."
