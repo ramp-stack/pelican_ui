@@ -1,14 +1,13 @@
-use roost::{Component, Context, drawables};
-use roost::events::{Event, OnEvent};
-use roost::drawable::{Drawable, Align};
-use roost::emitters;
+use roost_ui::{Component, Context, drawables};
+use roost_ui::events::{Event, OnEvent};
+use roost_ui::drawable::{Drawable, Align};
 
 use crate::interactions;
 use crate::components::{TextStyle, Text, Icon};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, IconButton};
 
-use roost::layouts::{Stack, Offset};
+use roost_ui::layouts::{Stack, Offset};
 use crate::plugin::PelicanUI;
 
 pub enum PelicanError {
@@ -98,7 +97,7 @@ impl RootInfo {
 
 
 #[derive(Debug, Component)]
-pub struct NavigatorSelectable(Stack, emitters::Selectable<interactions::Selectable>);
+pub struct NavigatorSelectable(Stack, interactions::Selectable);
 impl OnEvent for NavigatorSelectable {}
 impl NavigatorSelectable {
     pub fn desktop_icon(ctx: &mut Context, icon: &'static str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
@@ -107,7 +106,7 @@ impl NavigatorSelectable {
             let font_size = ButtonSize::Large.font();
             let icon_size = ButtonSize::Large.icon();
             let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-            let icon = Icon::new(ctx, icon, colors.label, icon_size);
+            let icon = Icon::new(ctx, icon, Some(colors.label), icon_size);
             Button::new(drawables![icon, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
         NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, on_click, group_id))

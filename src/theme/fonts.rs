@@ -1,4 +1,4 @@
-use roost::{Assets, resources};
+use roost_ui::{Assets, resources};
 
 /// Represents a collection of font resources, including fonts and font sizes.
 #[derive(Clone)]
@@ -35,8 +35,8 @@ pub struct Fonts {
     pub label: resources::Font,
     /// The font used for keyboard elements.
     pub keyboard: resources::Font,
-    /// The font used for emoji characters.
-    pub emoji: resources::Font,
+    // The font used for emoji characters.
+    // pub emoji: resources::Font,
 }
 
 impl Fonts {
@@ -46,9 +46,9 @@ impl Fonts {
         text: resources::Font, 
         label: resources::Font, 
         keyboard: resources::Font, 
-        emoji: resources::Font
+        // emoji: resources::Font
     ) -> Self {
-        Self { heading, text, label, keyboard, emoji }
+        Self { heading, text, label, keyboard }
     }
 
     /// Loads the default fonts using the provided Assets.
@@ -56,14 +56,14 @@ impl Fonts {
         let bold = assets.load_font("fonts/outfit_bold.ttf").unwrap();
         let medium = assets.load_font("fonts/outfit_medium.ttf").unwrap();
         let regular = assets.load_font("fonts/outfit_regular.ttf").unwrap();
-        let emoji = assets.load_font("fonts/noto_color_emoji.ttf").unwrap();
+        // let emoji = assets.load_font("fonts/noto_color_emoji.ttf").unwrap();
         
         Self {
             heading: bold.clone(),
             text: regular,
             label: bold,
             keyboard: medium,
-            emoji,
+            // emoji,
         }
     }
 }

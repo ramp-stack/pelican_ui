@@ -1,12 +1,12 @@
-use roost::events::Key as WinitKey;
-// use roost::maverick_os::hardware::ImageOrientation;
-use roost::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey, SmolStr};
-use roost::drawable::{Align, Image, Color};
-use roost::{Context, Component};
+use roost_ui::events::Key as WinitKey;
+// use roost_ui::maverick_os::hardware::ImageOrientation;
+use roost_ui::events::{MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey, SmolStr};
+use roost_ui::drawable::{Align, Image, Color};
+use roost_ui::{Context, Component};
 
 use crate::components::interface::mobile::ShowKeyboard;
 use crate::components::{Text, TextStyle, TextSize, Rectangle, Icon};
-use roost::layouts::{Stack, Bin, Column, Row, Offset, Size, Padding};
+use roost_ui::layouts::{Stack, Bin, Column, Row, Offset, Size, Padding};
 // use crate::components::interactions::ButtonState;
 use crate::components::button::GhostIconButton;
 use crate::plugin::PelicanUI;
@@ -396,7 +396,7 @@ impl KeyCharacter {
 
     fn icon(ctx: &mut Context, i: &'static str) -> Self {
         let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.heading;
-        KeyCharacter(Row::center(0.0), Some(Icon::new(ctx, i, c, 36.0)), None, None, None)
+        KeyCharacter(Row::center(0.0), Some(Icon::new(ctx, i, Some(c), 36.0)), None, None, None)
     }
 
     fn paginator(ctx: &mut Context, page: u32) -> Self {

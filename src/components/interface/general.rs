@@ -1,7 +1,7 @@
-use roost::{drawables, Component, Context, IS_MOBILE, IS_WEB};
-use roost::events::{Event, OnEvent, MouseEvent, MouseState};
-use roost::drawable::{Drawable, Align};
-use roost::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
+use roost_ui::{emitters, drawables, Component, Context, IS_MOBILE, IS_WEB};
+use roost_ui::events::{Event, OnEvent, MouseEvent, MouseState};
+use roost_ui::drawable::{Drawable, Align};
+use roost_ui::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
 
 use crate::components::{Rectangle, TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
@@ -124,19 +124,19 @@ impl Page {
 /// let content = Content::new(ctx, Offset::Center, vec![Box::new(text)]);
 /// ```
 #[derive(Debug, Component)]
-pub struct Content (Scroll, ContentChildren);
+pub struct Content (Scroll, emitters::Scrollable<ContentChildren>);
 
 impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
     pub fn new(ctx: &mut Context, offset: Offset, content: Vec<Box<dyn Drawable>>) -> Self {
         let layout = ctx.get::<PelicanUI>().get().0.theme().layout.clone();
-        let max = if roost::IS_WEB {1200.0} else {layout.content_max};
+        let max = if roost_ui::IS_WEB {1200.0} else {layout.content_max};
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |_: Vec<(f32, f32)>|(0.0, f32::MAX));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
         let scroll = Scroll::new(Offset::Center, offset, width, height, Padding::default(), anchor, ScrollDirection::Vertical);
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }
-        Content(scroll, ContentChildren::new(content, layout.content_padding)) 
+        Content(scroll, emitters::Scrollable::new(ContentChildren::new(content, layout.content_padding))) 
     }
 
     /// Find an item in the content. Will return the first instance of the type.
@@ -145,7 +145,7 @@ impl Content {
     /// let text = content.find::<Text>().expect("Could not find text in content");
     /// ```
     pub fn find<T: std::any::Any>(&mut self) -> Option<&mut T> {
-        self.items().iter_mut().find_map(|item| item.as_any_mut().downcast_mut::<T>())
+        self.items().iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Find an item in the bumper at a specific index.
@@ -154,7 +154,7 @@ impl Content {
     /// let text_input = content.find_at::<TextInput>(0).expect("Could not find text input at first index in content");
     /// ```
     pub fn find_at<T: std::any::Any>(&mut self, i: usize) -> Option<&mut T> {
-        self.items().get_mut(i)?.as_any_mut().downcast_mut::<T>()
+        self.items().get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Remove an item from the content. Will remove the first instance of the type.
@@ -163,7 +163,7 @@ impl Content {
     /// let text = content.remove::<Text>().expect("Could not remove text from content");
     /// ```
     pub fn remove<T: std::any::Any>(&mut self) -> Option<T> {
-        if let Some(pos) = self.items().iter().position(|item| item.as_any().is::<T>()) {
+        if let Some(pos) = self.items().iter().position(|item| (**item).as_any().is::<T>()) {
             let boxed = self.items().remove(pos);
             boxed.into_any().downcast::<T>().ok().map(|b| *b)
         } else {
@@ -172,7 +172,7 @@ impl Content {
     }
 
     /// Returns all the items in the content
-    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.1}
+    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.1.inner.1}
     /// Returns the offset of the items.
     pub fn offset(&mut self) -> &mut Offset {self.0.offset()}
 }
@@ -182,7 +182,7 @@ impl OnEvent for Content {
         if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.0.adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
-        //     if roost::IS_MOBILE {
+        //     if roost_ui::IS_MOBILE {
         //         let mut total_height = 0.0;
         //         for item in self.items().iter_mut() {
         //             match item.as_any_mut().downcast_mut::<TextInput>() {
@@ -356,7 +356,7 @@ impl Bumper {
     /// let bumper = Bumper::stack_end(ctx);
     /// ```
     pub fn stack_end(ctx: &mut Context) -> Self {
-        let button = SecondaryButton::large(ctx, "Continue", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
+        let button = SecondaryButton::large(ctx, "Done", |ctx: &mut Context| ctx.trigger_event(NavigateEvent(1)));
         Self::new(ctx, drawables![button])
     }
 
@@ -364,7 +364,7 @@ impl Bumper {
     pub fn new(ctx: &mut Context, content: Vec<Box<dyn Drawable>>) -> Self {
         let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
         let max = ctx.get::<PelicanUI>().get().0.theme().layout.bumper_max;
-        let max = if roost::IS_WEB {1200.0} else {max};
+        let max = if roost_ui::IS_WEB {1200.0} else {max};
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
@@ -380,7 +380,7 @@ impl Bumper {
     /// let button = bumper.find::<Button>().expect("Could not find button in bumper");
     /// ```
     pub fn find<T: std::any::Any>(&mut self) -> Option<&mut T> {
-        self.items().iter_mut().find_map(|item| item.as_any_mut().downcast_mut::<T>())
+        self.items().iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Find an item in the bumper at a specific index.
@@ -389,7 +389,7 @@ impl Bumper {
     /// let button = bumper.find_at::<Button>(0).expect("Could not find button at the first index in the bumper");
     /// ```
     pub fn find_at<T: std::any::Any>(&mut self, i: usize) -> Option<&mut T> {
-        self.items().get_mut(i)?.as_any_mut().downcast_mut::<T>()
+        self.items().get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 }
 

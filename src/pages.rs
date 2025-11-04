@@ -1,8 +1,8 @@
-use roost::events::OnEvent;
-use roost::drawable::{Align};
-use roost::{drawables, Context, Component};
+use roost_ui::events::OnEvent;
+use roost_ui::drawable::{Align};
+use roost_ui::{drawables, Context, Component};
 
-use roost::layouts::{Offset, Stack};
+use roost_ui::layouts::{Offset, Stack};
 use crate::components::interface::general::{Page, Content, Header, Bumper};
 use crate::components::{TextStyle, Text, TextSize, AspectRatioImage};
 use crate::components::button::PrimaryButton;

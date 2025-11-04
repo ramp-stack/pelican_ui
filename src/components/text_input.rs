@@ -1,8 +1,7 @@
-use roost::events::{OnEvent, TickEvent, Event, self};
-use roost::drawable::{Align, Color};
-use roost::{Context, Component};
-use roost::layouts::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
-use roost::emitters;
+use roost_ui::events::{OnEvent, TickEvent, Event, self};
+use roost_ui::drawable::{Align, Color};
+use roost_ui::{Context, Component};
+use roost_ui::layouts::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
 
 use crate::interactions;
 use crate::components::{Rectangle, ExpandableText, Text, TextSize, TextStyle, TextEditor};
@@ -32,7 +31,7 @@ use crate::plugin::PelicanUI;
 pub struct TextInput {
     layout: Column,
     label: Option<Text>,
-    pub inner: emitters::TextInput<interactions::InputField>,
+    pub inner: interactions::InputField,
     hint: EitherOr<Option<ExpandableText>, ExpandableText>,
     #[skip] pub error: Option<String>,
 }
@@ -71,13 +70,17 @@ impl TextInput {
             error: None
         }
     }
+
+    pub fn value(&mut self) -> String {
+        self.inner.2.as_any().downcast_ref::<_InputContent>().unwrap().value.to_string()
+    }  
 }
 
 impl OnEvent for TextInput { 
     fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
             self.hint.display_left(self.error.is_some()); 
-            self.inner.1.3 = self.error.is_some();
+            self.inner.error(self.error.is_some());
             if let Some(e) = &self.error { 
                 self.hint.right().0.spans[0] = e.to_string(); 
             } 
@@ -93,7 +96,7 @@ struct _InputContent {
     default: Opt<Bin<Stack, TextEditor>>,
     empty: Opt<Bin<Stack, ExpandableText>>,
     button: Option<SecondaryIconButton>,
-    #[skip] value: String,
+    #[skip] pub value: String,
     #[skip] on_submit: Option<InputCallback>,
     #[skip] is_focused: bool,
 }

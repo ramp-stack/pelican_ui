@@ -2016,9 +2016,9 @@ dependencies = [
 
 [[package]]
 name = "maverick_os"
-version = "0.2.2"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c777ac3a834ae22aaa95eb305093d769d97334426ed999a8e1aacca77a6516ff"
+checksum = "a23cff870e6ff030c4f90507cded116e92b9ab6e6d5753a0c75c011c939584bf"
 dependencies = [
  "active_rusqlite",
  "air",
@@ -2996,8 +2996,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
-name = "pelican"
-version = "0.3.1"
+name = "pelican_ui"
+version = "2.0.4"
 dependencies = [
  "base64",
  "chrono",
@@ -3006,7 +3006,6 @@ dependencies = [
  "fast_image_resize",
  "image 0.25.6",
  "imageproc",
- "include_dir",
  "png 0.18.0",
  "qrc",
  "qrcode 0.14.1",
@@ -3019,8 +3018,6 @@ dependencies = [
 [[package]]
 name = "pelican_ui_proc"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d908c9fefc31e4d85cc95b2cc8d8b2164442b7fabeb4ee34023150e7a60b7366"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -3553,9 +3550,7 @@ checksum = "57397d16646700483b67d2dd6511d79318f9d057fdbd21a4066aeac8b41d310a"
 
 [[package]]
 name = "roost_ui"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc535deb93e7c34ee491d37709334c95e06ec412064e6b4323c3820e124e7f3f"
+version = "2.0.4"
 dependencies = [
  "downcast-rs 2.0.1",
  "image 0.25.6",

@@ -1,9 +1,9 @@
-use roost::events::{TickEvent, OnEvent, MouseState, Event, MouseEvent};
-use roost::drawable::{Image, Color, Shape, ShapeType};
-use roost::{Context, Component, resources};
+use roost_ui::events::{TickEvent, OnEvent, MouseState, Event, MouseEvent};
+use roost_ui::drawable::{Image, Color, Shape, ShapeType};
+use roost_ui::{Context, Component, resources};
 
 use crate::components::{Icon, Circle};
-use roost::layouts::{Stack, Offset, Size, Padding};
+use roost_ui::layouts::{Stack, Offset, Size, Padding};
 use crate::utils::Callback;
 use crate::plugin::PelicanUI;
 
@@ -34,7 +34,7 @@ pub struct Avatar {
     #[skip] _size: AvatarSize,
     #[skip] on_click: Option<Callback>,
     #[skip] pub content: AvatarContent,
-    #[skip] pub flair: Option<(&'static str, AvatarIconStyle)>,
+    #[skip] pub flair: Option<(String, AvatarIconStyle)>,
     #[skip] pub outline: bool,
 }
 
@@ -48,7 +48,7 @@ impl Avatar {
     pub fn new(
         ctx: &mut Context, 
         content: AvatarContent, 
-        flair: Option<(&'static str, AvatarIconStyle)>, 
+        flair: Option<(&str, AvatarIconStyle)>, 
         outline: bool, 
         size: AvatarSize,
         on_click: Option<Callback>
@@ -60,7 +60,7 @@ impl Avatar {
             _size: size,
             on_click,
             content,
-            flair,
+            flair: flair.map(|(n, s)| (n.to_string(), s)),
             outline,
         }
     }
@@ -82,7 +82,7 @@ impl OnEvent for Avatar {
             self._avatar.1 = circle_icon;
             self._avatar.2 = image;
             self._avatar.3 = self.outline.then(|| Circle::new(self._size.get(), Color::BLACK, true));
-            self._flair = self.flair.map(|(name, style)| Flair::new(ctx, name, style, self._size));
+            self._flair = self.flair.clone().map(|(name, style)| Flair::new(ctx, &name, style, self._size));
         }
         vec![event]
     }
@@ -96,7 +96,7 @@ impl PrimaryAvatar {
     fn new(ctx: &mut Context, content: AvatarContent, outline: bool, size: AvatarSize) -> Self {
         let (circle_icon, image) = match content {
             AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (size.get(), size.get()), 0.0), image, color: None})),
-            AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(ctx, name, style, size.get())), None)
+            AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(ctx, &name, style, size.get())), None)
         };
 
         PrimaryAvatar(
@@ -110,13 +110,13 @@ impl PrimaryAvatar {
 struct AvatarIcon(Stack, Shape, Image);
 impl OnEvent for AvatarIcon {}
 impl AvatarIcon {
-    fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: f32) -> Self {
+    fn new(ctx: &mut Context, name: &str, style: AvatarIconStyle, size: f32) -> Self {
         let icon_size = size * 0.75;
         let (background, icon_color) = style.get(ctx);
         AvatarIcon(
             Stack::center(),
             Circle::new(size - 2.0, background, false), 
-            Icon::new(ctx, name, icon_color, icon_size)
+            Icon::new(ctx, name, Some(icon_color), icon_size)
         )
     }
 }
@@ -125,7 +125,7 @@ impl AvatarIcon {
 struct Flair(Stack, AvatarIcon, Shape);
 impl OnEvent for Flair {}
 impl Flair {
-    fn new(ctx: &mut Context, name: &'static str, style: AvatarIconStyle, size: AvatarSize) -> Self {
+    fn new(ctx: &mut Context, name: &str, style: AvatarIconStyle, size: AvatarSize) -> Self {
         Flair(
             Stack::center(),
             AvatarIcon::new(ctx, name, style, size.get() / 3.0),
@@ -138,7 +138,7 @@ impl Flair {
 #[derive(Debug, Clone)]
 pub enum AvatarContent {
     /// Display an icon on a circle background.
-    Icon(&'static str, AvatarIconStyle),
+    Icon(String, AvatarIconStyle),
     /// Display a circular image .
     Image(resources::Image)
 }
