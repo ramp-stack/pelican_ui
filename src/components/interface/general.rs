@@ -1,7 +1,7 @@
-use roost::{emitters, drawables, Component, Context, IS_MOBILE, IS_WEB};
-use roost::events::{Event, OnEvent, MouseEvent, MouseState};
-use roost::drawable::{Drawable, Align};
-use roost::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
+use roost_ui::{emitters, drawables, Component, Context, IS_MOBILE, IS_WEB};
+use roost_ui::events::{Event, OnEvent, MouseEvent, MouseState};
+use roost_ui::drawable::{Drawable, Align};
+use roost_ui::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
 
 use crate::components::{Rectangle, TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
@@ -130,7 +130,7 @@ impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
     pub fn new(ctx: &mut Context, offset: Offset, content: Vec<Box<dyn Drawable>>) -> Self {
         let layout = ctx.get::<PelicanUI>().get().0.theme().layout.clone();
-        let max = if roost::IS_WEB {1200.0} else {layout.content_max};
+        let max = if roost_ui::IS_WEB {1200.0} else {layout.content_max};
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |_: Vec<(f32, f32)>|(0.0, f32::MAX));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
@@ -182,7 +182,7 @@ impl OnEvent for Content {
         if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.0.adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
-        //     if roost::IS_MOBILE {
+        //     if roost_ui::IS_MOBILE {
         //         let mut total_height = 0.0;
         //         for item in self.items().iter_mut() {
         //             match item.as_any_mut().downcast_mut::<TextInput>() {
@@ -364,7 +364,7 @@ impl Bumper {
     pub fn new(ctx: &mut Context, content: Vec<Box<dyn Drawable>>) -> Self {
         let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
         let max = ctx.get::<PelicanUI>().get().0.theme().layout.bumper_max;
-        let max = if roost::IS_WEB {1200.0} else {max};
+        let max = if roost_ui::IS_WEB {1200.0} else {max};
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());

@@ -1,9 +1,9 @@
-use roost::events::OnEvent;
-use roost::drawable::{Drawable, Component};
-use roost::layout::{Area, SizeRequest};
-use roost::drawable::{ShapeType, Image, Color};
-use roost::maverick_os::hardware::ImageOrientation;
-use roost::{Context, resources};
+use roost_ui::events::OnEvent;
+use roost_ui::drawable::{Drawable, Component};
+use roost_ui::layout::{Area, SizeRequest};
+use roost_ui::drawable::{ShapeType, Image, Color};
+use roost_ui::maverick_os::hardware::ImageOrientation;
+use roost_ui::{Context, resources};
 use std::io::BufWriter;
 
 use image::codecs::png::PngEncoder;
@@ -24,9 +24,9 @@ use crate::plugin::PelicanUI;
 ///
 /// If an Icon is built with an icon name that doesn't exist, it will default to the Pelican UI logo.
 ///
-/// For all available icons, [`go here`](roost::IconResources)
+/// For all available icons, [`go here`](roost_ui::IconResources)
 ///
-/// To learn how to add new icons to the registration, [`go here`](roost::IconResources)
+/// To learn how to add new icons to the registration, [`go here`](roost_ui::IconResources)
 ///
 /// ![Icon Example](https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/icon.png)
 ///
@@ -62,7 +62,7 @@ impl Icon {
 /// let image = AspectRatioImage::new(img, (100.0, 100.0));
 /// ```
 ///
-/// For adding a new image to the illustrations go here: [`Illustrations`](roost::Illustrations)
+/// For adding a new image to the illustrations go here: [`Illustrations`](roost_ui::Illustrations)
 #[derive(Clone, Debug)]
 pub struct AspectRatioImage;
 impl AspectRatioImage {

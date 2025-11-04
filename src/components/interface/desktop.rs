@@ -1,7 +1,7 @@
-use roost::{Component, Context};
-use roost::events::OnEvent;
-use roost::drawable::{Color, Drawable, Image};
-use roost::layouts::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
+use roost_ui::{Component, Context};
+use roost_ui::events::OnEvent;
+use roost_ui::drawable::{Color, Drawable, Image};
+use roost_ui::layouts::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 
 use crate::components::{Rectangle, AspectRatioImage};
 use crate::components::interface::general::InterfaceTrait;

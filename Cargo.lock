@@ -3006,7 +3006,6 @@ dependencies = [
  "fast_image_resize",
  "image 0.25.6",
  "imageproc",
- "include_dir",
  "png 0.18.0",
  "qrc",
  "qrcode 0.14.1",
@@ -3019,8 +3018,6 @@ dependencies = [
 [[package]]
 name = "pelican_ui_proc"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d908c9fefc31e4d85cc95b2cc8d8b2164442b7fabeb4ee34023150e7a60b7366"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
@@ -3554,8 +3551,6 @@ checksum = "57397d16646700483b67d2dd6511d79318f9d057fdbd21a4066aeac8b41d310a"
 [[package]]
 name = "roost_ui"
 version = "2.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e096c899ebee3f7dc1fd435a3d84c2417266fb6364e55eb31a8f74f0f2e0c90d"
 dependencies = [
  "downcast-rs 2.0.1",
  "image 0.25.6",

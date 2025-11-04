@@ -1,7 +1,7 @@
-use roost::events::OnEvent;
-use roost::drawable::{Image, Drawable, Color, Align};
-use roost::{drawables, Context, Component};
-use roost::layouts::{Offset, Padding, Row, Size, Stack};
+use roost_ui::events::OnEvent;
+use roost_ui::drawable::{Image, Drawable, Color, Align};
+use roost_ui::{drawables, Context, Component};
+use roost_ui::layouts::{Offset, Padding, Row, Size, Stack};
 
 use crate::interactions;
 use crate::components::{Icon, Rectangle, Text, TextSize, TextStyle};

@@ -1,4 +1,4 @@
-use roost::{Assets, resources};
+use roost_ui::{Assets, resources};
 
 /// Represents a collection of font resources, including fonts and font sizes.
 #[derive(Clone)]

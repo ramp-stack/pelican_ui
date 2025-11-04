@@ -1,4 +1,4 @@
-use roost::{Context, Plugin, include_dir};
+use roost_ui::{Context, Plugin, include_dir};
 use crate::theme::Theme;
 
 pub struct PelicanUI(Theme);

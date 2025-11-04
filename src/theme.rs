@@ -1,5 +1,5 @@
-use roost::{Assets, include_dir};
-use roost::drawable::Color;
+use roost_ui::{Assets, include_dir};
+use roost_ui::drawable::Color;
 
 pub mod colors;
 pub use colors::*;

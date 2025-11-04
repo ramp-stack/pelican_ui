@@ -1,7 +1,7 @@
-use roost::events::{self, TickEvent, OnEvent, Event};
-use roost::drawable::{Drawable};
-use roost::{emitters, Context, Component};
-use roost::layouts::{Stack, Size, Offset, Padding, Bin};
+use roost_ui::events::{self, TickEvent, OnEvent, Event};
+use roost_ui::drawable::{Drawable};
+use roost_ui::{emitters, Context, Component};
+use roost_ui::layouts::{Stack, Size, Offset, Padding, Bin};
 
 #[derive(Component, Debug)]
 pub struct Slider(Stack, emitters::Slider<_Slider>);
