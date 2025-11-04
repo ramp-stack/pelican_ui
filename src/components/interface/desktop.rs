@@ -48,7 +48,8 @@ impl DesktopNavigator {
         });
 
         navigation.0.into_iter().for_each(|info| {
-            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Reset);
+            let root = info.label.to_string();
+            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Root(root.clone()));
 
             top_col.push(match info.avatar {
                 Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, 0 == i, group_id),
@@ -59,7 +60,8 @@ impl DesktopNavigator {
 
         if let Some(n) = navigation.1 {
             n.into_iter().for_each(|info| {
-                let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Reset);
+                let root = info.label.to_string();
+                let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Root(root.clone()));
 
                 bot_col.push(match info.avatar {
                     Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, 0 == i, group_id),

@@ -47,7 +47,8 @@ impl WebNavigator {
 
         if let Some(n) = navigation.1 { navigation.0.extend(n); }
         for (index, info) in navigation.0.into_iter().enumerate() {
-            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Reset);
+            let root = info.label.to_string();
+            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Root(root.clone()));
             buttons.push(NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, 0 == index, group_id));
         }
 
