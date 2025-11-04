@@ -1,7 +1,7 @@
-use roost::events::{OnEvent, TickEvent, Event, self};
-use roost::drawable::{Align, Color};
-use roost::{Context, Component};
-use roost::layouts::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
+use roost_ui::events::{OnEvent, TickEvent, Event, self};
+use roost_ui::drawable::{Align, Color};
+use roost_ui::{Context, Component};
+use roost_ui::layouts::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
 
 use crate::interactions;
 use crate::components::{Rectangle, ExpandableText, Text, TextSize, TextStyle, TextEditor};

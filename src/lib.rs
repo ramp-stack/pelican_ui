@@ -9,7 +9,7 @@
 //! 
 //! ## Overview
 //! 
-//! Pelican extends Roost’s [`Drawable`](roost::drawable::Drawable) with:
+//! Pelican extends Roost’s [`Drawable`](roost_ui::drawable::Drawable) with:
 //! - [`Shapes`](crate::components::shapes)
 //! - [`Text`](crate::components::text)
 //! - [`Components`](crate::components)
@@ -20,6 +20,10 @@
 //! You can download the starter template [here](<https://github.com/EllaCouch20/ramp_template>).
 //!
 //! Checkout the [website](<http://ramp-stack.com/pelican_ui>) for additional information and our [Quick Start Guide](<http://ramp-stack.com/pelican_ui/getting_started>) for setting up your first app.
+
+extern crate self as pelican_ui;
+
+pub use roost_ui::*;
 
 /// Interactions 
 pub mod interactions;
