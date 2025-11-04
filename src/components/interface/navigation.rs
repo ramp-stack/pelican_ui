@@ -10,18 +10,6 @@ use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, Ic
 use roost::layouts::{Stack, Offset};
 use crate::plugin::PelicanUI;
 
-pub enum PelicanError {
-    Err(String, Option<Box<dyn AppPage>>),
-    InvalidPage(Option<Box<dyn AppPage>>),
-    NoOutlet
-}
-
-impl From<String> for PelicanError {
-    fn from(s: String) -> PelicanError {
-        PelicanError::Err(s, None)
-    }
-}
-
 /// This trait is used to define pages in the application.
 /// 
 /// Every page must implement this trait. 
@@ -29,68 +17,54 @@ impl From<String> for PelicanError {
 /// Every page must implement [`Debug`] and [`Component`].
 ///
 ///
-pub trait AppPage: Drawable + std::fmt::Debug + 'static {
-    /// This is called to navigate away from the current page.
-    ///
-    /// The `index` parameter is the index that was triggered. Match on the index to navigate to
-    /// the desired page. The returned value must be an `Ok` variant with a boxed `dyn AppPage`.
-    ///
-    /// If the index is not an expected value, return `Err(self)` and the user will be navigated
-    /// to an error page where `self` acts as the **"go back"** button.
-    ///
-    /// ```rust
-    /// fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) {
-    ///     match index {
-    ///         0 => page!(Home::new(ctx)),
-    ///         1 => page!(Settings::new(ctx))),
-    ///         2 => page!(Search::new(ctx))),
-    ///         _ => Err(PelicanError::InvalidPage(Some(self))),
-    ///     }
-    /// }
-    /// ```
-    ///
-    fn navigate(self: Box<Self>, ctx: &mut Context, index: usize) 
-        -> Result<Box<dyn AppPage>, PelicanError>;
-
-    /// Returns whether a navigation bar is visible
-    fn has_navigator(&self) -> bool {true}
-}
+pub trait AppPage: Drawable + std::fmt::Debug + 'static {}
 
 /// Event used to navigate between pages of the app.
-#[derive(Debug, Clone)]
-pub struct NavigateEvent(pub usize);
+#[derive(Debug)]
+pub enum NavigationEvent {
+    Pop(usize),
+    Push(Option<Box<dyn AppPage>>),
+    Reset,
+    Root(String),
+    Error(String)
+}
 
-impl Event for NavigateEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+impl NavigationEvent {
+    pub fn push(page: impl AppPage) -> Self {
+        NavigationEvent::Push(Some(Box::new(page)))
     }
 }
 
-pub type PageBuilder = Box<dyn FnMut(&mut Context) -> Box<dyn AppPage>>;
+impl Event for NavigationEvent {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+        // children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+        vec![Some(self)]
+    }
+}
 
 pub struct RootInfo {
     pub(crate) icon: &'static str,
     pub(crate) label: String,
     pub(crate) avatar: Option<AvatarContent>,
-    pub(crate) get_page: Option<PageBuilder>
+    pub(crate) page: Option<Box<dyn AppPage>>
 }
 
 impl RootInfo {
-    pub fn icon(icon: &'static str, label: &str, get_page: impl FnMut(&mut Context) -> Box<dyn AppPage> + 'static) -> Self {
+    pub fn icon(icon: &'static str, label: &str, page: impl AppPage) -> Self {
         RootInfo {
             icon,
             label: label.to_string(),
             avatar: None,
-            get_page: Some(Box::new(get_page))
+            page: Some(Box::new(page))
         }
     }
 
-    pub fn avatar(avatar: AvatarContent, label: &str, get_page: impl FnMut(&mut Context) -> Box<dyn AppPage> + 'static) -> Self {
+    pub fn avatar(avatar: AvatarContent, label: &str, page: impl AppPage) -> Self {
         RootInfo {
             icon: "profile",
             label: label.to_string(),
             avatar: Some(avatar),
-            get_page: Some(Box::new(get_page))
+            page: Some(Box::new(page))
         }
     }
 }
@@ -137,16 +111,6 @@ impl NavigatorSelectable {
 pub struct NavigatorSelect(pub uuid::Uuid);
 
 impl Event for NavigatorSelect {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
-
-/// Navigates to the page at the given `index`. See [`AppPage`] for details on navigation.
-#[derive(Debug, Clone)]
-pub struct NavigatorEvent(pub usize);
-
-impl Event for NavigatorEvent {
     fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
         children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }

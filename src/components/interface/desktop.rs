@@ -5,7 +5,7 @@ use roost::layouts::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 
 use crate::components::{Rectangle, AspectRatioImage};
 use crate::components::interface::general::InterfaceTrait;
-use crate::components::interface::navigation::{AppPage, NavigatorEvent, RootInfo, NavigatorSelectable};
+use crate::components::interface::navigation::{AppPage, NavigationEvent, RootInfo, NavigatorSelectable};
 use crate::plugin::PelicanUI;
 
 #[derive(Component, Debug)]
@@ -48,7 +48,7 @@ impl DesktopNavigator {
         });
 
         navigation.0.into_iter().for_each(|info| {
-            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
+            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Reset);
 
             top_col.push(match info.avatar {
                 Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, 0 == i, group_id),
@@ -59,7 +59,7 @@ impl DesktopNavigator {
 
         if let Some(n) = navigation.1 {
             n.into_iter().for_each(|info| {
-                let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
+                let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Reset);
 
                 bot_col.push(match info.avatar {
                     Some(a) => NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, 0 == i, group_id),

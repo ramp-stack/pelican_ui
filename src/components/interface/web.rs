@@ -5,7 +5,7 @@ use roost::drawable::{Color, Drawable, Image};
 use crate::components::{Rectangle, AspectRatioImage};
 use crate::components::button::GhostIconButton;
 use crate::components::interface::general::InterfaceTrait;
-use crate::components::interface::navigation::{AppPage, RootInfo, NavigatorEvent, NavigatorSelectable};
+use crate::components::interface::navigation::{AppPage, RootInfo, NavigationEvent, NavigatorSelectable};
 
 use roost::layouts::{Bin, Column, Offset, Opt, Padding, Row, Size, Stack};
 use crate::plugin::PelicanUI;
@@ -47,7 +47,7 @@ impl WebNavigator {
 
         if let Some(n) = navigation.1 { navigation.0.extend(n); }
         for (index, info) in navigation.0.into_iter().enumerate() {
-            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(index));
+            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Reset);
             buttons.push(NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, 0 == index, group_id));
         }
 

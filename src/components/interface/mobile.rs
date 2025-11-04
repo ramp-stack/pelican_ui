@@ -6,7 +6,7 @@ use roost::layouts::{Column, Row, Padding, Offset, Size, Opt, Stack};
 use crate::components::Rectangle;
 use crate::components::interface::general::InterfaceTrait;
 use crate::components::interface::system::MobileKeyboard;
-use crate::components::interface::navigation::{AppPage, NavigateEvent, RootInfo, NavigatorEvent, NavigatorSelectable};
+use crate::components::interface::navigation::{AppPage, RootInfo, NavigationEvent, NavigatorSelectable};
 use crate::plugin::PelicanUI;
 
 #[derive(Component, Debug)]
@@ -33,7 +33,7 @@ impl MobileInterface {
 
 impl OnEvent for MobileInterface {
     fn on_event(&mut self, ctx: &mut Context, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_mut::<NavigateEvent>().is_some() {
+        if event.downcast_mut::<NavigationEvent>().is_some() {
             self.2 = None;
         } else if let Some(ShowKeyboard(b)) = event.downcast_ref::<ShowKeyboard>() {
             self.2 = b.then_some(MobileKeyboard::new(ctx, true));
@@ -69,7 +69,7 @@ impl MobileNavigatorContent {
         let mut tabs = Vec::new();
         if let Some(n) = navigation.1 { navigation.0.extend(n); }
         for (i, info) in navigation.0.into_iter().enumerate() {
-            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigatorEvent(i));
+            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Reset);
             tabs.push(NavigatorSelectable::mobile(ctx, info.icon, closure, 0 == i, group_id));
         }
 
