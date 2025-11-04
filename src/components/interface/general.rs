@@ -8,6 +8,7 @@ use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton}
 use crate::components::interface::navigation::{AppPage, NavigationEvent, RootInfo};
 use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInterface, web::WebInterface};
 
+use crate::utils::Callback;
 use crate::pages::Error;
 use crate::plugin::PelicanUI;
 
@@ -60,9 +61,9 @@ impl Interface {
         if roots.is_empty() {panic!("You must provide at least one RootInfo to the Interface")}
         
         let first = roots[0].0.to_string();
-        let mut roots = HashMap::from_iter(roots.into_iter());
+        let mut roots = HashMap::from_iter(roots);
 
-        let start_page = roots.remove(&first).unwrap().take().unwrap();
+        let start_page = roots.remove(&first).unwrap().unwrap();
         roots.insert(first.to_string(), None);
 
         let visual: Box<dyn InterfaceTrait> = match IS_WEB {
@@ -107,13 +108,13 @@ impl OnEvent for Interface {
                     self.history.push(self.interface.app_page().take().unwrap());
                     *self.interface.app_page() = Some(page.take().unwrap()); 
                 },
-                NavigationEvent::Reset => if self.history.len() > 0 {
+                NavigationEvent::Reset => if !self.history.is_empty() {
                     let page = self.history.remove(0);
                     *self.interface.app_page() = Some(page);
                     self.history = Vec::new();
                 },
                 NavigationEvent::Root(r) => {
-                    let prev_root = match self.history.len() > 0 {
+                    let prev_root = match !self.history.is_empty() {
                         true => self.history.remove(0),
                         false => self.interface.app_page().take().unwrap()
                     };
@@ -302,7 +303,7 @@ impl Header {
     /// let header = Header::home(ctx, "My Account", None);
     /// let header = Header::home(ctx, "Explore", Some(("search", 1)))
     /// ```
-    pub fn home(ctx: &mut Context, title: &str, icon: Option<(&'static str, Box<dyn FnMut(&mut Context)>)>) -> Self {
+    pub fn home(ctx: &mut Context, title: &str, icon: Option<(&'static str, Callback)>) -> Self {
         Self::_new(ctx, title, None, icon, TextSize::H3)
     }
 
@@ -332,16 +333,16 @@ impl Header {
     fn _new(
         ctx: &mut Context,
         title: &str,
-        l_icon: Option<(&'static str, Box<dyn FnMut(&mut Context)>)>,
-        r_icon: Option<(&'static str, Box<dyn FnMut(&mut Context)>)>,
+        l_icon: Option<(&'static str, Callback)>,
+        r_icon: Option<(&'static str, Callback)>,
         size: TextSize,
     ) -> Self {
         let clean: String = title.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
         let title = clean[..1].to_uppercase() + &clean[1..].to_lowercase();
         let text = ExpandableText::new(ctx, &title, size, TextStyle::Heading, Align::Center, Some(1));
 
-        let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(ctx, n, c)).unwrap_or(HeaderIcon::none());
-        let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(ctx, n, c)).unwrap_or(HeaderIcon::none());
+        let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(ctx, n, c)).unwrap_or_default();
+        let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(ctx, n, c)).unwrap_or_default();
 
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0));
         Header(layout, l_icon, Box::new(text), r_icon)

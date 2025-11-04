@@ -36,7 +36,7 @@ impl NavigationEvent {
 }
 
 impl Event for NavigationEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
+    fn pass(self: Box<Self>, _ctx: &mut Context, _children: &Vec<((f32, f32), (f32, f32))>) -> Vec<Option<Box<dyn Event>>> {
         // children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
         vec![Some(self)]
     }
