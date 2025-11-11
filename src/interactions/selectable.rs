@@ -42,9 +42,9 @@ impl _Selectable {
     ) -> Self {
         let start = if is_selected {"selected"} else {"default"};
         _Selectable(Stack::default(), Enum::new(vec![
-            ("default", Box::new(default)),
-            ("selected", Box::new(selected)),
-        ], start), Box::new(on_click))
+            ("default".to_string(), Box::new(default)),
+            ("selected".to_string(), Box::new(selected)),
+        ], start.to_string()), Box::new(on_click))
     }
 }
 

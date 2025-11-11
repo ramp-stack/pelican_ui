@@ -1,146 +1,34 @@
 use roost_ui::{emitters, drawables, Component, Context, IS_MOBILE, IS_WEB};
 use roost_ui::events::{Event, OnEvent, MouseEvent, MouseState};
 use roost_ui::drawable::{Drawable, Align};
-use roost_ui::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection, Opt};
+use roost_ui::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection};
 
 use crate::components::{Rectangle, TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
-use crate::components::interface::navigation::{AppPage, NavigationEvent, RootInfo};
-use crate::components::interface::{desktop::DesktopInterface, mobile::MobileInterface, web::WebInterface};
+use crate::components::interface::navigation::{NavigationEvent, RootInfo};
+use crate::components::interface::interfaces;
 
 use crate::utils::Callback;
-use crate::pages::Error;
 use crate::plugin::PelicanUI;
-
-use std::collections::HashMap;
-
-pub struct Roots {
-    roots: HashMap<String, Option<Box<dyn AppPage>>>,
-    current: String,
-}
-
-impl Roots {
-    pub fn current(&mut self) -> String {self.current.to_string()}
-
-    pub fn switch(&mut self, new_root: String, last_root: Box<dyn AppPage>) -> Option<Box<dyn AppPage>> {
-        let mut last_root = Some(last_root);
-        self.roots.iter_mut().for_each(|(_, v)| {
-            if v.is_none() { *v = Some(last_root.take().unwrap()); }
-        });
-
-        self.roots.remove(&new_root).map(|mut v| v.take().unwrap())
-    }
-}
 
 /// The top-level interface of an app built with Pelican.
 ///
 /// This interface automatically adapts to the platform.
-#[derive(Component)]
-pub struct Interface {
-    layout: Stack,
-    background: Rectangle,
-    interface: Box<dyn InterfaceTrait>,
-    #[skip] roots: Roots,
-    #[skip] history: Vec<Box<dyn AppPage>>,
-}
+#[derive(Component, Debug)]
+pub struct Interface(Stack, Rectangle, interfaces::Interface);
+impl OnEvent for Interface {}
 
 impl Interface {
-    pub fn new(ctx: &mut Context,
-        mut navigation: (Vec<RootInfo>, Option<Vec<RootInfo>>),
-    ) -> Self {
-        let roots: Vec<(String, Option<Box<dyn AppPage>>)> = navigation.0
-            .iter_mut().chain(navigation.1.iter_mut().flatten())
-            .map(|nav| (nav.label.to_string(), Some(nav.page.take().unwrap()))).collect();
-
-        let navigation = match navigation.0.len() <= 1 && navigation.1.is_none() 
-        || navigation.0.is_empty() && navigation.1.as_ref().map(|n| n.len() <= 1).unwrap_or(false) {
-            true => None,
-            false => Some(navigation)
-        };
-
-        if roots.is_empty() {panic!("You must provide at least one RootInfo to the Interface")}
-        
-        let first = roots[0].0.to_string();
-        let mut roots = HashMap::from_iter(roots);
-
-        let start_page = roots.remove(&first).unwrap().unwrap();
-        roots.insert(first.to_string(), None);
-
-        let visual: Box<dyn InterfaceTrait> = match IS_WEB {
-            true => Box::new(WebInterface::new(ctx, start_page, navigation, None)),
-            false if IS_MOBILE => Box::new(MobileInterface::new(ctx, start_page, navigation)),
-            false => Box::new(DesktopInterface::new(ctx, start_page, navigation)),
-        };
-
+    pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
         let color = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
+        let interface: interfaces::Interface = match IS_WEB {
+            true => interfaces::Interface::web(ctx, navigation),
+            false if IS_MOBILE => interfaces::Interface::mobile(ctx, navigation),
+            false => interfaces::Interface::desktop(ctx, navigation),
+        };
 
-        Interface {
-            layout: Stack::default(),
-            background: Rectangle::new(color, 0.0, None),
-            interface: visual,
-            roots: Roots {roots, current: first.to_string()},
-            history: Vec::new(),
-        }
+        Interface(Stack::default(), Rectangle::new(color, 0.0, None), interface)
     }
-}
-
-impl std::fmt::Debug for Interface {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Interface")
-    }
-}
-
-impl OnEvent for Interface {
-    fn on_event(&mut self, ctx: &mut Context, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(event) = event.downcast_mut::<NavigationEvent>() {
-            match event {
-                NavigationEvent::Pop(i) => {
-                    for _ in 1..(*i as u32) {
-                        let len = self.history.len();
-                        if self.history.len() > len + 1 {
-                            self.history.remove(len);
-                        }
-                    }
-
-                    *self.interface.app_page() = Some(self.history.pop().unwrap());
-                },
-                NavigationEvent::Push(page) => {
-                    self.history.push(self.interface.app_page().take().unwrap());
-                    *self.interface.app_page() = Some(page.take().unwrap()); 
-                },
-                NavigationEvent::Reset => if !self.history.is_empty() {
-                    let page = self.history.remove(0);
-                    *self.interface.app_page() = Some(page);
-                    self.history = Vec::new();
-                },
-                NavigationEvent::Root(r) => {
-                    let prev_root = match !self.history.is_empty() {
-                        true => self.history.remove(0),
-                        false => self.interface.app_page().take().unwrap()
-                    };
-
-                    let new_root = self.roots.switch(r.to_string(), prev_root).expect("Tried to navigate to a root that doesn't exist");
-                    *self.interface.app_page() = Some(new_root);
-                    self.history = Vec::new();
-                }
-                NavigationEvent::Error(e) => {
-                    self.history.push(self.interface.app_page().take().unwrap());
-                    *self.interface.app_page() = Some(Box::new(Error::new(ctx, e.to_string())));
-                }
-            }
-
-            if let Some(navigator) = self.interface.navigator() { 
-                navigator.display(self.history.is_empty());
-            }
-        }
-
-        vec![event]
-    }
-}
-
-pub trait InterfaceTrait: Drawable + std::fmt::Debug + 'static {
-    fn app_page(&mut self) -> &mut Option<Box<dyn AppPage>>;
-    fn navigator(&mut self) -> &mut Option<Opt<Box<dyn Drawable>>>;
 }
 
 /// # Page
@@ -314,7 +202,7 @@ impl Header {
     /// let header = Header::stack(ctx, "Select role");
     /// ```
     pub fn stack(ctx: &mut Context, title: &str) -> Self {
-        let closure = |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Pop(1));
+        let closure = |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Pop);
         Self::_new(ctx, title, Some(("left", Box::new(closure))), None, TextSize::H4)
     }
 
@@ -325,7 +213,11 @@ impl Header {
     /// let header = Header::stack_end(ctx, "Select role", 4);
     /// ```
     pub fn stack_end(ctx: &mut Context, title: &str, len: usize) -> Self {
-        let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Pop(len));
+        let closure = move |ctx: &mut Context| {
+            for _ in 0..len {
+                ctx.trigger_event(NavigationEvent::Pop);
+            }
+        };
         Self::_new(ctx, title, Some(("close", Box::new(closure))), None, TextSize::H4)
     }
 
@@ -398,41 +290,35 @@ impl Bumper {
     /// let bumper = Header::home(ctx, "New Message", None); // navigates to 1
     /// let bumper = Header::home(ctx, "Receive", Some("Send")) // navigates to 1 and 2
     /// ```
-    pub fn home(ctx: &mut Context, first: (&str, impl AppPage), second: Option<(&str, Box<dyn AppPage>)>) -> Self {
-        let mut next = Some(first.1);
-        let first = PrimaryButton::new(ctx, first.0, move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::push(next.take().unwrap())), false);
+    pub fn home(ctx: &mut Context, first: (&str, impl FnMut(&mut Context) + 'static), second: Option<(&str, Callback)>) -> Self {
+        let first = PrimaryButton::new(ctx, first.0, Box::new(first.1), false);
 
-        let second = second.map(|(l, n)| {
-            let mut next = Some(n);
-            let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Push(Some(next.take().unwrap())));
-            PrimaryButton::new(ctx, l, closure, false)
+        let second = second.map(|(label, on_click)| {
+            PrimaryButton::new(ctx, label, on_click, false)
         });
 
         Self::new(ctx, drawables![first, second])
     }
 
     /// A `Bumper` preset used for in-flow pages.
-    /// This bumper contains a button labeled "Continue" that always navigates to index 1.
+    /// This bumper contains a button. If no label is provided, it will default to "Continue".
     ///
     /// ```rust
     /// let bumper = Bumper::stack(ctx, false);
     /// ```
-    pub fn stack(ctx: &mut Context, is_disabled: bool, next: impl AppPage) -> Self {
-        let mut next = Some(next);
-        let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::push(next.take().unwrap()));
-        let button = PrimaryButton::new(ctx, "Continue", Box::new(closure), is_disabled);
+    pub fn stack(ctx: &mut Context, label: Option<&str>, is_disabled: bool, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+        let button = PrimaryButton::new(ctx, label.unwrap_or("Continue"), Box::new(on_click), is_disabled);
         Self::new(ctx, drawables![button])
     }
 
     /// A `Bumper` preset used for end-of-flow pages.
-    /// This bumper contains a button labeled "Done" that always navigates to index 1.
+    /// This bumper contains a button labeled "Done".
     ///
     /// ```rust
     /// let bumper = Bumper::stack_end(ctx);
     /// ```
-    pub fn stack_end(ctx: &mut Context, len: usize) -> Self {
-        let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Pop(len));
-        let button = SecondaryButton::large(ctx, "Done", Box::new(closure));
+    pub fn stack_end(ctx: &mut Context, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+        let button = SecondaryButton::large(ctx, "Done", Box::new(on_click));
         Self::new(ctx, drawables![button])
     }
 

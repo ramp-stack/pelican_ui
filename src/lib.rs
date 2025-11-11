@@ -32,3 +32,43 @@ pub mod utils;
 pub mod plugin;
 pub mod theme;
 pub mod pages;
+
+use crate::components::interface::general::Interface;
+use crate::theme::Theme;
+
+pub struct PelicanUI<A: Application>(A);
+
+pub trait Application {
+    fn interface(ctx: &mut Context) -> Interface;
+
+    fn theme(assets: &mut Assets) -> Theme {
+        Theme::default(assets)
+    }
+}
+
+impl<A: Application> roost_ui::Application for PelicanUI<A> {
+    async fn new(ctx: &mut Context) -> impl pelican_ui::drawable::Drawable {
+        A::interface(ctx)
+    }
+
+    fn plugins(ctx: &mut Context) -> Vec<Box<dyn pelican_ui::Plugin>> {
+        let theme = A::theme(&mut ctx.assets);
+        vec![Box::new(pelican_ui::plugin::PelicanUI::new(ctx, theme))]
+    }
+}
+
+
+#[doc(hidden)]
+pub mod __private {
+    pub use roost_ui::start as roost_start;
+    pub use pelican_ui::PelicanUI;
+}
+
+#[macro_export]
+macro_rules! start {
+    ($app:ty) => {
+        pub use $crate::__private::*;
+
+        roost_start!(PelicanUI<$app>);
+    };
+}

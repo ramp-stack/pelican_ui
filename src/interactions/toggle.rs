@@ -41,7 +41,7 @@ impl _Toggle {
     ) -> Self {
         let start = if is_selected {"on"} else {"off"};
         _Toggle(Stack::default(), 
-            Enum::new(vec![("on", Box::new(on)), ("off", Box::new(off))], start), 
+            Enum::new(vec![("on".to_string(), Box::new(on)), ("off".to_string(), Box::new(off))], start.to_string()), 
             !is_selected, Box::new(on_click)
         )
     }

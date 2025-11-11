@@ -26,7 +26,7 @@ impl Error {
         let title = Text::new(ctx, "Something went wrong.", TextSize::H4, TextStyle::Heading, Align::Left, None);
         let text = Text::new(ctx, &error, TextSize::Md, TextStyle::Primary, Align::Center, None);
         let content = Content::new(ctx, Offset::Center, drawables![illustration, title, text]);
-        let button = PrimaryButton::new(ctx, "Go Back", move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Pop(1)), false);
+        let button = PrimaryButton::new(ctx, "Go Back", move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Pop), false);
         let bumper = Bumper::new(ctx, drawables![button]);
         let header = Header::home(ctx, "Error", None);
         Error(Stack::default(), Page::new(header, content, Some(bumper)))

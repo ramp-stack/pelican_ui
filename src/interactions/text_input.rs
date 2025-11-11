@@ -46,13 +46,13 @@ impl _InputField {
         let height = Size::custom(move |h: Vec<(f32, f32)>| (h[1].0.max(height), h[1].1.max(height)));
         let layout = Stack(Offset::Start, Offset::Start, Size::Fit, height, Padding::default());
 
-        let mut items: Vec<(&str, Box<dyn Drawable>)> = Vec::new();
-        items.push(("default", Box::new(default)));
-        items.push(("focus", Box::new(focus)));
-        if let Some(h) = hover { items.push(("hover", Box::new(h))) }
-        if let Some(e) = error { items.push(("error", Box::new(e))) }
+        let mut items: Vec<(String, Box<dyn Drawable>)> = Vec::new();
+        items.push(("default".to_string(), Box::new(default)));
+        items.push(("focus".to_string(), Box::new(focus)));
+        if let Some(h) = hover { items.push(("hover".to_string(), Box::new(h))) }
+        if let Some(e) = error { items.push(("error".to_string(), Box::new(e))) }
 
-        _InputField(layout, Enum::new(items, "default"), Box::new(content), false)
+        _InputField(layout, Enum::new(items, "default".to_string()), Box::new(content), false)
     }
 
     pub fn error(&mut self, error: bool) {

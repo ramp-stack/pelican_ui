@@ -43,12 +43,12 @@ impl _Button {
         callback: impl FnMut(&mut Context) + 'static,
     ) -> Self {
         let start = if is_disabled {"disabled"} else {"default"};
-        let mut items: Vec<(&str, Box<dyn Drawable>)> = Vec::new();
-        items.push(("default", Box::new(default)));
-        if let Some(h) = hover { items.push(("hover", Box::new(h))) }
-        if let Some(p) = pressed { items.push(("pressed", Box::new(p))) }
-        if let Some(d) = disabled { items.push(("disabled", Box::new(d))) }
-        _Button(Stack::default(), Enum::new(items, start), is_disabled, Box::new(callback))
+        let mut items: Vec<(String, Box<dyn Drawable>)> = Vec::new();
+        items.push(("default".to_string(), Box::new(default)));
+        if let Some(h) = hover { items.push(("hover".to_string(), Box::new(h))) }
+        if let Some(p) = pressed { items.push(("pressed".to_string(), Box::new(p))) }
+        if let Some(d) = disabled { items.push(("disabled".to_string(), Box::new(d))) }
+        _Button(Stack::default(), Enum::new(items, start.to_string()), is_disabled, Box::new(callback))
     }
 
     pub fn disable(&mut self, disable: bool) {

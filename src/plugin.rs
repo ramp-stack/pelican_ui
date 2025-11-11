@@ -10,6 +10,7 @@ impl PelicanUI {
     }
 
     pub fn theme(&self) -> &Theme {&self.0}
+    pub fn theme_mut(&mut self) -> &mut Theme {&mut self.0}
 }
 
 // impl Default for PelicanUI {
