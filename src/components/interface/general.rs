@@ -3,7 +3,8 @@ use roost_ui::events::{Event, OnEvent, MouseEvent, MouseState};
 use roost_ui::drawable::{Drawable, Align};
 use roost_ui::layouts::{AdjustScrollEvent, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection};
 
-use crate::components::{Rectangle, TextStyle, TextSize, ExpandableText};
+use crate::components::{Rectangle};
+use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
 use crate::components::interface::navigation::{NavigationEvent, RootInfo};
 use crate::components::interface::interfaces;
@@ -210,14 +211,10 @@ impl Header {
     /// This header contains a close button that always pops back the number of times provided.
     ///
     /// ```rust
-    /// let header = Header::stack_end(ctx, "Select role", 4);
+    /// let header = Header::stack_end(ctx, "Select role");
     /// ```
-    pub fn stack_end(ctx: &mut Context, title: &str, len: usize) -> Self {
-        let closure = move |ctx: &mut Context| {
-            for _ in 0..len {
-                ctx.trigger_event(NavigationEvent::Pop);
-            }
-        };
+    pub fn stack_end(ctx: &mut Context, title: &str) -> Self {
+        let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Reset);
         Self::_new(ctx, title, Some(("close", Box::new(closure))), None, TextSize::H4)
     }
 
@@ -317,8 +314,9 @@ impl Bumper {
     /// ```rust
     /// let bumper = Bumper::stack_end(ctx);
     /// ```
-    pub fn stack_end(ctx: &mut Context, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let button = SecondaryButton::large(ctx, "Done", Box::new(on_click));
+    pub fn stack_end(ctx: &mut Context) -> Self {
+        let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Reset);
+        let button = SecondaryButton::large(ctx, "Done", Box::new(closure));
         Self::new(ctx, drawables![button])
     }
 

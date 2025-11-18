@@ -5,7 +5,8 @@ use roost_ui::drawable::{Align, Image, Color};
 use roost_ui::{Context, Component};
 
 use crate::components::interface::interfaces::ShowKeyboard;
-use crate::components::{Text, TextStyle, TextSize, Rectangle, Icon};
+use crate::components::text::{Text, TextStyle, TextSize};
+use crate::components::{Rectangle, Icon};
 use roost_ui::layouts::{Stack, Bin, Column, Row, Offset, Size, Padding};
 // use crate::components::interactions::ButtonState;
 use crate::components::button::GhostIconButton;

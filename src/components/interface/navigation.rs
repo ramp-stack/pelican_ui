@@ -4,7 +4,8 @@ use roost_ui::drawable::{Drawable, Align, Color, Image};
 use roost_ui::layouts::{Row, Column, Size, Padding, Offset, Bin, Stack};
 
 use crate::interactions;
-use crate::components::{TextStyle, Text, Icon, AspectRatioImage, Rectangle};
+use crate::components::{Icon, AspectRatioImage, Rectangle};
+use crate::components::text::{TextStyle, Text};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, IconButton};
 use crate::plugin::PelicanUI;

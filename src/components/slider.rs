@@ -4,7 +4,8 @@ use roost_ui::{Context, Component};
 use roost_ui::layouts::Column;
 
 use crate::interactions;
-use crate::components::{Text, TextSize, ExpandableText, TextStyle, Circle, Rectangle};
+use crate::components::text::{TextSize, TextStyle, ExpandableText, Text};
+use crate::components::{Circle, Rectangle};
 use crate::plugin::PelicanUI;
 
 /// ## Slider

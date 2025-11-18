@@ -2,7 +2,8 @@ use roost_ui::events::OnEvent;
 use roost_ui::{Context, Component};
 use roost_ui::drawable::{Shape, Align};
 use roost_ui::layouts::{Bin, Column, Stack, Size, Offset, Padding};
-use crate::components::{TextSize, TextStyle, ExpandableText, Rectangle, Circle};
+use crate::components::text::{TextSize, TextStyle, ExpandableText};
+use crate::components::{Rectangle, Circle};
 use crate::plugin::PelicanUI;
 
 use crate::interactions;

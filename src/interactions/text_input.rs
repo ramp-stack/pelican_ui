@@ -74,7 +74,8 @@ impl OnEvent for _InputField {
                     ctx.hardware.haptic();
                     self.1.display("focus");
                 },
-                _ => self.1.display(if self.3 {"error"} else {"default"}),
+                events::TextInput::Hover(false) => self.1.display(if self.3 {"error"} else {"default"}),
+                events::TextInput::Focused(false) => self.1.display(if self.3 {"error"} else {"default"}),
             }
         }
         

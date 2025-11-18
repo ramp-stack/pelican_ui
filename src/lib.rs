@@ -52,6 +52,7 @@ impl<A: Application> roost_ui::Application for PelicanUI<A> {
     }
 
     fn plugins(ctx: &mut Context) -> Vec<Box<dyn pelican_ui::Plugin>> {
+        ctx.assets.include_assets(pelican_ui::include_dir!("./resources"));
         let theme = A::theme(&mut ctx.assets);
         vec![Box::new(pelican_ui::plugin::PelicanUI::new(ctx, theme))]
     }

@@ -4,7 +4,8 @@ use roost_ui::layouts::{Column, Stack, Row, Padding, Offset, Size};
 use roost_ui::{Context, Component};
 
 use crate::interactions;
-use crate::components::{Rectangle, Icon, Text, TextSize, ExpandableText, TextStyle};
+use crate::components::text::{Text, TextSize, ExpandableText, TextStyle};
+use crate::components::Icon;
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::plugin::PelicanUI;
 use crate::utils::TitleSubtitle;
@@ -45,35 +46,8 @@ impl ListItem {
         icon_r: Option<&'static str>,
         on_click: impl FnMut(&mut Context) + 'static,
     ) -> Self {
-        let list_item = _ListItem::new(ctx, avatar, left, right, icon_l, icon_r);
-        ListItem(Stack::default(), interactions::Button::new(list_item, None::<_ListItem>, None::<_ListItem>, None::<_ListItem>, false, Box::new(on_click)))
-    }
-}
-
-#[derive(Component)]
-pub struct _ListItem(Stack, Rectangle, ListItemContent);
-
-impl _ListItem {
-    pub fn new(
-        ctx: &mut Context,
-        avatar: Option<AvatarContent>,
-        left: ListItemInfoLeft,
-        right: Option<TitleSubtitle>,
-        icon_l: Option<&'static str>,
-        icon_r: Option<&'static str>,
-    ) -> Self {
-        let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
-        let content = ListItemContent::new(ctx, avatar, left, right, icon_l, icon_r);
-        let layout = Stack(Offset::Start, Offset::Center, Size::Fill, Size::custom(|heights: Vec<(f32, f32)>| heights[1]), Padding(0.0, 16.0, 0.0, 16.0));
-        _ListItem(layout, Rectangle::new(background, 0.0, None), content)
-    }
-}
-
-impl OnEvent for _ListItem {}
-
-impl std::fmt::Debug for _ListItem {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "_ListItem")
+        let list_item = ListItemContent::new(ctx, avatar, left, right, icon_l, icon_r);
+        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, false, Box::new(on_click)))
     }
 }
 
@@ -95,7 +69,8 @@ impl ListItemContent {
         let content = ListItemData::new(ctx, left, right);
         let icon_l = icon_l.map(|i| {let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.primary; Icon::new(ctx, i, Some(c), 24.0)});
         let icon_r = icon_r.map(|i| {let c = ctx.get::<PelicanUI>().get().0.theme().colors.text.primary; Icon::new(ctx, i, Some(c), 16.0)});
-        ListItemContent(Row::center(16.0), icon_l, avatar, content, icon_r)
+        let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0));
+        ListItemContent(layout, icon_l, avatar, content, icon_r)
     }
 }
 
@@ -110,13 +85,13 @@ impl ListItemData {
 }
 
 #[derive(Debug, Component)]
-struct LeftData(Column, TitleRow, ExpandableText, Option<ExpandableText>);
+struct LeftData(Column, TitleRow, Option<ExpandableText>, Option<ExpandableText>);
 impl OnEvent for LeftData {}
 
 impl LeftData {
     pub fn new(ctx: &mut Context, info: ListItemInfoLeft) -> Self {
         let layout = Column::new(4.0, Offset::Start, Size::Fill, Padding::default());
-        let subtitle = ExpandableText::new(ctx, &info.title.subtitle, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2));
+        let subtitle = info.title.subtitle.map(|s| ExpandableText::new(ctx, &s, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
         let description = info.description.map(|text| ExpandableText::new(ctx, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
         LeftData(layout, TitleRow::new(ctx, &info.title.title, info.flair), subtitle, description)
     }
@@ -136,13 +111,13 @@ impl TitleRow {
 }
 
 #[derive(Debug, Component)]
-struct RightData(Column, Text, Text);
+struct RightData(Column, Text, Option<Text>);
 impl OnEvent for RightData {}
 
 impl RightData {
     fn new(ctx: &mut Context, info: TitleSubtitle) -> Self {
         let title = Text::new(ctx, &info.title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
-        let subtitle = Text::new(ctx, &info.subtitle, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2));
+        let subtitle = info.subtitle.map(|s| Text::new(ctx, &s, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
         RightData(Column::end(4.0), title, subtitle)
     }
 }
@@ -154,7 +129,7 @@ pub struct ListItemInfoLeft {
 }
 
 impl ListItemInfoLeft {
-    pub fn new(title: &str, subtitle: &str, description: Option<&str>, flair: Option<(&'static str, Color)>) -> Self {
+    pub fn new(title: &str, subtitle: Option<&str>, description: Option<&str>, flair: Option<(&'static str, Color)>) -> Self {
         ListItemInfoLeft {
             title: TitleSubtitle::new(title, subtitle),
             description: description.map(|text| text.to_string()),

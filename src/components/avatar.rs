@@ -158,7 +158,7 @@ impl AvatarIconStyle {
     fn get(&self, ctx: &mut Context) -> (Color, Color) {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
         match self {
-            AvatarIconStyle::Primary => (colors.text.heading, colors.background.primary),
+            AvatarIconStyle::Primary => (colors.background.primary, colors.background.secondary),
             AvatarIconStyle::Secondary => (colors.background.secondary, colors.text.secondary),
             AvatarIconStyle::Brand => (colors.brand, Color::WHITE),
             AvatarIconStyle::Success => (colors.status.success, Color::WHITE),

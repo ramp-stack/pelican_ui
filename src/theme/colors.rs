@@ -173,9 +173,8 @@ pub struct ButtonColors {
 
 impl ButtonColors {
     pub fn from(brand: Color, is_light: bool) -> Self {
-        let label = if is_light {Color::WHITE} else {Color::BLACK};
         ButtonColors {
-            primary: ButtonColorSet::primary(brand, label),
+            primary: ButtonColorSet::primary(brand),
             secondary: ButtonColorSet::secondary(is_light),
             ghost: ButtonColorSet::ghost(is_light),
         }
@@ -185,7 +184,7 @@ impl ButtonColors {
 impl Default for ButtonColors {
     fn default() -> Self {
         ButtonColors {
-            primary: ButtonColorSet::primary(Color::from_hex("#02f0cc", 255), Color::WHITE),
+            primary: ButtonColorSet::primary(Color::from_hex("#02f0cc", 255)),
             secondary: ButtonColorSet::secondary(false),
             ghost: ButtonColorSet::ghost(false),
         }
@@ -212,11 +211,11 @@ pub struct ButtonColorSet {
 }
 
 impl ButtonColorSet {
-    pub fn primary(brand: Color, label: Color) -> Self {
+    pub fn primary(brand: Color) -> Self {
         ButtonColorSet {
             default: ButtonColorScheme {
                 background: brand,
-                label,
+                label: Color::WHITE,
                 outline: Color::TRANSPARENT,
             },
             disabled: ButtonColorScheme {
@@ -226,12 +225,12 @@ impl ButtonColorSet {
             },
             hover: ButtonColorScheme {
                 background: Color::darken(brand, 0.85),
-                label,
+                label: Color::WHITE,
                 outline: Color::TRANSPARENT,
             },
             pressed: ButtonColorScheme {
                 background: Color::darken(brand, 0.8),
-                label,
+                label: Color::WHITE,
                 outline: Color::TRANSPARENT
             }
         }

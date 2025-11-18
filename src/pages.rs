@@ -4,7 +4,8 @@ use roost_ui::{drawables, Context, Component};
 
 use roost_ui::layouts::{Offset, Stack};
 use crate::components::interface::general::{Page, Content, Header, Bumper};
-use crate::components::{TextStyle, Text, TextSize, AspectRatioImage};
+use crate::components::text::{TextStyle, Text, TextSize};
+use crate::components::AspectRatioImage;
 use crate::components::button::PrimaryButton;
 use crate::plugin::PelicanUI;
 use crate::components::interface::navigation::AppPage;

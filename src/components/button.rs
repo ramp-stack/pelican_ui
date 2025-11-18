@@ -1,12 +1,28 @@
 use roost_ui::events::OnEvent;
 use roost_ui::drawable::{Image, Drawable, Color, Align};
 use roost_ui::{drawables, Context, Component};
-use roost_ui::layouts::{Offset, Padding, Row, Size, Stack};
+use roost_ui::layouts::{Wrap, Offset, Padding, Row, Size, Stack};
 
 use crate::interactions;
-use crate::components::{Icon, Rectangle, Text, TextSize, TextStyle};
+use crate::components::text::{Text, TextSize, TextStyle};
+use crate::components::{Icon, Rectangle};
 use crate::theme::ButtonColorScheme;
 use crate::plugin::PelicanUI;
+use crate::utils::Callback;
+
+pub type QuickAction = (String, Option<String>, Callback);
+
+#[derive(Debug, Component)]
+pub struct QuickActions(Wrap, Vec<SecondaryButton>);
+impl OnEvent for QuickActions {}
+impl QuickActions {
+    pub fn new(ctx: &mut Context, actions: Vec<QuickAction>) -> Self {
+        let buttons = actions.into_iter().map(|(l, o, a)| {
+            SecondaryButton::medium(ctx, "edit", &l, o.as_deref(), a)
+        }).collect();
+        QuickActions(Wrap::start(8.0, 8.0), buttons)
+    }
+}
 
 /// ## Primary Button
 ///

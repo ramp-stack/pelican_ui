@@ -1,10 +1,11 @@
-use roost_ui::events::{OnEvent, TickEvent, Event, self};
+use roost_ui::events::{OnEvent, TickEvent, Event, KeyboardState, KeyboardEvent, self};
 use roost_ui::drawable::{Align, Color};
 use roost_ui::{Context, Component};
 use roost_ui::layouts::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
 
 use crate::interactions;
-use crate::components::{Rectangle, ExpandableText, Text, TextSize, TextStyle, TextEditor};
+use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableText};
+use crate::components::Rectangle;
 use crate::components::button::SecondaryIconButton;
 use crate::plugin::PelicanUI;
 
@@ -42,7 +43,7 @@ impl TextInput {
     pub fn new(
         ctx: &mut Context,
         value: Option<&str>,
-        label: Option<&str>,
+        label: (&str, bool),
         placeholder: Option<&str>,
         help_text: Option<&str>,
         icon_button: Option<(&str, InputCallback)>,
@@ -55,7 +56,7 @@ impl TextInput {
             background(Color::TRANSPARENT, colors.outline.primary),
             Some(background(colors.background.secondary, colors.outline.secondary)),
             Some(background(Color::TRANSPARENT, colors.status.danger)),
-            _InputContent::new(ctx, value, placeholder, icon_button),
+            _InputContent::new(ctx, value, placeholder, icon_button, label.0.to_string()),
             48.0,
         );
 
@@ -64,7 +65,7 @@ impl TextInput {
 
         TextInput { 
             layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default()),
-            label: label.map(|text| Text::new(ctx, text, TextSize::H5, TextStyle::Heading, Align::Left, None)),
+            label: label.1.then_some(Text::new(ctx, label.0, TextSize::H5, TextStyle::Heading, Align::Left, None)),
             inner: input_field, 
             hint: EitherOr::new(help, error),
             error: None
@@ -80,7 +81,7 @@ impl OnEvent for TextInput {
     fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
             self.hint.display_left(self.error.is_some()); 
-            self.inner.error(self.error.is_some());
+            // self.inner.error(self.error.is_some());
             if let Some(e) = &self.error { 
                 self.hint.right().0.spans[0] = e.to_string(); 
             } 
@@ -99,6 +100,7 @@ struct _InputContent {
     #[skip] pub value: String,
     #[skip] on_submit: Option<InputCallback>,
     #[skip] is_focused: bool,
+    #[skip] state_name: String,
 }
 
 
@@ -114,7 +116,10 @@ impl _InputContent {
         value: Option<&str>,
         placeholder: Option<&str>,
         button: Option<(&str, InputCallback)>,
+        state_name: String,
     ) -> Self {
+        // ctx.state().set_named(state_name.to_string(), value.unwrap_or_default().to_string());
+
         let (button, on_submit) = button.map(|(icon, cb)| {
             let btn = SecondaryIconButton::medium(ctx, icon, |ctx: &mut Context| ctx.trigger_event(TextInputEvent::Submit));
             (Some(btn), Some(cb))
@@ -130,6 +135,7 @@ impl _InputContent {
             value: value.unwrap_or_default().to_string(), 
             on_submit,
             is_focused: false,
+            state_name,
         }
     }
 }
@@ -139,6 +145,7 @@ impl OnEvent for _InputContent {
         if let Some(events::TextInput::Focused(x)) = event.downcast_ref::<events::TextInput>() {
             self.is_focused = *x;
         } else if event.downcast_ref::<TickEvent>().is_some() {
+            // self.default.inner().inner().1.0.spans[0] = ctx.state().get_named::<String>(&self.state_name).unwrap().to_string();
             self.value = self.default.inner().inner().1.0.spans[0].clone();
 
             self.default.display(self.is_focused);
@@ -153,6 +160,8 @@ impl OnEvent for _InputContent {
             if let Some(on_submit) = &mut self.on_submit {
                 (on_submit)(ctx, &mut self.value);
             }
+        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, ..}) = event.downcast_ref() {
+            ctx.state().set_named(self.state_name.to_string(), self.value.to_string());
         }
         vec![event]
     }

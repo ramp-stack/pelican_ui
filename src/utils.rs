@@ -12,8 +12,14 @@ use roost_ui::Context;
 // pub struct InternetConnection(pub bool);
 
 /// `Timestamp` contains the date time in an easy-to-read format.
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Default)]
 pub struct Timestamp(String, String);
+
+impl std::fmt::Display for Timestamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.friendly().unwrap_or_default())
+    }
+}
 
 impl Timestamp {
     /// Create a `Timestamp` from a local [`DateTime<Local>`].
@@ -91,14 +97,14 @@ pub type Callback = Box<dyn FnMut(&mut Context)>;
 
 pub struct TitleSubtitle {
     pub title: String, 
-    pub subtitle: String
+    pub subtitle: Option<String>
 }
 
 impl TitleSubtitle {
-    pub fn new(title: &str, subtitle: &str) -> Self {
+    pub fn new(title: &str, subtitle: Option<&str>) -> Self {
         TitleSubtitle{
             title: title.to_string(), 
-            subtitle: subtitle.to_string()
+            subtitle: subtitle.map(|s| s.to_string())
         }
     }
 }
