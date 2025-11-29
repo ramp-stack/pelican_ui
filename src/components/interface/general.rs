@@ -85,8 +85,7 @@ impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
     pub fn new(ctx: &mut Context, offset: Offset, content: Vec<Box<dyn Drawable>>) -> Self {
         let layout = ctx.get::<PelicanUI>().get().0.theme().layout.clone();
-        let max = if roost_ui::IS_WEB {1200.0} else {layout.content_max};
-        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
+        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(layout.content_max), layout.content_max));
         let height = Size::custom(move |_: Vec<(f32, f32)>|(0.0, f32::MAX));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
         let scroll = Scroll::new(Offset::Center, offset, width, height, Padding::default(), anchor, ScrollDirection::Vertical);
@@ -127,7 +126,7 @@ impl Content {
     }
 
     /// Returns all the items in the content
-    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.1.inner.1}
+    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.inner.1}
     /// Returns the offset of the items.
     pub fn offset(&mut self) -> &mut Offset {self.0.offset()}
 }
@@ -192,7 +191,7 @@ impl Header {
     /// let header = Header::home(ctx, "My Account", None);
     /// let header = Header::home(ctx, "Explore", Some(("search", 1)))
     /// ```
-    pub fn home(ctx: &mut Context, title: &str, icon: Option<(&'static str, Callback)>) -> Self {
+    pub fn home(ctx: &mut Context, title: &str, icon: Option<(String, Callback)>) -> Self {
         Self::_new(ctx, title, None, icon, TextSize::H3)
     }
 
@@ -204,7 +203,7 @@ impl Header {
     /// ```
     pub fn stack(ctx: &mut Context, title: &str) -> Self {
         let closure = |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Pop);
-        Self::_new(ctx, title, Some(("left", Box::new(closure))), None, TextSize::H4)
+        Self::_new(ctx, title, Some(("left".to_string(), Box::new(closure))), None, TextSize::H4)
     }
 
     /// A `Header` preset used for end-of-flow pages.
@@ -215,23 +214,22 @@ impl Header {
     /// ```
     pub fn stack_end(ctx: &mut Context, title: &str) -> Self {
         let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Reset);
-        Self::_new(ctx, title, Some(("close", Box::new(closure))), None, TextSize::H4)
+        Self::_new(ctx, title, Some(("close".to_string(), Box::new(closure))), None, TextSize::H4)
     }
-
 
     fn _new(
         ctx: &mut Context,
         title: &str,
-        l_icon: Option<(&'static str, Callback)>,
-        r_icon: Option<(&'static str, Callback)>,
+        l_icon: Option<(String, Callback)>,
+        r_icon: Option<(String, Callback)>,
         size: TextSize,
     ) -> Self {
         let clean: String = title.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
         let title = clean[..1].to_uppercase() + &clean[1..].to_lowercase();
         let text = ExpandableText::new(ctx, &title, size, TextStyle::Heading, Align::Center, Some(1));
 
-        let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(ctx, n, c)).unwrap_or_default();
-        let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(ctx, n, c)).unwrap_or_default();
+        let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(ctx, &n, c)).unwrap_or_default();
+        let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(ctx, &n, c)).unwrap_or_default();
 
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0));
         Header(layout, l_icon, Box::new(text), r_icon)
@@ -248,7 +246,7 @@ impl OnEvent for HeaderIcon {}
 impl Default for HeaderIcon {fn default() -> Self {Self::none()}}
 
 impl HeaderIcon {
-    pub fn new(ctx: &mut Context, icon: &'static str, closure: impl FnMut(&mut Context) + 'static) -> Self {
+    pub fn new(ctx: &mut Context, icon: &str, closure: impl FnMut(&mut Context) + 'static) -> Self {
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(48.0), Size::Static(48.0), Padding::default());
         HeaderIcon(layout, Some(GhostIconButton::new(ctx, icon, closure)))
     }
@@ -287,14 +285,14 @@ impl Bumper {
     /// let bumper = Header::home(ctx, "New Message", None); // navigates to 1
     /// let bumper = Header::home(ctx, "Receive", Some("Send")) // navigates to 1 and 2
     /// ```
-    pub fn home(ctx: &mut Context, first: (&str, impl FnMut(&mut Context) + 'static), second: Option<(&str, Callback)>) -> Self {
-        let first = PrimaryButton::new(ctx, first.0, Box::new(first.1), false);
+    pub fn home(ctx: &mut Context, first: (String, Callback), second: Option<(String, Callback)>) -> Self {
+        let mut drawables: Vec<Box<dyn Drawable>> = drawables![PrimaryButton::new(ctx, &first.0, Box::new(first.1), false)];
 
-        let second = second.map(|(label, on_click)| {
-            PrimaryButton::new(ctx, label, on_click, false)
-        });
+        if let Some((label, on_click)) = second {
+            drawables.push(Box::new(PrimaryButton::new(ctx, &label, on_click, false)));
+        }
 
-        Self::new(ctx, drawables![first, second])
+        Self::new(ctx, drawables)
     }
 
     /// A `Bumper` preset used for in-flow pages.
@@ -324,7 +322,6 @@ impl Bumper {
     pub fn new(ctx: &mut Context, content: Vec<Box<dyn Drawable>>) -> Self {
         let background = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
         let max = ctx.get::<PelicanUI>().get().0.theme().layout.bumper_max;
-        let max = if roost_ui::IS_WEB {1200.0} else {max};
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());

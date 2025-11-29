@@ -2,12 +2,6 @@ use chrono::{DateTime, Local, Datelike, Timelike, TimeZone};
 use serde::{Serialize, Deserialize};
 use roost_ui::Context;
 
-// pub use pelican_macro::AppPage as derive_AppPage;
-
-// pub mod macros {
-//     pub use pelican_macro::AppPage;
-// }
-
 // #[derive(Clone, Copy, Deserialize, Serialize, Debug)]
 // pub struct InternetConnection(pub bool);
 
@@ -17,7 +11,7 @@ pub struct Timestamp(String, String);
 
 impl std::fmt::Display for Timestamp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.friendly().unwrap_or_default())
+        write!(f, "{}", self.friendly())
     }
 }
 
@@ -57,8 +51,8 @@ impl Timestamp {
     /// - **Otherwise**: `"MM/DD/YY"`
     ///
     /// Returns `None` if the timestamp cannot be converted to a local datetime.
-    pub fn friendly(&self) -> Option<String> {
-        let dt = self.to_datetime()?;
+    pub fn friendly(&self) -> String {
+        let dt = self.to_datetime().expect("Invalid date and time");
         let today = Local::now().date_naive();
         let date = dt.date_naive();
         let hour = dt.hour();
@@ -73,12 +67,23 @@ impl Timestamp {
         let the_time = format!("{hour12}:{minute:02} {am_pm}");
 
         match date == today {
-            true => the_time.into(),
-            false if date == today.pred_opt().unwrap_or(today) => format!("yesterday, {the_time}").into(),
-            false if date.iso_week() == today.iso_week() => format!("{}", dt.format("%A")).into(),
-            false if date.year() == today.year() => format!("{}", dt.format("%B %-d")).into(),
-            false => format!("{}", dt.format("%m/%d/%y")).into()
+            true => the_time,
+            false if date == today.pred_opt().unwrap_or(today) => format!("yesterday, {the_time}"),
+            false if date.iso_week() == today.iso_week() => format!("{}", dt.format("%A")),
+            false if date.year() == today.year() => format!("{}", dt.format("%B %-d")),
+            false => format!("{}", dt.format("%m/%d/%y")),
         }
+    }
+
+    pub fn date_friendly(&self) -> String {
+        let dt = self.to_datetime().expect("Invalid date and time");
+        let today = Local::now().date_naive();
+        let date = dt.date_naive();
+
+        if date == today {return "Today".to_string();}
+        if date.iso_week() == today.iso_week() { return format!("{}", dt.format("%A")); }
+        if date.year() == today.year() { return format!("{}", dt.format("%B %-d")); }
+        format!("{}", dt.format("%m/%d/%y"))
     }
 
     /// Returns the date.

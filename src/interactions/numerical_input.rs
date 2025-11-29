@@ -35,7 +35,7 @@ pub struct InputSegment {
     inner: Opt<Text>,
     replacement: Option<Opt<Text>>,
     #[skip] slot: SlotType,
-    #[skip] id: usize
+    #[skip] id: usize,
 }
 
 impl InputSegment {
@@ -76,7 +76,7 @@ impl InputSegment {
             SlotType::GhostInput(c) => {
                 let text = Text::new(ctx, &c.to_string(), text_size, TextStyle::Label(ghost), Align::Left, None);
                 let rep = Text::new(ctx, "", text_size, TextStyle::Heading, Align::Left, None);
-                (Opt::new(text, true), Some(Opt::new(rep, false)))
+                (Opt::new(text, false), Some(Opt::new(rep, false)))
             },
         };
 
@@ -89,9 +89,7 @@ impl OnEvent for InputSegment {
         if let Some(InputEvent::NumericalInputEvent(id, event)) = event.downcast_ref::<InputEvent>() {
             if *id == self.id {
                 match (self.slot.clone(), event) {
-                    (SlotType::Primary(_c, _max) | 
-                    SlotType::Ghost(_c, _max), 
-                    NumericalInputEvent::Delete) => {
+                    (SlotType::Primary(_c, _max) | SlotType::Ghost(_c, _max), NumericalInputEvent::Delete) => {
                         // if the replacement text is less than or equal to 1
                         // then hide the replacement text and show the defaul text
                         // if it is greater than 1, then just remove one character from the replacement text.
@@ -100,8 +98,11 @@ impl OnEvent for InputSegment {
                             true => {
                                 self.replacement.as_mut().unwrap().display(false);
                                 self.inner.display(true);
+                                ctx.trigger_event(InputEvent::MoveCursorBack);
                             },
-                            false => { self.replacement.as_mut().unwrap().inner().spans[0].pop(); }
+                            false => { 
+                                self.replacement.as_mut().unwrap().inner().spans[0].pop(); 
+                            }
                         }
                     },
                     (SlotType::Triggered(_c), NumericalInputEvent::Delete) => {
@@ -123,10 +124,8 @@ impl OnEvent for InputSegment {
                         }
                     },
 
-                    (SlotType::Ghost(_c, max) | 
-                    SlotType::Primary(_c, max),
-                    NumericalInputEvent::Digit(n)) => {
-                        ctx.trigger_event(InputEvent::MoveCursorForward);
+                    (SlotType::Ghost(c, max) | SlotType::Primary(c, max), NumericalInputEvent::Digit(n)) => {
+                        if self.replacement.as_mut().unwrap().inner().spans[0].len() >= max { ctx.trigger_event(InputEvent::MoveCursorForward); }
                         self.inner.display(false);
                         // if replacement is hiden, then show it and replace its value with n
                         if !self.replacement.as_mut().unwrap().is_showing() {
@@ -141,6 +140,7 @@ impl OnEvent for InputSegment {
                         if c == *n {
                             self.inner.display(true);
                             ctx.trigger_event(InputEvent::MoveCursorForward);
+                            ctx.trigger_event(InputEvent::Triggered);
                         }
                     },
 
@@ -171,14 +171,37 @@ pub struct NumericalInput {
 impl NumericalInput {
     pub fn new(ctx: &mut Context, items: Vec<SlotType>) -> Self {
         let text_size = match items.len() {
-            0..=4 => TextSize::Title,
-            5 | 6 => TextSize::H1,
+            0..=5 => TextSize::Title,
+            6 | 7 => TextSize::H1,
             _ => TextSize::H2
         };
 
         let segments = items.into_iter().enumerate().map(|(x, i)| InputSegment::new(ctx, i, x, text_size)).collect();
 
         NumericalInput { layout: Row::center(0.0), segments, cursor: 0, }
+    }
+
+    pub fn value(&mut self) -> String {
+        let mut out = String::new();
+
+        for seg in &mut self.segments {
+            // If replacement is visible, it always overrides inner.
+            if let Some(rep) = &mut seg.replacement {
+                if rep.is_showing() {
+                    let text = rep.inner().spans[0].clone();
+                    out.push_str(&text);
+                    continue;
+                }
+            }
+
+            // Fallback to inner text if visible.
+            if seg.inner.is_showing() {
+                let text = &seg.inner.inner().spans[0];
+                out.push_str(text);
+            }
+        }
+
+        out
     }
 }
 
@@ -187,23 +210,36 @@ impl OnEvent for NumericalInput {
         if let Some(InputEvent::MoveCursorForward) = event.downcast_ref::<InputEvent>() {
             self.cursor += 1;
             if let Some(seg) = self.segments.get(self.cursor) {
-                if let SlotType::FixedChar(_) = seg.slot { self.cursor += 1; }
+                if let SlotType::FixedChar(_) = seg.slot { 
+                    self.cursor += 1; 
+                }
+            }
+        } else if let Some(InputEvent::MoveCursorBack) = event.downcast_ref::<InputEvent>() {
+            self.cursor = self.cursor.saturating_sub(1);
+            if let Some(seg) = self.segments.get(self.cursor) {
+                if let SlotType::FixedChar(_) = seg.slot {
+                    self.cursor = self.cursor.saturating_sub(1);
+                }
             }
         } else if let Some(KeyboardEvent {state: KeyboardState::Pressed, key }) = event.downcast_ref() {
             match key {
                 Key::Named(NamedKey::Delete | NamedKey::Backspace) => {
-                    self.cursor = self.cursor.saturating_sub(1);
-                    if let Some(seg) = self.segments.get(self.cursor) {
-                        if let SlotType::FixedChar(_) = seg.slot {
-                            self.cursor = self.cursor.saturating_sub(1);
-                        }
-                    }
                     return vec![Box::new(InputEvent::NumericalInputEvent(self.cursor, NumericalInputEvent::Delete))];
                 },
                 Key::Character(c) => {
                     let c = c.to_string().chars().next().unwrap();
+                    if let Some(seg) = self.segments.get(self.cursor) {
+                        if let SlotType::FixedChar(_) = seg.slot { self.cursor += 1; }
+                    }
                     match c {
-                        '.' | '/' | ':' => return vec![Box::new(InputEvent::NumericalInputEvent(self.cursor, NumericalInputEvent::Special(c)))],
+                        '.' | '/' | ':' => {
+                            for (i, segment) in self.segments.iter_mut().enumerate() {
+                                if let SlotType::Triggered(trigger) = segment.slot {
+                                    if i > self.cursor && c == trigger { self.cursor = i; }
+                                }
+                            }
+                            return vec![Box::new(InputEvent::NumericalInputEvent(self.cursor, NumericalInputEvent::Special(c)))];
+                        }
                         '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
                             return vec![Box::new(InputEvent::NumericalInputEvent(self.cursor, NumericalInputEvent::Digit(c)))];
                         }
@@ -211,6 +247,12 @@ impl OnEvent for NumericalInput {
                     }
                 },
                 _ => {}
+            }
+        } else if let Some(InputEvent::Triggered) = event.downcast_ref::<InputEvent>() {
+            for seg in &mut self.segments {
+                if let SlotType::GhostInput(_) = seg.slot {
+                    seg.inner.display(true);
+                }
             }
         }
 
@@ -224,6 +266,7 @@ pub enum InputEvent {
     NumericalInputEvent(usize, NumericalInputEvent),
     MoveCursorForward,
     MoveCursorBack,
+    Triggered,
 }
 
 impl Event for InputEvent {

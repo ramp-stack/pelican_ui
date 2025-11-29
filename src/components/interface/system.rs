@@ -71,7 +71,10 @@ impl KeyboardIcons {
                 Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(1.0),  Padding::default()), 
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
-            GhostIconButton::new(ctx, "down_arrow", |ctx: &mut Context| ctx.trigger_event(ShowKeyboard(false))),
+            GhostIconButton::new(ctx, "down_arrow", |ctx: &mut Context| {
+                ctx.trigger_event(ShowKeyboard(false));
+                ctx.trigger_event(roost_ui::events::TextInput::Focused(false));
+            }),
         )
     }
 }

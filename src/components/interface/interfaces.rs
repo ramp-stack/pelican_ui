@@ -38,7 +38,6 @@ impl Pages {
     }
 
     pub fn push(&mut self, page: Box<dyn AppPage>) {
-        println!("PUSHING PAGE");
         self.pages.display_left(false);
         if let Some(old) = self.pages.right().replace(page) { self.history.push(old); }
     }
@@ -71,19 +70,20 @@ impl OnEvent for Interface {
         }
 
         if let Some(event) = event.downcast_mut::<NavigationEvent>() {
-            let mut is_root = false;
             match event {
                 NavigationEvent::Pop => self.pages().pop(),
                 NavigationEvent::Push(page) => self.pages().push(page.take().unwrap()),
                 NavigationEvent::Reset => self.pages().root(None),
                 NavigationEvent::Error(e) => self.pages().push(Box::new(Error::new(ctx, e.to_string()))),
-                NavigationEvent::Root(r) => {
-                    is_root = true;
-                    self.pages().root(Some(r.to_string()));
-                }
+                NavigationEvent::Root(r) => self.pages().root(Some(r.to_string())),
             }
 
-            if let Some(navigator) = self.navigator() {navigator.display(!(roost_ui::IS_MOBILE && is_root));}
+            if roost_ui::IS_MOBILE {
+                let no_history = self.pages().history.is_empty();
+                if let Some(navigator) = self.navigator() {
+                    navigator.display(no_history);
+                }
+            }
         }
 
         vec![event]
@@ -121,22 +121,22 @@ impl Interface {
 }
 
 #[derive(Component, Debug)]
-pub struct InterfaceMobile(Column, Pages, Opt<MobileKeyboard>, Option<Opt<Navigator>>);
+pub struct InterfaceMobile(Column, Bin<Stack, Rectangle>, Pages, Opt<MobileKeyboard>, Option<Opt<Navigator>>, Bin<Stack, Rectangle>);
 impl OnEvent for InterfaceMobile {}
 
 impl InterfaceMobile {
     pub fn new(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
         let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
         let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::mobile(ctx, navigation), true));
-        let insets = ctx.hardware.safe_area_insets();
-        let padding = Padding(insets.0, insets.2, insets.1, insets.3);
-        let layout = Column::new(0.0, Offset::Center, Size::Fit, padding);
-        InterfaceMobile(layout, Pages::new(pages), Opt::new(MobileKeyboard::new(ctx, true), false), navigator)
+        let (_left, _right, top, bottom) = ctx.hardware.safe_area_insets();
+        let layout = Column::new(0.0, Offset::Center, Size::Fit, Padding::default());
+
+        InterfaceMobile(layout, Spacer::new(ctx, top), Pages::new(pages), Opt::new(MobileKeyboard::new(ctx, true), false), navigator, Spacer::new(ctx, bottom))
     }
 
-    pub fn keyboard(&mut self) -> &mut Opt<MobileKeyboard> {&mut self.2}
-    pub fn pages(&mut self) -> &mut Pages {&mut self.1}
-    pub fn navigator(&mut self) -> &mut Option<Opt<Navigator>> {&mut self.3}
+    pub fn keyboard(&mut self) -> &mut Opt<MobileKeyboard> {&mut self.3}
+    pub fn pages(&mut self) -> &mut Pages {&mut self.2}
+    pub fn navigator(&mut self) -> &mut Option<Opt<Navigator>> {&mut self.4}
 }
 
 #[derive(Component, Debug)]
@@ -184,3 +184,12 @@ impl Event for ShowKeyboard {
     }
 }
 
+pub struct Spacer; 
+impl Spacer {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(ctx: &mut Context, height: f32) -> Bin<Stack, Rectangle> {
+        let color = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
+        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(height), Padding::default());
+        Bin(layout, Rectangle::new(color, 0.0, None))
+    }
+}

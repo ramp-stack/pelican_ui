@@ -4,6 +4,8 @@ use roost_ui::{Context, Component};
 use roost_ui::layouts::{Enum, Stack, Size, Offset, Padding};
 use roost_ui::emitters;
 
+use crate::components::interface::interfaces::ShowKeyboard;
+
 #[derive(Component, Debug)]
 pub struct InputField(Stack, emitters::TextInput<_InputField>);
 impl OnEvent for InputField {}
@@ -71,11 +73,15 @@ impl OnEvent for _InputField {
             match e {
                 events::TextInput::Hover(true) => self.1.display("hover"),
                 events::TextInput::Focused(true) => {
+                    ctx.trigger_event(ShowKeyboard(true));
                     ctx.hardware.haptic();
                     self.1.display("focus");
                 },
                 events::TextInput::Hover(false) => self.1.display(if self.3 {"error"} else {"default"}),
-                events::TextInput::Focused(false) => self.1.display(if self.3 {"error"} else {"default"}),
+                events::TextInput::Focused(false) => {
+                    // ctx.trigger_event(ShowKeyboard(false));
+                    self.1.display(if self.3 {"error"} else {"default"});
+                }
             }
         }
         

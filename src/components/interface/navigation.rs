@@ -47,28 +47,28 @@ impl Event for _NavEvent {
 
 #[derive(Debug)]
 pub struct RootInfo {
-    pub(crate) icon: &'static str,
+    pub(crate) icon: String,
     pub(crate) label: String,
     pub(crate) avatar: Option<AvatarContent>,
     pub(crate) page: Option<Box<dyn AppPage>>,
 }
 
 impl RootInfo {
-    pub fn icon(icon: &'static str, label: &str, page: impl AppPage) -> Self {
+    pub fn icon(icon: &str, label: &str, page: Box<dyn AppPage>) -> Self {
         RootInfo {
-            icon,
+            icon: icon.to_string(),
             label: label.to_string(),
             avatar: None,
-            page: Some(Box::new(page))
+            page: Some(page)
         }
     }
 
-    pub fn avatar(avatar: AvatarContent, label: &str, page: impl AppPage) -> Self {
+    pub fn avatar(avatar: AvatarContent, label: &str, page: Box<dyn AppPage>) -> Self {
         RootInfo {
-            icon: "profile",
+            icon: "profile".to_string(),
             label: label.to_string(),
             avatar: Some(avatar),
-            page: Some(Box::new(page))
+            page: Some(page)
         }
     }
 }
@@ -78,7 +78,7 @@ impl RootInfo {
 pub struct NavigatorSelectable(Stack, interactions::Selectable);
 impl OnEvent for NavigatorSelectable {}
 impl NavigatorSelectable {
-    pub fn desktop_icon(ctx: &mut Context, icon: &'static str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
+    pub fn desktop_icon(ctx: &mut Context, icon: &str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
@@ -101,7 +101,7 @@ impl NavigatorSelectable {
         NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, on_click, group_id))
     }
 
-    pub fn mobile(ctx: &mut Context, icon: &'static str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
+    pub fn mobile(ctx: &mut Context, icon: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors.button.ghost;
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
             IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
@@ -156,7 +156,7 @@ impl NavigatorMobile {
         let mut tabs = Vec::new();
         for (i, info) in navigation.into_iter().enumerate() {
             let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Root(info.label.to_string()));
-            tabs.push(NavigatorSelectable::mobile(ctx, info.icon, closure, 0 == i, group_id));
+            tabs.push(NavigatorSelectable::mobile(ctx, &info.icon, closure, 0 == i, group_id));
         }
 
         NavigatorMobile(
@@ -187,7 +187,7 @@ impl NavigatorDesktop {
                     has_profile = true;
                     bot_col.push(NavigatorSelectable::desktop_avatar(ctx, a, &info.label, closure, 0 == i, group_id));
                 }
-                None => top_col.push(NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, 0 == i, group_id))
+                None => top_col.push(NavigatorSelectable::desktop_icon(ctx, &info.icon, &info.label, closure, 0 == i, group_id))
             };
             i += 1;
         });
@@ -223,7 +223,7 @@ impl NavigatorWeb {
         for (index, info) in navigation.into_iter().enumerate() {
             let root = info.label.to_string();
             let closure = move |ctx: &mut Context| ctx.trigger_event(NavigationEvent::Root(root.clone()));
-            buttons.push(NavigatorSelectable::desktop_icon(ctx, info.icon, &info.label, closure, 0 == index, group_id));
+            buttons.push(NavigatorSelectable::desktop_icon(ctx, &info.icon, &info.label, closure, 0 == index, group_id));
         }
 
         let wordmark = ctx.get::<PelicanUI>().get().0.theme().brand.wordmark.clone();

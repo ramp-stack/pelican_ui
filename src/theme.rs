@@ -1,4 +1,4 @@
-use roost_ui::{Assets, include_dir};
+use roost_ui::{Assets};
 use roost_ui::drawable::Color;
 
 pub mod colors;
@@ -32,7 +32,6 @@ pub struct Theme {
 
 impl Theme {
     pub fn default(ctx: &mut Assets) -> Self {
-        ctx.include_assets(include_dir!("./resources"));
         Theme {
             colors: ColorResources::default(),
             fonts: FontResources::default(ctx),
@@ -44,19 +43,16 @@ impl Theme {
 
     /// Creates a new instance of the Theme object.
     pub fn new(
-        ctx: &mut Assets,
         colors: ColorResources, 
         fonts: FontResources, 
         icons: IconResources,
         brand: BrandResources,
         layout: LayoutResources,
     ) -> Self {
-        ctx.include_assets(include_dir!("./resources"));
         Theme { colors, fonts, icons, brand, layout } 
     }
 
     pub fn from(ctx: &mut Assets, primary: Color) -> Self {
-        ctx.include_assets(include_dir!("./resources"));
         Theme {
             colors: ColorResources::from(primary),
             fonts: FontResources::default(ctx),
@@ -67,7 +63,6 @@ impl Theme {
     }
 
     pub fn light(ctx: &mut Assets, primary: Color) -> Self {
-        ctx.include_assets(include_dir!("./resources"));
         Theme {
             colors: ColorResources::light(primary),
             fonts: FontResources::default(ctx),
@@ -78,7 +73,6 @@ impl Theme {
     }
 
     pub fn dark(ctx: &mut Assets, primary: Color) -> Self {
-        ctx.include_assets(include_dir!("./resources"));
         Theme {
             colors: ColorResources::dark(primary),
             fonts: FontResources::default(ctx),

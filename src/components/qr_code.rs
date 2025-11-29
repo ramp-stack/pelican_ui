@@ -24,7 +24,7 @@ use qrcode::{QrCode, EcLevel};
 /// let qr = QRCode::new(ctx, "https://ramp-stack.com/pelican_ui");
 /// ```
 #[derive(Debug, Component)]
-pub struct QRCode(Stack, Bin<Stack, Rectangle>, Image, Image);
+pub struct QRCode(Stack, Rectangle, Image, Bin<Stack, Image>);
 impl OnEvent for QRCode {}
 
 impl QRCode {
@@ -35,15 +35,13 @@ impl QRCode {
 
         let image = generate_qr_code(data);
         let img = DynamicImage::ImageRgb8(image).to_rgba8();
+        let layout = Stack(Offset::Center, Offset::Center, Size::Static(qr_size-24.0), Size::Static(qr_size-24.0), Padding::default());
         QRCode (
-            Stack::center(),
-            Bin(
-                Stack(Offset::Center, Offset::Center, Size::Static(qr_size), Size::Static(qr_size), Padding::default()),
-                Rectangle::new(Color::TRANSPARENT, 8.0, None),
-            ),
+            Stack(Offset::Center, Offset::Center, Size::Static(qr_size), Size::Static(qr_size), Padding::default()),
+            Rectangle::new(Color::WHITE, 8.0, None),
             Image{shape: ShapeType::RoundedRectangle(0.0, (qr_size - 16.0, qr_size - 16.0), 8.0, 0.0), image: ctx.assets.add_image(img), color: None},
             // QRModules::new(ctx, data, qr_size, logo_size),  - NO CUSTOM STYLIZATION FOR THIS RELEASE
-            AspectRatioImage::new(app_icon, (logo_size, logo_size))
+            Bin(layout, AspectRatioImage::new(app_icon, (logo_size, logo_size)))
         )
     }
 }

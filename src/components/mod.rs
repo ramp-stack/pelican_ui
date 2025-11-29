@@ -43,6 +43,9 @@ pub use data_item::DataItem;
 mod numerical_input;
 pub use numerical_input::*;
 
+mod keypad;
+pub use keypad::Keypad;
+
 
 /// Interface.
 pub mod interface;

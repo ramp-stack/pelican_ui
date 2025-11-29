@@ -1,4 +1,4 @@
-use roost_ui::events::{OnEvent, TickEvent, Event, KeyboardState, KeyboardEvent, self};
+use roost_ui::events::{OnEvent, TickEvent, Event, self};
 use roost_ui::drawable::{Align, Color};
 use roost_ui::{Context, Component};
 use roost_ui::layouts::{Padding, Column, Offset, Size, EitherOr, Opt, Row, Bin, Stack};
@@ -100,7 +100,6 @@ struct _InputContent {
     #[skip] pub value: String,
     #[skip] on_submit: Option<InputCallback>,
     #[skip] is_focused: bool,
-    #[skip] state_name: String,
 }
 
 
@@ -116,7 +115,7 @@ impl _InputContent {
         value: Option<&str>,
         placeholder: Option<&str>,
         button: Option<(&str, InputCallback)>,
-        state_name: String,
+        _state_name: String,
     ) -> Self {
         // ctx.state().set_named(state_name.to_string(), value.unwrap_or_default().to_string());
 
@@ -135,7 +134,6 @@ impl _InputContent {
             value: value.unwrap_or_default().to_string(), 
             on_submit,
             is_focused: false,
-            state_name,
         }
     }
 }
@@ -160,8 +158,6 @@ impl OnEvent for _InputContent {
             if let Some(on_submit) = &mut self.on_submit {
                 (on_submit)(ctx, &mut self.value);
             }
-        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, ..}) = event.downcast_ref() {
-            ctx.state().set_named(self.state_name.to_string(), self.value.to_string());
         }
         vec![event]
     }

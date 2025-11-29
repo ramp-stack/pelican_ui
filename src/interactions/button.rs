@@ -72,6 +72,7 @@ impl OnEvent for _Button {
                         ctx.hardware.haptic();
                         (self.3)(ctx);
                     }
+                    events::Button::Pressed(false) => self.1.display("default"),
                     _ => self.1.display("default"),
                 }
             }
