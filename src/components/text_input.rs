@@ -35,6 +35,7 @@ pub struct TextInput {
     pub inner: interactions::InputField,
     hint: EitherOr<Option<ExpandableText>, ExpandableText>,
     #[skip] pub error: Option<String>,
+    #[skip] tag: String,
 }
 
 type InputCallback = Box<dyn FnMut(&mut Context, &mut String)>;
@@ -47,6 +48,7 @@ impl TextInput {
         placeholder: Option<&str>,
         help_text: Option<&str>,
         icon_button: Option<(&str, InputCallback)>,
+        tag: &str
     ) -> Self {
         let background = |bg: Color, o: Color| Rectangle::new(bg, 8.0, Some((1.0, o)));
         let colors = ctx.get::<PelicanUI>().get().0.theme().colors;
@@ -68,7 +70,8 @@ impl TextInput {
             label: label.1.then_some(Text::new(ctx, label.0, TextSize::H5, TextStyle::Heading, Align::Left, None)),
             inner: input_field, 
             hint: EitherOr::new(help, error),
-            error: None
+            error: None,
+            tag: tag.to_string(),
         }
     }
 
@@ -78,8 +81,10 @@ impl TextInput {
 }
 
 impl OnEvent for TextInput { 
-    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
+            ctx.state().set_named(self.tag.to_string(), self.value());
+
             self.hint.display_left(self.error.is_some()); 
             // self.inner.error(self.error.is_some());
             if let Some(e) = &self.error { 

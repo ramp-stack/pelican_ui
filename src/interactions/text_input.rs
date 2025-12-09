@@ -32,7 +32,6 @@ impl std::ops::DerefMut for InputField {
     fn deref_mut(&mut self) -> &mut Self::Target {&mut self.1.1}
 }
 
-
 #[derive(Debug, Component)]
 pub struct _InputField(Stack, Enum, pub Box<dyn Drawable>, #[skip] pub bool);
 

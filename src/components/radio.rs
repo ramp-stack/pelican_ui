@@ -26,14 +26,21 @@ use crate::components::list_item::ListItemInfoLeft;
 pub struct RadioSelector(Column, pub Vec<interactions::Selectable>);
 impl OnEvent for RadioSelector {}
 impl RadioSelector {
-    pub fn new(ctx: &mut Context, index: usize, items: Vec<(&str, &str, Callback)>) -> Self {
+    pub fn new(ctx: &mut Context, index: usize, tag: &str, items: Vec<(&str, &str, Callback)>) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let selectables = items.into_iter().enumerate().map(|(i, (t, s, c))| {
-            let selected = ListItem::new(ctx, None, ListItemInfoLeft::new(t, Some(s), None, None), None, Some("radio_filled"), None, |_| {});
-            let default = ListItem::new(ctx, None, ListItemInfoLeft::new(t, Some(s), None, None), None, Some("radio"), None, |_| {});
+            let title = t.to_string(); let tag = tag.to_string();
+
+            let selected = ListItem::new(ctx, None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some("radio_filled"), None, |_| {}            );
+            
+            let default = ListItem::new(ctx,
+                None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some("radio"), None, 
+                move |ctx: &mut Context| ctx.state().set_named(tag.to_string(), title.to_string()),
+            );
 
             interactions::Selectable::new(default, selected, i == index, c, group_id)
         }).collect::<Vec<_>>();
+
 
         RadioSelector(Column::center(0.0), selectables)
     }

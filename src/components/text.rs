@@ -97,6 +97,7 @@ impl OnEvent for Text {
             self.inner.spans.iter_mut().enumerate().for_each(|(i, s)| {
                 s.text = self.spans[i].to_string();
                 s.font_size = self.size.get(ctx);
+                s.line_height = Some(s.font_size * 1.25);
                 s.color = color;
                 s.font = font.clone();
                 s.kerning = self.kerning;

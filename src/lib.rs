@@ -44,11 +44,16 @@ pub trait Application {
     fn theme(assets: &mut Assets) -> Theme {
         Theme::default(assets)
     }
+
+    fn on_event(_interface: &mut Interface, _ctx: &mut Context, event: Box<dyn roost_ui::events::Event>) -> Vec<Box<dyn roost_ui::events::Event>> {vec![event]}
 }
 
 impl<A: Application> roost_ui::Application for PelicanUI<A> {
     async fn new(ctx: &mut Context) -> impl pelican_ui::drawable::Drawable {
-        A::interface(ctx)
+        let on_event = |interface: &mut Interface, ctx: &mut Context, event: Box<dyn roost_ui::events::Event>| A::on_event(interface, ctx, event);
+        let mut interface = A::interface(ctx);
+        interface.3 = Some(Box::new(on_event));
+        interface
     }
 
     fn plugins(ctx: &mut Context) -> Vec<Box<dyn pelican_ui::Plugin>> {

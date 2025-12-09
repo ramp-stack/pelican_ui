@@ -60,7 +60,7 @@ impl OnEvent for _Selectable {
                 }
             }
         }
-        Vec::new()
+        vec![event]
     }
 }
 
