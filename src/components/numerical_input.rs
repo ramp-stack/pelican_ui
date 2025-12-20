@@ -8,7 +8,7 @@ use crate::components::text::{Text, TextStyle, TextSize};
 use crate::interactions::{SlotType, self};
 
 #[derive(Debug, Component)]
-pub struct NumericalInput(Column, Bin<Stack, _NumericalInput>, Option<Keypad>, #[skip] Option<String>);
+pub struct NumericalInput(Column, Bin<Stack, _NumericalInput>, Option<Keypad>, #[skip] Option<String>, #[skip] bool);
 impl OnEvent for NumericalInput { 
     fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
         if let Some(tag) = &self.3 {
@@ -17,7 +17,7 @@ impl OnEvent for NumericalInput {
             }
         }
 
-        vec![event]
+        self.4.then_some(vec![event]).unwrap_or_default()
     }
 }
 
@@ -25,25 +25,25 @@ impl NumericalInput {
     pub fn display(ctx: &mut Context, _amount: f32, instructions: &str) -> Self {
         let keypad = IS_MOBILE.then_some(Keypad::new(ctx, '.'));
         let layout = Stack::new(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::Currency(CurrencyInput::new(ctx, '$', instructions))), keypad, None)
+        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::Currency(CurrencyInput::new(ctx, '$', instructions))), keypad, None, false)
     }
 
     pub fn currency(ctx: &mut Context, instructions: &str, tag: &str) -> Self {
         let keypad = IS_MOBILE.then_some(Keypad::new(ctx, '.'));
         let layout = Stack::new(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::Currency(CurrencyInput::new(ctx, '$', instructions))), keypad, Some(tag.to_string()))
+        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::Currency(CurrencyInput::new(ctx, '$', instructions))), keypad, Some(tag.to_string()), true)
     }
 
     pub fn date(ctx: &mut Context, instructions: &str, tag: &str) -> Self {
         let keypad = IS_MOBILE.then_some(Keypad::new(ctx, '/'));
         let layout = Stack::new(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::Date(DateInput::new(ctx, instructions))), keypad, Some(tag.to_string()))
+        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::Date(DateInput::new(ctx, instructions))), keypad, Some(tag.to_string()), true)
     }
 
     pub fn time(ctx: &mut Context, instructions: &str, tag: &str) -> Self {
         let keypad = IS_MOBILE.then_some(Keypad::new(ctx, ':'));
         let layout = Stack::new(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::Time(TimeInput::new(ctx, instructions))), keypad, Some(tag.to_string()))
+        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::Time(TimeInput::new(ctx, instructions))), keypad, Some(tag.to_string()), true)
     }
 
     pub fn value(&mut self) -> String {

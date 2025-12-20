@@ -36,7 +36,6 @@ impl std::fmt::Debug for Interface {
     }
 }
 
-
 impl Interface {
     pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
         let color = ctx.get::<PelicanUI>().get().0.theme().colors.background.primary;
@@ -48,6 +47,8 @@ impl Interface {
 
         Interface(Stack::default(), Rectangle::new(color, 0.0, None), interface, None)
     }
+
+    pub fn inner(&mut self) -> &mut interfaces::Interface {&mut self.2}
 }
 
 /// # Page
@@ -342,7 +343,8 @@ impl Bumper {
     /// ```rust
     /// let bumper = Bumper::stack(ctx, false);
     /// ```
-    pub fn stack(ctx: &mut Context, label: Option<&str>, is_disabled: bool, on_click: impl FnMut(&mut Context) + 'static, validity_fn: Option<ValidateFn>) -> Self {
+    pub fn stack(ctx: &mut Context, label: Option<&str>, is_disabled: bool, on_click: impl FnMut(&mut Context) + 'static, secondary: Option<(String, Callback)>, validity_fn: Option<ValidateFn>) -> Self {
+        
         let button = PrimaryButton::new(ctx, label.unwrap_or("Continue"), Box::new(on_click), is_disabled);
         let validate = validity_fn.map(|mut vfn| Box::new(move |content: &mut BumperContent, ctx: &mut Context| { 
             content.1.iter_mut().for_each(|i| if let Some(a) = (**i).as_any_mut().downcast_mut::<PrimaryButton>() { 
@@ -350,7 +352,14 @@ impl Bumper {
             }); 
         }) as BumperFn);
 
-        Self::new(ctx, drawables![button], validate)
+        let mut drawables: Vec<Box<dyn Drawable>> = drawables![button];
+        
+        if let Some((label, on_click)) = secondary {
+            drawables.push(Box::new(PrimaryButton::new(ctx, &label, on_click, is_disabled)));
+        }
+        
+
+        Self::new(ctx, drawables, validate)
     }
 
     /// A `Bumper` preset used for end-of-flow pages.
@@ -359,10 +368,12 @@ impl Bumper {
     /// ```rust
     /// let bumper = Bumper::stack_end(ctx);
     /// ```
-    pub fn stack_end(ctx: &mut Context, mut on_click: impl FnMut(&mut Context) + 'static) -> Self {
+    pub fn stack_end(ctx: &mut Context, exact_pages: Option<usize>) -> Self {
         let closure = move |ctx: &mut Context| {
-            (on_click)(ctx);
-            ctx.trigger_event(NavigationEvent::Reset)
+            match exact_pages {
+                Some(num) => (0..num).for_each(|_| ctx.trigger_event(NavigationEvent::Pop)),
+                None => ctx.trigger_event(NavigationEvent::Reset)
+            }
         };
         let button = SecondaryButton::large(ctx, "Done", Box::new(closure));
         Self::new(ctx, drawables![button], None)

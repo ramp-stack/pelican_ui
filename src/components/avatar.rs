@@ -48,7 +48,7 @@ impl Avatar {
     pub fn new(
         ctx: &mut Context, 
         content: AvatarContent, 
-        flair: Option<(&str, AvatarIconStyle)>, 
+        flair: Option<(String, AvatarIconStyle)>, 
         outline: bool, 
         size: AvatarSize,
         on_click: Option<Callback>
@@ -56,11 +56,11 @@ impl Avatar {
         Avatar {
             _layout: Stack(Offset::End, Offset::End, Size::Fit, Size::Fit, Padding::default()),
             _avatar: PrimaryAvatar::new(ctx, content.clone(), outline, size),
-            _flair: flair.map(|(name, style)| Flair::new(ctx, name, style, size)),
+            _flair: flair.clone().map(|(name, style)| Flair::new(ctx, &name, style, size)),
             _size: size,
             on_click,
             content,
-            flair: flair.map(|(n, s)| (n.to_string(), s)),
+            flair,
             outline,
         }
     }
@@ -141,6 +141,16 @@ pub enum AvatarContent {
     Icon(String, AvatarIconStyle),
     /// Display a circular image .
     Image(resources::Image)
+}
+
+impl AvatarContent {
+    pub fn icon(icon: &str, style: AvatarIconStyle) -> Self {
+        AvatarContent::Icon(icon.to_string(), style)
+    }
+
+    pub fn image(image: resources::Image) -> Self {
+        AvatarContent::Image(image)
+    }
 }
 
 /// Style presets for avatar icons and backgrounds.

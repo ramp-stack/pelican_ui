@@ -43,38 +43,38 @@ impl InputSegment {
         let (inner, replacement) = match slot.clone() {
             // A permanent visible character (e.g. "$", "/", ":")
             SlotType::FixedChar(c) => {
-                let text = Text::new(ctx, &c.to_string(), TextSize::H1, TextStyle::Heading, Align::Left, None);
+                let text = Text::new(ctx, &c.to_string(), TextSize::Title, TextStyle::Heading, Align::Left, None);
                 (Opt::new(text, true), None)
             },
 
             // A ghost placeholder that becomes primary when the user inputs a digit.
             // Example: 'D', 'M', 'Y', or ghost cents '0'.
             SlotType::Ghost(c, _max) => {
-                let text = Text::new(ctx, &c.to_string(), TextSize::H1, TextStyle::Label(ghost), Align::Left, None);
-                let rep = Text::new(ctx, "", TextSize::H1, TextStyle::Heading, Align::Left, None);
+                let text = Text::new(ctx, &c.to_string(), TextSize::Title, TextStyle::Label(ghost), Align::Left, None);
+                let rep = Text::new(ctx, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
                 (Opt::new(text, true), Some(Opt::new(rep, false)))
             },
 
             // A primary placeholder that stays primary when the user inputs a digit.
             // Example: '0' after the '$'
             SlotType::Primary(c, _max) => {
-                let text = Text::new(ctx, &c.to_string(), TextSize::H1, TextStyle::Heading, Align::Left, None);
-                let rep = Text::new(ctx, "", TextSize::H1, TextStyle::Heading, Align::Left, None);
+                let text = Text::new(ctx, &c.to_string(), TextSize::Title, TextStyle::Heading, Align::Left, None);
+                let rep = Text::new(ctx, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
                 (Opt::new(text, true), Some(Opt::new(rep, false)))
             },
 
             // A slot that is created only when triggered by input.
             // Example: currency fractional digits ("00" ghost cents).
             SlotType::Triggered(c) => {
-                let text = Text::new(ctx, &c.to_string(), TextSize::H1, TextStyle::Heading, Align::Left, None);
-                let rep = Text::new(ctx, "", TextSize::H1, TextStyle::Heading, Align::Left, None);
+                let text = Text::new(ctx, &c.to_string(), TextSize::Title, TextStyle::Heading, Align::Left, None);
+                let rep = Text::new(ctx, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
                 (Opt::new(text, false), Some(Opt::new(rep, false)))
             }
 
             // this only shows up when it is 'next' and is replaced by primary texto n input 
             SlotType::GhostInput(c) => {
-                let text = Text::new(ctx, &c.to_string(), TextSize::H1, TextStyle::Label(ghost), Align::Left, None);
-                let rep = Text::new(ctx, "", TextSize::H1, TextStyle::Heading, Align::Left, None);
+                let text = Text::new(ctx, &c.to_string(), TextSize::Title, TextStyle::Label(ghost), Align::Left, None);
+                let rep = Text::new(ctx, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
                 (Opt::new(text, false), Some(Opt::new(rep, false)))
             },
         };

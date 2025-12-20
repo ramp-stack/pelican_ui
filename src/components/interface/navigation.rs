@@ -87,7 +87,7 @@ impl NavigatorSelectable {
             let icon = Icon::new(ctx, icon, Some(colors.label), icon_size);
             Button::new(drawables![icon, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
-        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, on_click, group_id))
+        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, on_click, group_id))
     }
 
     pub fn desktop_avatar(ctx: &mut Context, avatar: AvatarContent, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
@@ -98,7 +98,7 @@ impl NavigatorSelectable {
             let avatar = Avatar::new(ctx, avatar.clone(), None, false, AvatarSize::Xs, None);
             Button::new(drawables![avatar, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
-        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, on_click, group_id))
+        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, on_click, group_id))
     }
 
     pub fn mobile(ctx: &mut Context, icon: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
@@ -106,7 +106,7 @@ impl NavigatorSelectable {
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
             IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
-        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, on_click, group_id))
+        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, on_click, group_id))
     }
 }
 

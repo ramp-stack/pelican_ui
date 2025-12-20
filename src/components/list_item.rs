@@ -147,3 +147,17 @@ impl ListItemGroup {
         ListItemGroup(Column::start(0.0), items)
     }
 }
+
+
+#[derive(Debug, Component)]
+pub struct ListItemSection(Column, Option<ExpandableText>, ListItemGroup);
+impl OnEvent for ListItemSection {}
+impl ListItemSection {
+    pub fn new(ctx: &mut Context, label: Option<String>, items: Vec<ListItem>) -> Self {
+        let text = label.as_ref().map(|l| ExpandableText::new(ctx, l, TextSize::H5, TextStyle::Heading, Align::Left, None));
+        ListItemSection(Column::center(16.0), text, ListItemGroup::new(items))
+    }
+
+    pub fn group(&mut self) -> &mut ListItemGroup { &mut self.2 }
+}
+

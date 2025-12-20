@@ -38,8 +38,10 @@ impl Pages {
     }
 
     pub fn push(&mut self, page: Box<dyn AppPage>) {
+        if let Some(old) = self.pages.right().replace(page) { 
+            self.history.push(old);
+        }
         self.pages.display_left(false);
-        if let Some(old) = self.pages.right().replace(page) { self.history.push(old); }
     }
 
     pub fn pop(&mut self) {
@@ -48,6 +50,16 @@ impl Pages {
                 Some(page) => *self.pages.right() = Some(page),
                 None => self.root(None)
             }
+        }
+    }
+
+    // pub fn pages(&mut self) -> { &mut self.pages }
+
+    pub fn current(&mut self) -> &mut Box<dyn Drawable> {
+        if !self.history.is_empty() || self.pages.right().is_some() {
+            self.pages.right().as_mut().unwrap()
+        } else {
+            self.pages.left().drawable().inner()
         }
     }
 }

@@ -38,7 +38,7 @@ impl RadioSelector {
                 move |ctx: &mut Context| ctx.state().set_named(tag.to_string(), title.to_string()),
             );
 
-            interactions::Selectable::new(default, selected, i == index, c, group_id)
+            interactions::Selectable::new(default, selected, i == index, false, c, group_id)
         }).collect::<Vec<_>>();
 
 

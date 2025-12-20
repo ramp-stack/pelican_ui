@@ -17,6 +17,10 @@ pub mod text;
 mod radio;
 pub use radio::RadioSelector;
 
+/// Checkbox item
+mod checkbox;
+pub use checkbox::{Checkbox, CheckboxList};
+
 /// Sliders.
 mod slider;
 pub use slider::Slider;

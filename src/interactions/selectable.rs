@@ -13,10 +13,11 @@ impl Selectable {
         default: impl Drawable + 'static,
         selected: impl Drawable + 'static,
         is_selected: bool,
+        can_deselect: bool,
         on_click: impl FnMut(&mut Context) + 'static,
         group_id: uuid::Uuid,
     ) -> Self {
-        let selectable = _Selectable::new(default, selected, is_selected, on_click);
+        let selectable = _Selectable::new(default, selected, is_selected, can_deselect, on_click);
         Self(Stack::default(), emitters::Selectable::new(selectable, group_id))
     }
 }
@@ -31,20 +32,21 @@ impl std::ops::DerefMut for Selectable {
 }
 
 #[derive(Component)]
-pub struct _Selectable(Stack, Enum, #[skip] Box<dyn FnMut(&mut Context)>);
+pub struct _Selectable(Stack, Enum, #[skip] Box<dyn FnMut(&mut Context)>, #[skip] bool);
 
 impl _Selectable {
     pub fn new(
         default: impl Drawable + 'static,
         selected: impl Drawable + 'static,
         is_selected: bool,
+        can_deselect: bool,
         on_click: impl FnMut(&mut Context) + 'static
     ) -> Self {
         let start = if is_selected {"selected"} else {"default"};
         _Selectable(Stack::default(), Enum::new(vec![
             ("default".to_string(), Box::new(default)),
             ("selected".to_string(), Box::new(selected)),
-        ], start.to_string()), Box::new(on_click))
+        ], start.to_string()), Box::new(on_click), can_deselect)
     }
 }
 
@@ -54,9 +56,16 @@ impl OnEvent for _Selectable {
             match b {
                 false => self.1.display("default"),
                 true => {
-                    self.1.display("selected");
-                    ctx.hardware.haptic();
-                    (self.2)(ctx);
+                    if self.3 && &self.1.current() == "selected" {
+                        // already selected 
+                        self.1.display("default");
+                        ctx.hardware.haptic();
+                        (self.2)(ctx);
+                    } else {
+                        self.1.display("selected");
+                        ctx.hardware.haptic();
+                        (self.2)(ctx);
+                    }
                 }
             }
         }
