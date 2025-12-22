@@ -1,0 +1,266 @@
+use prism::event::{OnEvent, MouseState, MouseEvent, Event, TickEvent, Key, NamedKey, KeyboardEvent, KeyboardState};
+use prism::layout::{Stack, Size, Offset, Padding, SizeRequest};
+use prism::display::Opt;
+use prism::drawable::{Drawable, Component, SizedTree, RequestTree, Rect}; 
+use prism::canvas::{self, Align, Span, Cursor, Text as BasicText, Area as CanvasArea, Item as CanvasItem};
+use prism::Context;
+
+use pelican_ui::components::Rectangle;
+use pelican_ui::{Theme, theme::Color};
+
+#[derive(Component, Debug)]
+pub struct Text {
+    layout: Stack,
+    inner: BasicText,
+    #[skip] pub spans: Vec<String>,
+    #[skip] pub size: TextSize,
+    #[skip] pub style: TextStyle,
+    #[skip] pub align: Align,
+    #[skip] pub max_lines: Option<u32>,
+    #[skip] pub kerning: f32,
+}
+
+impl OnEvent for Text {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            let (color, font) = self.style.get(ctx);
+            self.inner.align = self.align;
+            self.inner.max_lines = self.max_lines;
+            self.inner.spans.iter_mut().enumerate().for_each(|(i, s)| {
+                s.text = self.spans[i].to_string();
+                s.font_size = self.size.get(ctx);
+                s.line_height = Some(s.font_size * 1.25);
+                s.color = color.into();
+                s.font = font.clone().into();
+                s.kerning = self.kerning;
+            });
+        }
+        vec![event]
+    }
+}
+
+impl Text {
+    pub fn new(ctx: &mut Context, text: &str, text_size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
+        let (color, font) = style.get(ctx);
+        let size = text_size.get(ctx);
+        let inner = BasicText::new(vec![Span::new(text.to_string(), size, Some(size*1.25), font.into(), color.into(), 0.0)], None, align, max_lines);
+        Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size: text_size, style, align, max_lines, kerning: 0.0}
+    }
+}
+
+
+#[derive(Clone, Copy, Debug)]
+pub enum TextStyle {
+    Heading,
+    Primary,
+    Secondary,
+    Error,
+    Keyboard,
+    Label(Color),
+}
+
+impl TextStyle {
+    pub fn get(&self, ctx: &mut Context) -> (Color, canvas::Font) {
+        let theme = ctx.state.get_or_default::<Theme>();
+        let fonts = theme.fonts.fonts.clone();
+        let colors = theme.colors;
+        match self {
+            TextStyle::Heading => (colors.text.heading, fonts.heading.clone()),
+            TextStyle::Primary => (colors.text.primary, fonts.text.clone()),
+            TextStyle::Secondary => (colors.text.secondary, fonts.text.clone()),
+            TextStyle::Error => (colors.status.danger, fonts.text.clone()),
+            TextStyle::Keyboard => (colors.text.heading, fonts.keyboard.clone()),
+            TextStyle::Label(color) => (*color, fonts.label.clone()),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub enum TextSize {
+    Title, 
+    H1,
+    H2,
+    H3,
+    H4,
+    H5,
+    H6, 
+    Xl, 
+    #[default]
+    Lg,
+    Md,
+    Sm,
+    Xs
+}
+
+impl TextSize {
+    fn get(&self, ctx: &mut Context) -> f32 {
+        let font_size = ctx.state.get_or_default::<Theme>().fonts.size;
+        match self {
+            TextSize::Title => font_size.title,
+            TextSize::H1 => font_size.h1,
+            TextSize::H2 => font_size.h2,
+            TextSize::H3 => font_size.h3,
+            TextSize::H4 => font_size.h4,
+            TextSize::H5 => font_size.h5,
+            TextSize::H6 => font_size.h6,
+            TextSize::Xl => font_size.xl,
+            TextSize::Lg => font_size.lg,
+            TextSize::Md => font_size.md,
+            TextSize::Sm => font_size.sm,
+            TextSize::Xs => font_size.xs,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ExpandableText(pub Text);
+impl OnEvent for ExpandableText {}
+
+impl ExpandableText {
+    pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
+        ExpandableText(Text::new(ctx, text, size, style, align, max_lines))
+    }
+}
+
+impl Drawable for ExpandableText {
+    fn request_size(&self) -> RequestTree { RequestTree(SizeRequest::fill(), vec![]) }
+
+    fn draw(&self, sized: &SizedTree, offset: (f32, f32), bound: Rect) -> Vec<(CanvasArea, CanvasItem)> {
+        let text = BasicText {spans: self.0.inner.spans.clone(), width: Some(sized.0.0), align: self.0.inner.align, cursor: self.0.inner.cursor, max_lines: self.0.inner.max_lines};
+        vec![(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Text(text))]
+    }
+}
+
+#[derive(Component, Debug)]
+pub struct TextEditor(Stack, pub ExpandableText, TextCursor);
+
+impl TextEditor {
+    pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
+        let mut text = ExpandableText::new(ctx, text, size, style, align, None);
+        text.0.inner.cursor = Some(Cursor::default());
+        TextEditor(Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default()), text, TextCursor::new(ctx, style, size))
+    }
+
+    pub fn apply_edit(&mut self, key: &Key) {
+        let index = self.1.0.inner.cursor.unwrap();
+        match key {
+            Key::Named(NamedKey::Enter) => {
+                match index >= self.1.0.spans[0].len() {
+                    true => self.1.0.spans[0].push('\n'),
+                    false => self.1.0.spans[0].insert(index, '\n'),
+                };
+                if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1};
+            },
+            Key::Named(NamedKey::Space) => {
+                match index >= self.1.0.spans[0].len() {
+                    true => self.1.0.spans[0].push(' '),
+                    false => self.1.0.spans[0].insert(index, ' '),
+                };
+                if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1};
+            },
+            Key::Named(NamedKey::Delete) => {
+                self.1.0.spans[0] = {
+                    let mut chars: Vec<char> = self.1.0.spans[0].chars().collect();
+
+                    match chars.len() {
+                        1 => chars.clear(),
+                        _ if index >= chars.len() => {chars.pop();},
+                        _ => {chars.remove(index);}
+                    }
+
+                    chars.into_iter().collect()
+                };
+                if let Some(c) = self.1.0.inner.cursor.as_mut() { *c = c.saturating_sub(1); }
+            },
+            Key::Character(c) => {
+                match index >= self.1.0.spans[0].len() {
+                    true => c.chars().next().map(|ch| self.1.0.spans[0].push(ch)),
+                    false => c.chars().next().map(|ch| self.1.0.spans[0].insert(index, ch)),
+                };
+                if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1;}
+            },
+            _ => {}
+        };
+    }
+
+    pub fn display_cursor(&mut self, display: bool) {
+        self.2.1.display(display)
+    }
+}
+
+impl OnEvent for TextEditor {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if event.downcast_ref::<TickEvent>().is_some() && self.1.0.inner.cursor.is_some() {
+            let cursor_pos = self.1.0.inner.cursor_position();
+            *self.2.x_offset() = Offset::Static(cursor_pos.0);
+            *self.2.y_offset() = Offset::Static(cursor_pos.1+2.0);
+        } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
+            if event.state == MouseState::Pressed && event.position.is_some() {
+                self.1.0.inner.cursor_click(event.position.unwrap().0, event.position.unwrap().1) 
+            }
+        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key}) = event.downcast_ref() {
+            self.apply_edit(key);
+        }
+        
+        vec![event]
+    }
+}
+
+#[derive(Component, Debug)]
+pub struct TextCursor(Stack, Opt<Rectangle>);
+
+impl OnEvent for TextCursor {}
+
+impl TextCursor {
+    pub fn new(ctx: &mut Context, style: TextStyle, size: TextSize) -> Self {
+        let (color, _) = style.get(ctx);
+        let size = size.get(ctx);
+        TextCursor(
+            Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()), 
+            Opt::new(Rectangle::new(color, 0.0, None), true)
+        )
+    }
+
+    pub fn x_offset(&mut self) -> &mut Offset { &mut self.0.0 }
+    pub fn y_offset(&mut self) -> &mut Offset { &mut self.0.1 }
+}
+
+// // /// # Bulleted Text
+// // ///
+// // /// A component for rendering lists with bullet points.
+// // ///
+// // /// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/bulleted_text.png"
+// // ///      alt="Bulleted Text Example"
+// // ///      width="400">
+// // ///
+// // /// ## Example
+// // ///```rust
+// // /// let text_size = ctx.theme.fonts.size.md;
+// // /// let items = vec!["Feed the chairs at midnight.", "Borrow a broom from the moon.", "Vacuum the car inside out.", "Hide the clock beneath the carpet."];
+// // /// let list = BulletedText::new(ctx, items, TextStyle::Primary, text_size);
+// // ///```
+// // #[derive(Debug, Component)]
+// // pub struct BulletedText(Column, Vec<BulletedTextContent>);
+
+// // impl OnEvent for BulletedText {}
+
+// // impl BulletedText {
+// //     pub fn new(ctx: &mut Context, text: Vec<&str>, style: TextStyle, size: f32) -> Self {
+// //         let color = style.get(ctx).0;
+// //         let items = text.into_iter().map(|t| BulletedTextContent::new(ctx, t, color, style, size)).collect();
+// //         BulletedText(Column::center(8.0), items)
+// //     }
+// // }
+
+// // #[derive(Debug, Component)]
+// // struct BulletedTextContent(Row, Shape, ExpandableText);
+// // impl OnEvent for BulletedTextContent {}
+// // impl BulletedTextContent {
+// //     fn new(ctx: &mut Context, text: &str, color: Color, style: TextStyle, size: f32) -> Self {
+// //         BulletedTextContent(
+// //             Row::new(size*0.75, Offset::Center, Size::Fit, Padding::default()), // change this offset to be line_height - circle size / 2
+// //             Circle::new(size*0.2, color, false),
+// //             ExpandableText::new(ctx, text, style, size, Align::Left, None)
+// //         )
+// //     }
+// // }
