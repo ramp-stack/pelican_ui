@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::path::Path;
 use image::{ImageReader, RgbaImage};
-use include_dir::{DirEntry, include_dir};
+use include_dir::{DirEntry, Dir, include_dir};
 use prism::canvas;
 
 #[derive(Default)]
@@ -82,16 +83,18 @@ pub struct IconResources(HashMap<String, Arc<RgbaImage>>);
 
 impl Default for IconResources {
     fn default() -> Self {
-        Self(include_dir!("resources/icons").entries().iter().filter_map(|e| match e {
-            DirEntry::File(f) => f.path().to_str(),
+        let result = include_dir!("resources/icons").entries().iter().filter_map(|e| match e {
+            DirEntry::File(f) => Some(f),
             _ => None,
-        }).filter(|p| p.ends_with(".svg")).filter_map(|p| {
-            let name = p.strip_prefix("icons/")?.strip_suffix(".svg")?.replace(' ', "_");
-            let img = ImageReader::open(p).ok()?.decode().ok()?;
-            Some((name, Arc::new(img.into())))
+        }).filter(|p| {
+            p.path().to_str().unwrap().ends_with(".svg")
+        }).collect::<Vec<_>>();
+
+        Self(result.iter().map(|p| {
+            let name = p.path().to_str().unwrap().strip_suffix(".svg").unwrap().replace(' ', "_");
+            (name, Arc::new(load_svg(p.contents())))
         }).collect())
     }
-
 }
 
 impl IconResources {
@@ -113,13 +116,29 @@ pub struct BrandResources {
 
 impl Default for BrandResources {
     fn default() -> Self {
+        let dir = include_dir!("resources/brand");
         BrandResources {
-            logo: Arc::new(ImageReader::open("resources/brand/logo.svg").unwrap().decode().unwrap().into()),
-            wordmark: Arc::new(ImageReader::open("resources/brand/wordmark.svg").unwrap().decode().unwrap().into()),
-            app_icon: Arc::new(ImageReader::open("resources/brand/app_icon.svg").unwrap().decode().unwrap().into()),
-            error: Arc::new(ImageReader::open("resources/brand/error.svg").unwrap().decode().unwrap().into()),
+            logo: Arc::new(load_svg(&load_file(&dir, "logo.svg").unwrap())),
+            wordmark: Arc::new(load_svg(&load_file(&dir, "wordmark.svg").unwrap())),
+            app_icon: Arc::new(load_svg(&load_file(&dir, "app_icon.svg").unwrap())),
+            error: Arc::new(load_svg(&load_file(&dir, "error.svg").unwrap())),
         }
     }
+}
+
+fn load_file(dir: &Dir, file: &str) -> Option<Vec<u8>> {
+    dir.entries().iter().find_map(|e| match e {
+        DirEntry::File(f) => (f.path().to_str().unwrap() == file).then_some(f.contents().to_vec()),
+        _ => None,
+    })
+}
+
+fn load_svg(svg: &[u8]) -> RgbaImage {
+    let svg = std::str::from_utf8(svg).unwrap();
+    let svg = nsvg::parse_str(svg, nsvg::Units::Pixel, 96.0).unwrap();
+    let rgba = svg.rasterize(8.0).unwrap();
+    let size = rgba.dimensions();
+    RgbaImage::from_raw(size.0, size.1, rgba.into_raw()).unwrap()
 }
 
 

@@ -143,7 +143,7 @@ impl InterfaceMobile {
         let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::mobile(ctx, navigation), true));
         // let (_left, _right, top, bottom) = ctx.send(Request::Hardware(Hardware::SafeAreaInsets));
         let (top, bottom) = (18.0, 18.0);
-        let layout = Column::new(0.0, Offset::Center, Size::Fit, Padding::default());
+        let layout = Column::new(0.0, Offset::Center, Size::Fit, Padding::default(), false);
 
         InterfaceMobile(layout, Spacer::new(ctx, top), Pages::new(pages), Opt::new(MobileKeyboard::new(ctx, true), false), navigator, Spacer::new(ctx, bottom))
     }
@@ -179,7 +179,7 @@ impl InterfaceWeb {
     pub fn new(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
         let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
         let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::web(ctx, navigation), true));
-        let layout = Column::new(0.0, Offset::Start, Size::Fill, Padding::default());
+        let layout = Column::new(0.0, Offset::Start, Size::Fill, Padding::default(), false);
         InterfaceWeb(layout, navigator, Pages::new(pages))
     }
 

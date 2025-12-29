@@ -2,7 +2,7 @@ use prism::{emitters, drawables, Context, IS_MOBILE, IS_WEB, Request};
 use prism::event::{Event, OnEvent, MouseEvent, MouseState, TickEvent};
 use prism::drawable::{Drawable, Component};
 use prism::canvas::Align;
-use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size, Scroll, ScrollAnchor, ScrollDirection};
+use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
 
 use crate::Theme;
 use crate::components::{Rectangle};
@@ -67,9 +67,8 @@ impl OnEvent for Page {}
 impl Page {
     /// Creates a new [`Page`] from an optional [`Header`], [`Content`], and optional [`Bumper`]
     pub fn new(header: Header, content: Content, bumper: Option<Bumper>) -> Self {
-        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, f32::MAX));
         Page(
-            Column::new(12.0, Offset::Center, width, Padding::default()),
+            Column::new(12.0, Offset::Center, Size::Fill, Padding::default(), false),
             header,
             content,
             bumper,
@@ -100,7 +99,7 @@ impl Page {
 /// let content = Content::new(ctx, Offset::Center, vec![Box::new(text)]);
 /// ```
 #[derive(Debug, Component)]
-pub struct Content (Scroll, emitters::Scrollable<ContentChildren>);
+pub struct Content(Column, Vec<Box<dyn Drawable>>);
 
 impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
@@ -108,9 +107,8 @@ impl Content {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let height = Size::custom(move |_: Vec<(f32, f32)>|(0.0, f32::MAX));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
-        let scroll = Scroll::new(Offset::Center, offset, width, height, Padding::default(), anchor, ScrollDirection::Vertical);
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }
-        Content(scroll, emitters::Scrollable::new(ContentChildren::new(content, 24.0))) 
+        Content(Column::new(8.0, Offset::Center, width, Padding::new(16.0), true), content) 
     }
 
     /// Find an item in the content. Will return the first instance of the type.
@@ -146,9 +144,9 @@ impl Content {
     }
 
     /// Returns all the items in the content
-    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1.inner.1}
-    /// Returns the offset of the items.
-    pub fn offset(&mut self) -> &mut Offset {self.0.offset()}
+    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1}
+    //// Returns the offset of the items.
+    // pub fn offset(&mut self) -> &mut Offset {self.0.offset()}
 }
 
 impl OnEvent for Content {
@@ -178,15 +176,6 @@ impl OnEvent for Content {
     }
 }
 
-#[derive(Debug, Component)]
-struct ContentChildren (Column, Vec<Box<dyn Drawable>>);
-impl OnEvent for ContentChildren {}
-
-impl ContentChildren {
-    pub fn new(content: Vec<Box<dyn Drawable>>, padding: f32) -> Self {
-        ContentChildren(Column::new(24.0, Offset::Center, Size::Fit, Padding::new(padding)), content)
-    }
-}
 
 /// # Header
 ///

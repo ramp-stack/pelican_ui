@@ -100,7 +100,7 @@ impl KeyboardContent {
     fn new(ctx: &mut Context, actions: bool) -> Self {
         let (sender, receiver) = mpsc::channel();
         KeyboardContent(
-            Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0)),
+            Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), false),
             KeyboardHeader::new(ctx, actions),
             KeyboardRow::top(ctx),
             KeyboardRow::middle(ctx),

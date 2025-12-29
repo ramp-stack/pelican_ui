@@ -46,6 +46,10 @@ impl Text {
         let inner = BasicText::new(vec![Span::new(text.to_string(), size, Some(size*1.25), font.into(), color.into(), 0.0)], None, align, max_lines);
         Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size: text_size, style, align, max_lines, kerning: 0.0}
     }
+
+    pub fn default(ctx: &mut Context, text: &str) -> Self {
+        Self::new(ctx, text, TextSize::H4, TextStyle::Heading, Align::Center, None)
+    }
 }
 
 
@@ -120,10 +124,17 @@ impl ExpandableText {
     pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         ExpandableText(Text::new(ctx, text, size, style, align, max_lines))
     }
+
+    pub fn default(ctx: &mut Context, text: &str) -> Self {
+        Self::new(ctx, text, TextSize::H4, TextStyle::Heading, Align::Center, None)
+    }
 }
 
 impl Drawable for ExpandableText {
-    fn request_size(&self) -> RequestTree { RequestTree(SizeRequest::fill(), vec![]) }
+    fn request_size(&self) -> RequestTree { 
+        let size = self.0.inner.size();
+        RequestTree(SizeRequest::new(size.0, size.1, f32::MAX, size.1), vec![])
+    }
 
     fn draw(&self, sized: &SizedTree, offset: (f32, f32), bound: Rect) -> Vec<(CanvasArea, CanvasItem)> {
         let text = BasicText {spans: self.0.inner.spans.clone(), width: Some(sized.0.0), align: self.0.inner.align, cursor: self.0.inner.cursor, max_lines: self.0.inner.max_lines};

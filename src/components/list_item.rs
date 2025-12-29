@@ -90,7 +90,7 @@ impl OnEvent for LeftData {}
 
 impl LeftData {
     pub fn new(ctx: &mut Context, info: ListItemInfoLeft) -> Self {
-        let layout = Column::new(4.0, Offset::Start, Size::Fill, Padding::default());
+        let layout = Column::new(4.0, Offset::Start, Size::Fill, Padding::default(), false);
         let subtitle = info.title.subtitle.map(|s| ExpandableText::new(ctx, &s, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
         let description = info.description.map(|text| ExpandableText::new(ctx, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
         LeftData(layout, TitleRow::new(ctx, &info.title.title, info.flair), subtitle, description)

@@ -203,7 +203,7 @@ impl NavigatorDesktop {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 200.0));
 
         NavigatorDesktop(
-            Column::new(32.0, Offset::Center, width, Padding(16.0, 32.0, 16.0, 32.0)),
+            Column::new(32.0, Offset::Center, width, Padding(16.0, 32.0, 16.0, 32.0), false),
             AspectRatioImage::new(wordmark, (100.0, 25.0)), 
             ButtonColumn::new(top_col), 
             spacer,

@@ -4,7 +4,7 @@ use prism::display::Enum;
 use prism::layout::{Stack, Size, Offset, Padding};
 use prism::{emitters, Context, Request, Hardware};
 
-use crate::components::interface::interfaces::ShowKeyboard;
+use crate::components::interface::ShowKeyboard;
 
 #[derive(Component, Debug)]
 pub struct InputField(Stack, emitters::TextInput<_InputField>);

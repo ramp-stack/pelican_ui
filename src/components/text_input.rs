@@ -67,13 +67,17 @@ impl TextInput {
         let help = help_text.map(|t| ExpandableText::new(ctx, t, TextSize::Sm, TextStyle::Secondary, Align::Left, None));
 
         TextInput { 
-            layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default()),
+            layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), false),
             label: label.1.then_some(Text::new(ctx, label.0, TextSize::H5, TextStyle::Heading, Align::Left, None)),
             inner: input_field, 
             hint: EitherOr::new(help, error),
             error: None,
             tag: tag.to_string(),
         }
+    }
+    
+    pub fn default(ctx: &mut Context) -> Self {
+        Self::new(ctx, None, ("First name", true), None, None, None, "FirstNameTextInput")
     }
 
     pub fn value(&mut self) -> String {

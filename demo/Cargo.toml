@@ -1,0 +1,9 @@
+[package]
+name = "demo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+image = "0.25.9"
+ramp = {package="ramp2", path="../../ramp"}
+pelican_ui = {package="pelican_ui", path="../"}
