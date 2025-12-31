@@ -1,4 +1,4 @@
-use prism::drawable::{Component, Drawable};
+use prism::drawable::{Component, Drawable, SizedTree};
 use prism::Context;
 use prism::event::{OnEvent, Event};
 use prism::layout::{Area, Column, Offset, Padding, Size, Stack, Row};
@@ -56,7 +56,7 @@ impl Pages {
 
     // pub fn pages(&mut self) -> { &mut self.pages }
 
-    pub fn current(&mut self) -> &mut Box<dyn Drawable> {
+    pub fn _current(&mut self) -> &mut Box<dyn Drawable> {
         if !self.history.is_empty() || self.pages.right().is_some() {
             self.pages.right().as_mut().unwrap()
         } else {
@@ -73,7 +73,7 @@ pub enum Interface {
 }
 
 impl OnEvent for Interface {
-    fn on_event(&mut self, _ctx: &mut Context, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Interface::Mobile(interface) = self {
             if event.downcast_mut::<NavigationEvent>().is_some() {
                 interface.keyboard().display(false);
@@ -143,7 +143,7 @@ impl InterfaceMobile {
         let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::mobile(ctx, navigation), true));
         // let (_left, _right, top, bottom) = ctx.send(Request::Hardware(Hardware::SafeAreaInsets));
         let (top, bottom) = (18.0, 18.0);
-        let layout = Column::new(0.0, Offset::Center, Size::Fit, Padding::default(), false);
+        let layout = Column::new(0.0, Offset::Center, Size::Fit, Padding::default(), None);
 
         InterfaceMobile(layout, Spacer::new(ctx, top), Pages::new(pages), Opt::new(MobileKeyboard::new(ctx, true), false), navigator, Spacer::new(ctx, bottom))
     }
@@ -179,7 +179,7 @@ impl InterfaceWeb {
     pub fn new(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
         let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
         let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::web(ctx, navigation), true));
-        let layout = Column::new(0.0, Offset::Start, Size::Fill, Padding::default(), false);
+        let layout = Column::new(0.0, Offset::Start, Size::Fill, Padding::default(), None);
         InterfaceWeb(layout, navigator, Pages::new(pages))
     }
 

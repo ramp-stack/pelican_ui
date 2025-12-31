@@ -1,7 +1,7 @@
 use prism::event::{OnEvent, Event};
 use prism::canvas::{ShapeType, Image, Align};
 use prism::{Context, Request};
-use prism::drawable::Component;
+use prism::drawable::{Component, SizedTree};
 use prism::layout::{Area, Column, Padding, Size, Offset, Stack};
 
 use crate::Theme;
@@ -63,7 +63,7 @@ impl QRCodeScanner {
 }
 
 impl OnEvent for QRCodeScanner {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(CameraEvent::ReceivedFrame(frame)) = event.downcast_ref::<CameraEvent>() {
             if let Some(image) = frame {
                 self.find_code(image.clone());

@@ -2,7 +2,7 @@ use prism::event::{TickEvent, OnEvent, MouseState, Event, MouseEvent};
 use prism::canvas::{Image, Shape, ShapeType};
 use prism::layout::{Stack, Offset, Size, Padding};
 use prism::{Context, Hardware, Request};
-use prism::drawable::Component;
+use prism::drawable::{Component, SizedTree};
 
 use crate::Theme;
 use crate::theme::Color;
@@ -69,10 +69,14 @@ impl Avatar {
             outline,
         }
     }
+
+    pub fn default(ctx: &mut Context) -> Self {
+        Self::new(ctx, AvatarContent::icon("profile", AvatarIconStyle::Secondary), None, false, AvatarSize::Lg, None)
+    }
 }
 
 impl OnEvent for Avatar {
-    fn on_event(&mut self, ctx: &mut Context, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.as_any_mut().downcast_mut::<MouseEvent>() {
             if let Some(on_click) = &mut self.on_click {
                 ctx.send(Request::Hardware(Hardware::Haptic));

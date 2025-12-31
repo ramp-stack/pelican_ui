@@ -4,4 +4,4 @@ mod interfaces;
 pub use interfaces::ShowKeyboard;
 mod system;
 mod navigation;
-pub use navigation::{RootInfo, AppPage};
+pub use navigation::{RootInfo, AppPage, NavigationEvent};

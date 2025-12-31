@@ -86,9 +86,7 @@ impl Default for IconResources {
         let result = include_dir!("resources/icons").entries().iter().filter_map(|e| match e {
             DirEntry::File(f) => Some(f),
             _ => None,
-        }).filter(|p| {
-            p.path().to_str().unwrap().ends_with(".svg")
-        }).collect::<Vec<_>>();
+        }).filter(|p| p.path().to_str().unwrap().ends_with(".svg")).collect::<Vec<_>>();
 
         Self(result.iter().map(|p| {
             let name = p.path().to_str().unwrap().strip_suffix(".svg").unwrap().replace(' ', "_");
@@ -279,8 +277,8 @@ impl ButtonVariants {
     fn primary(brand: Color) -> Self {
         Self {
             default: ButtonColorScheme::new(brand, Color::WHITE, Color::TRANSPARENT),
-            hover: ButtonColorScheme::new(Color::darken(brand, 0.85), Color::WHITE, Color::TRANSPARENT),
-            pressed: ButtonColorScheme::new(Color::darken(brand, 0.8), Color::WHITE, Color::TRANSPARENT),
+            hover: ButtonColorScheme::new(Color::darken(brand, 0.75), Color::WHITE, Color::TRANSPARENT),
+            pressed: ButtonColorScheme::new(Color::darken(brand, 0.7), Color::WHITE, Color::TRANSPARENT),
             disabled: ButtonColorScheme::new(Color::from_hex("#443f3f", 255), Color::BLACK, Color::TRANSPARENT),
         }
     }
@@ -367,11 +365,7 @@ impl Color {
 
     pub fn darken(c: Color, factor: f32) -> Color {
         let c: canvas::Color = c.into();
-        let avg = ((c.0 as f32 + c.1 as f32 + c.2 as f32) / 3.0) * 0.1;
-        let f = |ch: u8| {
-            let chf = ch as f32 * factor;
-            ((avg + (chf - avg) * 0.1).clamp(0.0, 255.0)) as u8
-        };
+        let f = |ch: u8| (ch as f32 * factor) as u8;
         Color(canvas::Color(f(c.0), f(c.1), f(c.2), c.3))
     }
 

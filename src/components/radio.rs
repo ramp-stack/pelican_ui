@@ -36,7 +36,7 @@ impl RadioSelector {
             
             let default = ListItem::new(ctx,
                 None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some("radio"), None, 
-                move |ctx: &mut Context| {ctx.state.insert::<(String, String)>((tag.to_string(), title.to_string()));},
+                move |ctx: &mut Context| {ctx.state.insert(RadioSelectorState(tag.to_string(), title.to_string()));},
             );
 
             interactions::Selectable::new(default, selected, i == index, false, c, group_id)
@@ -45,4 +45,14 @@ impl RadioSelector {
 
         RadioSelector(Column::center(0.0), selectables)
     }
+
+    pub fn default(ctx: &mut Context) -> Self {
+        Self::new(ctx, 0, "radio_selector", vec![
+            ("Option A", "Press this to select option A", Box::new(|_: &mut Context| println!("Option A Selected")) as Callback),
+            ("Option B", "Press this to select option B", Box::new(|_: &mut Context| println!("Option B Selected")) as Callback),
+            ("Option C", "Press this to select option C", Box::new(|_: &mut Context| println!("Option C Selected")) as Callback)
+        ])
+    }
 }
+
+pub struct RadioSelectorState(String, String);

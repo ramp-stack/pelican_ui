@@ -44,7 +44,7 @@ impl OnEvent for DataItem {}
 impl DataItem {
     pub fn text(ctx: &mut Context, label: &str, secondary: &str, description: &str, quick_actions: Option<Vec<QuickAction>>) -> Self {
         DataItem(
-            Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), false),
+            Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
             Text::new(ctx, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
             Some(ExpandableText::new(ctx, secondary, TextSize::Md, TextStyle::Primary, Align::Left, None)),
             Some(ExpandableText::new(ctx, description, TextSize::Sm, TextStyle::Secondary, Align::Left, None)),
@@ -54,7 +54,7 @@ impl DataItem {
 
     pub fn table(ctx: &mut Context, label: &str, table: Vec<(String, String)>, quick_actions: Option<Vec<QuickAction>>) -> Self {
         DataItem(
-            Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), false),
+            Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
             Text::new(ctx, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
             None, None, Some(Table::new(ctx, table)),
             quick_actions.map(|actions| QuickActions::new(ctx, actions))

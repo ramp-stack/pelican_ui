@@ -49,6 +49,10 @@ impl PrimaryButton {
         
         PrimaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), is_disabled, Box::new(on_click)))
     }
+
+    pub fn default(ctx: &mut Context) -> Self { 
+        Self::new(ctx, "Primary Button", |ctx: &mut Context| println!("Pressed...."), false)
+    }
 }
 
 /// ## Secondary Button
@@ -91,6 +95,10 @@ impl SecondaryButton {
         });
         SecondaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), false, Box::new(on_click)))
     }
+
+    pub fn default(ctx: &mut Context) -> Self { 
+        Self::medium(ctx, "edit", "Secondary", None, |ctx: &mut Context| println!("Pressed...."))
+    }
 }
 
 /// ## Secondary Icon Button
@@ -124,6 +132,10 @@ impl SecondaryIconButton {
         });
         SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), false, Box::new(on_click)))
     }
+
+    pub fn default(ctx: &mut Context) -> Self { 
+        Self::medium(ctx, "explore", |ctx: &mut Context| println!("Pressed...."))
+    }
 }
 
 /// ## Ghost Icon Button
@@ -147,6 +159,10 @@ impl GhostIconButton {
             IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
         });
         GhostIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), false, Box::new(on_click)))
+    }
+
+    pub fn default(ctx: &mut Context) -> Self { 
+        Self::new(ctx, "left", |ctx: &mut Context| println!("Pressed...."))
     }
 }
 

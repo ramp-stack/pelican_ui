@@ -49,6 +49,10 @@ impl ListItem {
         let list_item = ListItemContent::new(ctx, avatar, left, right, icon_l, icon_r);
         ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, false, Box::new(on_click)))
     }
+
+    pub fn default(ctx: &mut Context) -> Self {
+        Self::new(ctx, None, ListItemInfoLeft::new("List Item", Some("Click me for details"), None, None), None, None, Some("forward"), |_: &mut Context| println!("Pressed..."))
+    }
 }
 
 #[derive(Debug, Component)]
@@ -90,7 +94,7 @@ impl OnEvent for LeftData {}
 
 impl LeftData {
     pub fn new(ctx: &mut Context, info: ListItemInfoLeft) -> Self {
-        let layout = Column::new(4.0, Offset::Start, Size::Fill, Padding::default(), false);
+        let layout = Column::new(4.0, Offset::Start, Size::Fill, Padding::default(), None);
         let subtitle = info.title.subtitle.map(|s| ExpandableText::new(ctx, &s, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
         let description = info.description.map(|text| ExpandableText::new(ctx, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
         LeftData(layout, TitleRow::new(ctx, &info.title.title, info.flair), subtitle, description)

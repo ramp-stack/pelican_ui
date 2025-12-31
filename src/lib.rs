@@ -19,6 +19,8 @@ impl PelicanUI {
         on_tick: impl FnMut(&mut Context) + 'static
     ) -> Interface {
         ctx.state.insert(Theme::default());
-        (interface)(ctx).set_on_tick(on_tick)
+        let mut interface = (interface)(ctx);
+        interface.on_tick = Some(Box::new(on_tick));
+        interface
     }
 }

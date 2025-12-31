@@ -1,5 +1,5 @@
 use prism::event::{self, OnEvent, Event};
-use prism::drawable::{Drawable, Component};
+use prism::drawable::{Drawable, Component, SizedTree};
 use prism::display::Enum;
 use prism::layout::{Stack, Size, Offset, Padding};
 use prism::{emitters, Context, Request, Hardware};
@@ -67,7 +67,7 @@ impl _InputField {
 }
 
 impl OnEvent for _InputField {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(e) = event.downcast_ref::<event::TextInput>() {
             match e {
                 event::TextInput::Hover(true) => self.1.display("hover"),

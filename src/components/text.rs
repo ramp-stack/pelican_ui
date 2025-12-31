@@ -21,7 +21,7 @@ pub struct Text {
 }
 
 impl OnEvent for Text {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             let (color, font) = self.style.get(ctx);
             self.inner.align = self.align;
@@ -80,22 +80,7 @@ impl TextStyle {
 }
 
 #[derive(Copy, Clone, Debug, Default)]
-pub enum TextSize {
-    Title, 
-    H1,
-    H2,
-    H3,
-    H4,
-    H5,
-    H6, 
-    Xl, 
-    #[default]
-    Lg,
-    Md,
-    Sm,
-    Xs
-}
-
+pub enum TextSize { Title, H1, H2, H3, H4, H5, H6, Xl, #[default] Lg, Md, Sm, Xs }
 impl TextSize {
     fn get(&self, ctx: &mut Context) -> f32 {
         let font_size = ctx.state.get_or_default::<Theme>().fonts.size;
@@ -118,8 +103,6 @@ impl TextSize {
 
 #[derive(Debug)]
 pub struct ExpandableText(pub Text);
-impl OnEvent for ExpandableText {}
-
 impl ExpandableText {
     pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         ExpandableText(Text::new(ctx, text, size, style, align, max_lines))
@@ -140,6 +123,10 @@ impl Drawable for ExpandableText {
         let text = BasicText {spans: self.0.inner.spans.clone(), width: Some(sized.0.0), align: self.0.inner.align, cursor: self.0.inner.cursor, max_lines: self.0.inner.max_lines};
         vec![(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Text(text))]
     }
+
+    fn event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) {
+        self.0.event(ctx, sized, event)
+    }
 }
 
 #[derive(Component, Debug)]
@@ -147,51 +134,13 @@ pub struct TextEditor(Stack, pub ExpandableText, TextCursor);
 
 impl TextEditor {
     pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
-        let mut text = ExpandableText::new(ctx, text, size, style, align, None);
-        text.0.inner.cursor = Some(Cursor::default());
-        TextEditor(Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default()), text, TextCursor::new(ctx, style, size))
+        let mut built = ExpandableText::new(ctx, text, size, style, align, None);
+        built.0.inner.cursor = Some(text.len());
+        TextEditor(Stack::start(), built, TextCursor::new(ctx, style, size))
     }
 
-    pub fn apply_edit(&mut self, key: &Key) {
-        let index = self.1.0.inner.cursor.unwrap();
-        match key {
-            Key::Named(NamedKey::Enter) => {
-                match index >= self.1.0.spans[0].len() {
-                    true => self.1.0.spans[0].push('\n'),
-                    false => self.1.0.spans[0].insert(index, '\n'),
-                };
-                if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1};
-            },
-            Key::Named(NamedKey::Space) => {
-                match index >= self.1.0.spans[0].len() {
-                    true => self.1.0.spans[0].push(' '),
-                    false => self.1.0.spans[0].insert(index, ' '),
-                };
-                if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1};
-            },
-            Key::Named(NamedKey::Delete) => {
-                self.1.0.spans[0] = {
-                    let mut chars: Vec<char> = self.1.0.spans[0].chars().collect();
-
-                    match chars.len() {
-                        1 => chars.clear(),
-                        _ if index >= chars.len() => {chars.pop();},
-                        _ => {chars.remove(index);}
-                    }
-
-                    chars.into_iter().collect()
-                };
-                if let Some(c) = self.1.0.inner.cursor.as_mut() { *c = c.saturating_sub(1); }
-            },
-            Key::Character(c) => {
-                match index >= self.1.0.spans[0].len() {
-                    true => c.chars().next().map(|ch| self.1.0.spans[0].push(ch)),
-                    false => c.chars().next().map(|ch| self.1.0.spans[0].insert(index, ch)),
-                };
-                if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1;}
-            },
-            _ => {}
-        };
+    pub fn default(ctx: &mut Context) -> Self {
+        Self::new(ctx, "", TextSize::Md, TextStyle::Primary, Align::Left)
     }
 
     pub fn display_cursor(&mut self, display: bool) {
@@ -200,7 +149,7 @@ impl TextEditor {
 }
 
 impl OnEvent for TextEditor {
-    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() && self.1.0.inner.cursor.is_some() {
             let cursor_pos = self.1.0.inner.cursor_position();
             *self.2.x_offset() = Offset::Static(cursor_pos.0);
@@ -210,7 +159,39 @@ impl OnEvent for TextEditor {
                 self.1.0.inner.cursor_click(event.position.unwrap().0, event.position.unwrap().1) 
             }
         } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key}) = event.downcast_ref() {
-            self.apply_edit(key);
+            let index = self.1.0.inner.cursor.unwrap();
+            
+            let character = match key {
+                Key::Character(c) => Some(c.chars().next().unwrap_or_default()),
+                Key::Named(NamedKey::Enter) => Some('\n'),
+                Key::Named(NamedKey::Space) => Some(' '),
+                Key::Named(NamedKey::Delete) => None,
+                _ => {return vec![event];}
+            };
+
+            match character {
+                Some(c) => {
+                    match index >= self.1.0.spans[0].len() {
+                        true => self.1.0.spans[0].push(c),
+                        false => self.1.0.spans[0].insert(index, c),
+                    };
+                    if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1;}
+                }
+                None => {
+                    self.1.0.spans[0] = {
+                        let mut chars: Vec<char> = self.1.0.spans[0].chars().collect();
+
+                        match chars.len() {
+                            1 => chars.clear(),
+                            _ if index >= chars.len() => {chars.pop();},
+                            _ => {chars.remove(index);}
+                        }
+
+                        chars.into_iter().collect()
+                    };
+                    if let Some(c) = self.1.0.inner.cursor.as_mut() { *c = c.saturating_sub(1); }
+                }
+            }
         }
         
         vec![event]

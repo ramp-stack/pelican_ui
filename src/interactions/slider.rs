@@ -1,5 +1,5 @@
 use prism::event::{self, OnEvent, Event, TickEvent};
-use prism::drawable::{Drawable, Component};
+use prism::drawable::{Drawable, Component, SizedTree};
 use prism::display::Bin;
 use prism::layout::{Stack, Size, Offset, Padding};
 use prism::{emitters, Context, Request, Hardware};
@@ -63,29 +63,22 @@ impl _Slider {
             closure: Box::new(callback),
         }
     }
-
-    fn clamp(&mut self, x: f32) {
-        let full_width = Drawable::request_size(&(**self.background.inner())).0.max_width();
-        self.value = x.clamp(0.0, full_width);
-    }
 }
 
 impl OnEvent for _Slider {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<event::Slider>() {
             (self.closure)(ctx, self.value);
             match event {
-                event::Slider::Moved(x) => self.clamp(*x),
+                event::Slider::Moved(x) => self.value = ((*x / sized.0.0) * 100.0).round() / 100.0,
                 event::Slider::Start(x) => {
-                    self.clamp(*x);
+                    self.value = ((*x / sized.0.0) * 100.0).round() / 100.0;
                     ctx.send(Request::Hardware(Hardware::Haptic));
                 },
             }
         } else if event.downcast_ref::<TickEvent>().is_some() {
-            let full_width = Drawable::request_size(&(**self.background.inner())).0.max_width();
             let handle_size = Drawable::request_size(&(**self.handle.inner())).0.min_width() / 2.0;
-
-            let clamped_x = self.value.clamp(0.0, full_width);
+            let clamped_x = (sized.0.0 * self.value).clamp(0.0, sized.0.0);
             self.handle.layout().0 = Offset::Static((clamped_x - handle_size).max(0.0));
             self.foreground.layout().2 = Size::Static(clamped_x);
         }

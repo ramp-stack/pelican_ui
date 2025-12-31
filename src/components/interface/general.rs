@@ -1,6 +1,6 @@
 use prism::{emitters, drawables, Context, IS_MOBILE, IS_WEB, Request};
 use prism::event::{Event, OnEvent, MouseEvent, MouseState, TickEvent};
-use prism::drawable::{Drawable, Component};
+use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
 use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
 
@@ -17,11 +17,17 @@ use crate::utils::Callback;
 ///
 /// This interface automatically adapts to the platform.
 #[derive(Component)]
-pub struct Interface(Stack, Rectangle, interfaces::Interface, #[skip] pub Option<Callback>);
+pub struct Interface {
+    layout: Stack,
+    background: Rectangle,
+    inner: interfaces::Interface,
+    #[skip] pub on_tick: Option<Callback>
+}
+
 impl OnEvent for Interface {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            if let Some(callback) = &mut self.3 {(callback)(ctx);}
+            if let Some(callback) = &mut self.on_tick {(callback)(ctx);}
         }
         vec![event]
     }
@@ -29,27 +35,23 @@ impl OnEvent for Interface {
 
 impl std::fmt::Debug for Interface {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.2)
+        write!(f, "{:?}", self.inner)
     }
 }
 
 impl Interface {
     pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
         let color = ctx.state.get_or_default::<Theme>().colors.background.primary;
-        let interface: interfaces::Interface = match IS_WEB {
-            true => interfaces::Interface::web(ctx, navigation),
-            false if IS_MOBILE => interfaces::Interface::mobile(ctx, navigation),
-            false => interfaces::Interface::desktop(ctx, navigation),
-        };
-
-        Interface(Stack::default(), Rectangle::new(color, 0.0, None), interface, None)
-    }
-
-    pub fn inner(&mut self) -> &mut interfaces::Interface {&mut self.2}
-
-    pub fn set_on_tick(mut self, on_tick: impl FnMut(&mut Context) + 'static) -> Self {
-        self.3 = Some(Box::new(on_tick));
-        self
+        Interface {
+            layout: Stack::default(),
+            background: Rectangle::new(color, 0.0, None),
+            inner: match IS_WEB {
+                true => interfaces::Interface::web(ctx, navigation),
+                false if IS_MOBILE => interfaces::Interface::mobile(ctx, navigation),
+                false => interfaces::Interface::desktop(ctx, navigation),
+            },
+            on_tick: None
+        }
     }
 }
 
@@ -68,7 +70,7 @@ impl Page {
     /// Creates a new [`Page`] from an optional [`Header`], [`Content`], and optional [`Bumper`]
     pub fn new(header: Header, content: Content, bumper: Option<Bumper>) -> Self {
         Page(
-            Column::new(12.0, Offset::Center, Size::Fill, Padding::default(), false),
+            Column::new(12.0, Offset::Center, Size::Fill, Padding::default(), None),
             header,
             content,
             bumper,
@@ -105,10 +107,9 @@ impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
     pub fn new(offset: Offset, content: Vec<Box<dyn Drawable>>) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
-        let height = Size::custom(move |_: Vec<(f32, f32)>|(0.0, f32::MAX));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }
-        Content(Column::new(8.0, Offset::Center, width, Padding::new(16.0), true), content) 
+        Content(Column::new(24.0, Offset::Center, width, Padding::new(16.0), Some(anchor)), content) 
     }
 
     /// Find an item in the content. Will return the first instance of the type.
@@ -150,7 +151,7 @@ impl Content {
 }
 
 impl OnEvent for Content {
-    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.0.adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
@@ -286,7 +287,7 @@ impl HeaderIcon {
 #[derive(Component)]
 pub struct Bumper (Stack, Rectangle, BumperContent, #[skip] Option<BumperFn>);
 impl OnEvent for Bumper {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(validate) = &mut self.3 {
             (validate)(&mut self.2, ctx);
         }
@@ -377,6 +378,10 @@ impl Bumper {
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
         Bumper(layout, Rectangle::new(background, 0.0, None), BumperContent::new(content), on_tick)
+    }
+
+    pub fn default(ctx: &mut Context) -> Self {
+        Self::home(ctx, ("Press me".to_string(), Box::new(|_: &mut Context| println!("Pressed...."))), None, None)
     }
 
     /// Returns the items in the `Bumper`.

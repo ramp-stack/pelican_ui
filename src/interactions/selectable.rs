@@ -1,5 +1,5 @@
 use prism::event::{self, OnEvent, Event};
-use prism::drawable::{Drawable, Component};
+use prism::drawable::{Drawable, Component, SizedTree};
 use prism::display::Enum;
 use prism::layout::Stack;
 use prism::{emitters, Context, Request, Hardware};
@@ -50,7 +50,7 @@ impl _Selectable {
 }
 
 impl OnEvent for _Selectable {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event::Selectable::Selected(b)) = event.downcast_ref::<event::Selectable>() {
             match b {
                 false => self.1.display("default"),

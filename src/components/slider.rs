@@ -49,4 +49,8 @@ impl Slider {
             interactions::Slider::new(start, background, foreground, handle, on_change),
         )
     }
+
+    pub fn default(ctx: &mut Context) -> Self {
+        Self::new(ctx, 0.5, Some("Slider"), None, |_: &mut Context, p: f32| println!("Slider moved... {p:?}"))
+    }
 }

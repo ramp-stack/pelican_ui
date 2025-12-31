@@ -1,5 +1,5 @@
 use prism::event::{self, OnEvent, Event, TickEvent};
-use prism::drawable::Component;
+use prism::drawable::{Component, SizedTree};
 use prism::display::Opt;
 use prism::layout::{Stack, Row, Area};
 use prism::canvas::Align;
@@ -86,7 +86,7 @@ impl InputSegment {
 }
 
 impl OnEvent for InputSegment {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<InputEvent>() {
             match (self.slot.clone(), event) {
                 (SlotType::Primary(_c, _max) | SlotType::Ghost(_c, _max), InputEvent::Delete) => {
@@ -223,7 +223,7 @@ impl _NumericalInput {
 }
 
 impl OnEvent for _NumericalInput {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             let text_size = match self.value().len() {
                 0..=3 => TextSize::Title,
@@ -258,7 +258,7 @@ impl OnEvent for _NumericalInput {
             match event {
                 event::NumericalInput::Delete => {
                     if let Some(seg) = self.segments.get_mut(self.cursor) {
-                        seg.on_event(ctx, Box::new(InputEvent::Delete));
+                        seg.on_event(ctx, &SizedTree::default(), Box::new(InputEvent::Delete));
                     }
                 },
                 event::NumericalInput::Digit(c) => {
@@ -267,7 +267,7 @@ impl OnEvent for _NumericalInput {
                     }
 
                     if let Some(seg) = self.segments.get_mut(self.cursor) {
-                        seg.on_event(ctx, Box::new(InputEvent::InputDigit(*c)));
+                        seg.on_event(ctx, &SizedTree::default(), Box::new(InputEvent::InputDigit(*c)));
                     }
                 },
                 event::NumericalInput::Char(c) => {
@@ -281,7 +281,7 @@ impl OnEvent for _NumericalInput {
                     }
 
                     if let Some(seg) = self.segments.get_mut(self.cursor) {
-                        seg.on_event(ctx, Box::new(InputEvent::InputChar(*c)));
+                        seg.on_event(ctx, &SizedTree::default(), Box::new(InputEvent::InputChar(*c)));
                     }
                 }
             }

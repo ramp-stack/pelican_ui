@@ -3,7 +3,7 @@ use prism::event::Key as WinitKey;
 use prism::event::{self, MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey};
 use prism::canvas::{self, Align, Image};
 use prism::{Context, Request, Hardware};
-use prism::drawable::Component;
+use prism::drawable::{Component, SizedTree};
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
 use prism::display::Bin;
 
@@ -100,7 +100,7 @@ impl KeyboardContent {
     fn new(ctx: &mut Context, actions: bool) -> Self {
         let (sender, receiver) = mpsc::channel();
         KeyboardContent(
-            Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), false),
+            Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
             KeyboardHeader::new(ctx, actions),
             KeyboardRow::top(ctx),
             KeyboardRow::middle(ctx),
@@ -121,7 +121,7 @@ impl KeyboardContent {
 }
 
 impl OnEvent for KeyboardContent {
-    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
             match self.6.try_recv() {
                 Ok(0) => {println!("CAPSLOCK"); self.update();},
@@ -242,7 +242,7 @@ impl Key {
 }
 
 impl OnEvent for Key {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
 
@@ -282,7 +282,7 @@ impl std::fmt::Debug for Capslock {
 }
 
 impl OnEvent for Capslock {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
 
@@ -327,7 +327,7 @@ impl std::fmt::Debug for Paginator {
 }
 
 impl OnEvent for Paginator {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
             self.2 = handle_state(ctx, self.2, *event);
 

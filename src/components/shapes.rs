@@ -44,7 +44,7 @@ impl ExpandableShape {
 }
 
 impl Drawable for ExpandableShape {
-    fn request_size(&self) -> RequestTree { RequestTree(SizeRequest::fill(), vec![]) }
+    fn request_size(&self) -> RequestTree {RequestTree(SizeRequest::fill(), vec![])}
 
     fn draw(&self, sized: &SizedTree, offset: Offset, bound: Rect) -> Vec<(CanvasArea, CanvasItem)> {
         let shape = match self.0.shape {

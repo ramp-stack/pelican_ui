@@ -17,17 +17,21 @@ impl Checkbox {
         let second_tag = tag.to_string();
 
         let selected = ListItem::new(ctx, None, ListItemInfoLeft::new(title, subtitle.as_deref(), None, None), None, Some("check"), None,
-            move |ctx: &mut Context| {ctx.state.insert::<(String, String)>((tag.to_string(), "true".to_string()));},
+            move |ctx: &mut Context| {ctx.state.insert(CheckboxState(tag.to_string(), "true".to_string()));},
         );
         
         let default = ListItem::new(ctx,
             None, ListItemInfoLeft::new(title, subtitle.as_deref(), None, None), None, Some("unchecked"), None, 
-            move |ctx: &mut Context| {ctx.state.insert::<(String, String)>((second_tag.to_string(), "false".to_string()));},
+            move |ctx: &mut Context| {ctx.state.insert(CheckboxState(second_tag.to_string(), "false".to_string()));},
         );
 
         let selectable = interactions::Selectable::new(default, selected, is_selected, true, Box::new(|_: &mut Context| {}), uuid::Uuid::new_v4());
 
         Checkbox(Stack::default(), selectable)
+    }
+
+    pub fn default(ctx: &mut Context) -> Self {
+        Self::new(ctx, "Checkbox", None, false, "checkbox")
     }
 }
 
@@ -40,3 +44,5 @@ impl CheckboxList {
         CheckboxList(Column::center(0.0), items)
     }
 }
+
+pub struct CheckboxState(String, String);
