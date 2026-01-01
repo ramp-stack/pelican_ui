@@ -1,4 +1,4 @@
-use prism::{emitters, drawables, Context, IS_MOBILE, IS_WEB, Request};
+use prism::{drawables, Context, IS_MOBILE, IS_WEB, Request};
 use prism::event::{Event, OnEvent, MouseEvent, MouseState, TickEvent};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
@@ -63,26 +63,25 @@ impl Interface {
 ///      alt="Page Example"
 ///      width="250">
 #[derive(Debug, Component)]
-pub struct Page(Column, Header, Content, Option<Bumper>);
+pub struct Page {
+    layout: Column,
+    pub header: Header,
+    pub content: Content,
+    pub bumper: Option<Bumper>
+}
+
 impl OnEvent for Page {}
 
 impl Page {
     /// Creates a new [`Page`] from an optional [`Header`], [`Content`], and optional [`Bumper`]
     pub fn new(header: Header, content: Content, bumper: Option<Bumper>) -> Self {
-        Page(
-            Column::new(12.0, Offset::Center, Size::Fill, Padding::default(), None),
+        Page {
+            layout: Column::new(12.0, Offset::Center, Size::Fill, Padding::default(), None),
             header,
             content,
             bumper,
-        )
+        }
     }
-
-    /// Returns the header if it exists.
-    pub fn header(&mut self) -> &mut Header {&mut self.1}
-    /// Returns the content.
-    pub fn content(&mut self) -> &mut Content {&mut self.2}
-    /// Returns the bumper if it exists.
-    pub fn bumper(&mut self) -> &mut Option<Bumper> {&mut self.3}
 }
 
 /// # Content
@@ -101,15 +100,21 @@ impl Page {
 /// let content = Content::new(ctx, Offset::Center, vec![Box::new(text)]);
 /// ```
 #[derive(Debug, Component)]
-pub struct Content(Column, Vec<Box<dyn Drawable>>);
+pub struct Content {
+    layout: Column,
+    pub children: Vec<Box<dyn Drawable>>
+}
 
 impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
-    pub fn new(offset: Offset, content: Vec<Box<dyn Drawable>>) -> Self {
+    pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }
-        Content(Column::new(24.0, Offset::Center, width, Padding::new(16.0), Some(anchor)), content) 
+        Content {
+            layout: Column::new(24.0, Offset::Center, width, Padding::new(16.0), Some(anchor)),
+            children,
+        }
     }
 
     /// Find an item in the content. Will return the first instance of the type.
@@ -118,7 +123,7 @@ impl Content {
     /// let text = content.find::<Text>().expect("Could not find text in content");
     /// ```
     pub fn find<T: std::any::Any>(&mut self) -> Option<&mut T> {
-        self.items().iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
+        self.children.iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Find an item in the bumper at a specific index.
@@ -127,7 +132,7 @@ impl Content {
     /// let text_input = content.find_at::<TextInput>(0).expect("Could not find text input at first index in content");
     /// ```
     pub fn find_at<T: std::any::Any>(&mut self, i: usize) -> Option<&mut T> {
-        self.items().get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
+        self.children.get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Remove an item from the content. Will remove the first instance of the type.
@@ -136,24 +141,19 @@ impl Content {
     /// let text = content.remove::<Text>().expect("Could not remove text from content");
     /// ```
     pub fn remove<T: std::any::Any>(&mut self) -> Option<T> {
-        if let Some(pos) = self.items().iter().position(|item| (**item).as_any().is::<T>()) {
-            let boxed = self.items().remove(pos);
+        if let Some(pos) = self.children.iter().position(|item| (**item).as_any().is::<T>()) {
+            let boxed = self.children.remove(pos);
             boxed.into_any().downcast::<T>().ok().map(|b| *b)
         } else {
             None
         }
     }
-
-    /// Returns all the items in the content
-    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1}
-    //// Returns the offset of the items.
-    // pub fn offset(&mut self) -> &mut Offset {self.0.offset()}
 }
 
 impl OnEvent for Content {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
-            self.0.adjust_scroll(*a);
+            self.layout.adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
         //     if roost_ui::IS_MOBILE {
         //         let mut total_height = 0.0;
@@ -171,7 +171,7 @@ impl OnEvent for Content {
         //         }
         //     }
         } else if let Some(MouseEvent { state: MouseState::Scroll(_, y), position: Some(_) }) = event.downcast_ref::<MouseEvent>() {
-            self.0.adjust_scroll(*y);
+            self.layout.adjust_scroll(*y);
         }
         vec![event]
     }
@@ -191,7 +191,13 @@ impl OnEvent for Content {
 ///
 /// Header components can only be used inside [`Page`] components.
 #[derive(Debug, Component)]
-pub struct Header(Row, HeaderIcon, Box<dyn Drawable>, HeaderIcon);
+pub struct Header {
+    layout: Row,
+    pub left: HeaderIcon,
+    pub center: Box<dyn Drawable>,
+    pub right: HeaderIcon
+}
+
 impl OnEvent for Header {}
 
 impl Header {
@@ -242,7 +248,12 @@ impl Header {
         let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(ctx, &n, c)).unwrap_or_default();
 
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0));
-        Header(layout, l_icon, Box::new(text), r_icon)
+        Header {
+            layout,
+            left: l_icon,
+            center: Box::new(text),
+            right: r_icon
+        }
     }
 }
 
@@ -251,19 +262,22 @@ impl Header {
 /// Optionally contains an icon, otherwise just reserves the space.
 /// These are only to be used in [`Header`] components.
 #[derive(Debug, Component)]
-pub struct HeaderIcon(Stack, Option<GhostIconButton>);
+pub struct HeaderIcon {
+    layout: Stack,
+    pub icon: Option<GhostIconButton>
+}
 impl OnEvent for HeaderIcon {}
 impl Default for HeaderIcon {fn default() -> Self {Self::none()}}
 
 impl HeaderIcon {
     pub fn new(ctx: &mut Context, icon: &str, closure: impl FnMut(&mut Context) + 'static) -> Self {
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(48.0), Size::Static(48.0), Padding::default());
-        HeaderIcon(layout, Some(GhostIconButton::new(ctx, icon, closure)))
+        HeaderIcon{layout, icon: Some(GhostIconButton::new(ctx, icon, closure))}
     }
 
     pub fn none() -> Self {
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(48.0), Size::Static(48.0), Padding::default());
-        HeaderIcon(layout, None)
+        HeaderIcon {layout, icon: None}
     }
 }
 
@@ -285,11 +299,18 @@ impl HeaderIcon {
 /// let bumper = Bumper::single_button(ctx, button);
 ///```
 #[derive(Component)]
-pub struct Bumper (Stack, Rectangle, BumperContent, #[skip] Option<BumperFn>);
+pub struct Bumper {
+    layout: Stack,
+    background: Rectangle,
+    pub content: BumperContent,
+    #[skip] validation: Option<BumperFn>
+}
 impl OnEvent for Bumper {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(validate) = &mut self.3 {
-            (validate)(&mut self.2, ctx);
+        if event.downcast_ref::<TickEvent>().is_some() {
+            if let Some(validate) = &mut self.validation {
+                (validate)(&mut self.content, ctx);
+            }
         }
 
         vec![event]
@@ -301,7 +322,7 @@ type BumperFn = Box<dyn FnMut(&mut BumperContent, &mut Context) + 'static>;
 
 impl std::fmt::Debug for Bumper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Bumper {:?}...", self.2)
+        write!(f, "Bumper {:?}", self.content)
     }
 }
 
@@ -320,7 +341,7 @@ impl Bumper {
         }
 
         let validate = validity_fn.map(|mut vfn| Box::new(move |content: &mut BumperContent, ctx: &mut Context| { 
-            content.1.iter_mut().for_each(|i| if let Some(a) = (**i).as_any_mut().downcast_mut::<PrimaryButton>() { 
+            content.children.iter_mut().for_each(|i| if let Some(a) = (**i).as_any_mut().downcast_mut::<PrimaryButton>() { 
                 a.1.disable((vfn)(ctx));
             }); 
         }) as BumperFn);
@@ -338,7 +359,7 @@ impl Bumper {
         
         let button = PrimaryButton::new(ctx, label.unwrap_or("Continue"), Box::new(on_click), is_disabled);
         let validate = validity_fn.map(|mut vfn| Box::new(move |content: &mut BumperContent, ctx: &mut Context| { 
-            content.1.iter_mut().for_each(|i| if let Some(a) = (**i).as_any_mut().downcast_mut::<PrimaryButton>() { 
+            content.children.iter_mut().for_each(|i| if let Some(a) = (**i).as_any_mut().downcast_mut::<PrimaryButton>() { 
                 a.1.disable((vfn)(ctx));
             }); 
         }) as BumperFn);
@@ -371,21 +392,23 @@ impl Bumper {
     }
 
     /// Creates a new `Bumper` from a vector of boxed [`Drawables`](Drawable)
-    pub fn new(ctx: &mut Context, content: Vec<Box<dyn Drawable>>, on_tick: Option<BumperFn>) -> Self {
+    pub fn new(ctx: &mut Context, content: Vec<Box<dyn Drawable>>, validation: Option<BumperFn>) -> Self {
         let background = ctx.state.get_or_default::<Theme>().colors.background.primary;
         let max = 375.0;
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
-        Bumper(layout, Rectangle::new(background, 0.0, None), BumperContent::new(content), on_tick)
+        Bumper {
+            layout,
+            background: Rectangle::new(background, 0.0, None),
+            content: BumperContent::new(content),
+            validation
+        }
     }
 
     pub fn default(ctx: &mut Context) -> Self {
         Self::home(ctx, ("Press me".to_string(), Box::new(|_: &mut Context| println!("Pressed...."))), None, None)
     }
-
-    /// Returns the items in the `Bumper`.
-    pub fn items(&mut self) -> &mut Vec<Box<dyn Drawable>> { &mut self.2.1 }
 
     /// Find an item in the bumper. Will return the first instance of the type.
     ///
@@ -393,7 +416,7 @@ impl Bumper {
     /// let button = bumper.find::<Button>().expect("Could not find button in bumper");
     /// ```
     pub fn find<T: std::any::Any>(&mut self) -> Option<&mut T> {
-        self.items().iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
+        self.content.children.iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Find an item in the bumper at a specific index.
@@ -402,17 +425,24 @@ impl Bumper {
     /// let button = bumper.find_at::<Button>(0).expect("Could not find button at the first index in the bumper");
     /// ```
     pub fn find_at<T: std::any::Any>(&mut self, i: usize) -> Option<&mut T> {
-        self.items().get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
+        self.content.children.get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 }
 
 #[derive(Debug, Component)]
-pub struct BumperContent (Row, Vec<Box<dyn Drawable>>);
+pub struct BumperContent {
+    layout: Row, 
+    pub children: Vec<Box<dyn Drawable>> 
+}
+
 impl OnEvent for BumperContent {}
 
 impl BumperContent {
-    fn new(content: Vec<Box<dyn Drawable>>) -> Self {
-        BumperContent(Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0)), content)
+    fn new(children: Vec<Box<dyn Drawable>>) -> Self {
+        BumperContent{
+            layout: Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0)), 
+            children
+        }
     }
 }
 

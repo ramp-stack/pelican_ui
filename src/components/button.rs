@@ -13,14 +13,18 @@ use crate::utils::Callback;
 pub type QuickAction = (String, Option<String>, Callback);
 
 #[derive(Debug, Component)]
-pub struct QuickActions(Wrap, Vec<SecondaryButton>);
+pub struct QuickActions{
+    layout: Wrap, 
+    buttons: Vec<SecondaryButton>
+}
+
 impl OnEvent for QuickActions {}
 impl QuickActions {
     pub fn new(ctx: &mut Context, actions: Vec<QuickAction>) -> Self {
         let buttons = actions.into_iter().map(|(l, o, a)| {
             SecondaryButton::medium(ctx, "edit", &l, o.as_deref(), a)
         }).collect();
-        QuickActions(Wrap::start(8.0, 8.0), buttons)
+        QuickActions{layout: Wrap::start(8.0, 8.0), buttons}
     }
 }
 
@@ -51,7 +55,7 @@ impl PrimaryButton {
     }
 
     pub fn default(ctx: &mut Context) -> Self { 
-        Self::new(ctx, "Primary Button", |ctx: &mut Context| println!("Pressed...."), false)
+        Self::new(ctx, "Primary Button", |_: &mut Context| println!("Pressed...."), false)
     }
 }
 
@@ -97,7 +101,7 @@ impl SecondaryButton {
     }
 
     pub fn default(ctx: &mut Context) -> Self { 
-        Self::medium(ctx, "edit", "Secondary", None, |ctx: &mut Context| println!("Pressed...."))
+        Self::medium(ctx, "edit", "Secondary", None, |_: &mut Context| println!("Pressed...."))
     }
 }
 
@@ -134,7 +138,7 @@ impl SecondaryIconButton {
     }
 
     pub fn default(ctx: &mut Context) -> Self { 
-        Self::medium(ctx, "explore", |ctx: &mut Context| println!("Pressed...."))
+        Self::medium(ctx, "explore", |_: &mut Context| println!("Pressed...."))
     }
 }
 
@@ -162,7 +166,7 @@ impl GhostIconButton {
     }
 
     pub fn default(ctx: &mut Context) -> Self { 
-        Self::new(ctx, "left", |ctx: &mut Context| println!("Pressed...."))
+        Self::new(ctx, "left", |_: &mut Context| println!("Pressed...."))
     }
 }
 

@@ -76,9 +76,9 @@ impl OnEvent for Interface {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Interface::Mobile(interface) = self {
             if event.downcast_mut::<NavigationEvent>().is_some() {
-                interface.keyboard().display(false);
+                interface.keyboard.display(false);
             } else if let Some(ShowKeyboard(b)) = event.downcast_ref::<ShowKeyboard>() {
-                interface.keyboard().display(*b);
+                interface.keyboard.display(*b);
             }
         }
 
@@ -118,23 +118,31 @@ impl Interface {
 
     pub fn pages(&mut self) -> &mut Pages {
         match self {
-            Interface::Desktop(s) => s.pages(),
-            Interface::Mobile(s) => s.pages(),
-            Interface::Web(s) => s.pages(),
+            Interface::Desktop(s) => &mut s.pages,
+            Interface::Mobile(s) => &mut s.pages,
+            Interface::Web(s) => &mut s.pages,
         }
     }
 
     pub fn navigator(&mut self) -> &mut Option<Opt<Navigator>> {
         match self {
-            Interface::Desktop(s) => s.navigator(),
-            Interface::Mobile(s) => s.navigator(),
-            Interface::Web(s) => s.navigator(),
+            Interface::Desktop(s) => &mut s.navigator,
+            Interface::Mobile(s) => &mut s.navigator,
+            Interface::Web(s) => &mut s.navigator,
         }
     }
 }
 
 #[derive(Component, Debug)]
-pub struct InterfaceMobile(Column, Bin<Stack, Rectangle>, Pages, Opt<MobileKeyboard>, Option<Opt<Navigator>>, Bin<Stack, Rectangle>);
+pub struct InterfaceMobile {
+    layout: Column,
+    safe_area_left: Bin<Stack, Rectangle>,
+    pub pages: Pages,
+    pub keyboard: Opt<MobileKeyboard>,
+    pub navigator: Option<Opt<Navigator>>,
+    safe_area_right: Bin<Stack, Rectangle>,
+}
+
 impl OnEvent for InterfaceMobile {}
 
 impl InterfaceMobile {
@@ -145,16 +153,25 @@ impl InterfaceMobile {
         let (top, bottom) = (18.0, 18.0);
         let layout = Column::new(0.0, Offset::Center, Size::Fit, Padding::default(), None);
 
-        InterfaceMobile(layout, Spacer::new(ctx, top), Pages::new(pages), Opt::new(MobileKeyboard::new(ctx, true), false), navigator, Spacer::new(ctx, bottom))
+        InterfaceMobile {
+            layout,
+            safe_area_left: Spacer::new(ctx, top),
+            pages: Pages::new(pages),
+            keyboard: Opt::new(MobileKeyboard::new(ctx, true), false),
+            navigator,
+            safe_area_right: Spacer::new(ctx, bottom)
+        }
     }
-
-    pub fn keyboard(&mut self) -> &mut Opt<MobileKeyboard> {&mut self.3}
-    pub fn pages(&mut self) -> &mut Pages {&mut self.2}
-    pub fn navigator(&mut self) -> &mut Option<Opt<Navigator>> {&mut self.4}
 }
 
 #[derive(Component, Debug)]
-pub struct InterfaceDesktop(Row, Option<Opt<Navigator>>, Bin<Stack, Rectangle>, Pages);
+pub struct InterfaceDesktop {
+    layout: Row, 
+    pub navigator: Option<Opt<Navigator>>,
+    separator: Bin<Stack, Rectangle>, 
+    pub pages: Pages 
+}
+
 impl OnEvent for InterfaceDesktop {}
 
 impl InterfaceDesktop {
@@ -164,15 +181,22 @@ impl InterfaceDesktop {
         let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::desktop(ctx, navigation), true));
         let line_layout = Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default());
         let separator = Bin(line_layout, Rectangle::new(color, 0.0, None));
-        InterfaceDesktop(Row::start(0.0), navigator, separator, Pages::new(pages))
+        InterfaceDesktop {
+            layout: Row::start(0.0), 
+            navigator, 
+            separator, 
+            pages: Pages::new(pages)
+        }
     }
-
-    pub fn pages(&mut self) -> &mut Pages {&mut self.3}
-    pub fn navigator(&mut self) -> &mut Option<Opt<Navigator>> {&mut self.1}
 }
 
 #[derive(Component, Debug)]
-pub struct InterfaceWeb(Column, Option<Opt<Navigator>>, Pages);
+pub struct InterfaceWeb {
+    layout: Column, 
+    pub navigator: Option<Opt<Navigator>>, 
+    pub pages: Pages
+}
+
 impl OnEvent for InterfaceWeb {}
 
 impl InterfaceWeb {
@@ -180,12 +204,8 @@ impl InterfaceWeb {
         let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
         let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::web(ctx, navigation), true));
         let layout = Column::new(0.0, Offset::Start, Size::Fill, Padding::default(), None);
-        InterfaceWeb(layout, navigator, Pages::new(pages))
+        InterfaceWeb{layout, navigator, pages: Pages::new(pages)}
     }
-
-
-    pub fn pages(&mut self) -> &mut Pages {&mut self.2}
-    pub fn navigator(&mut self) -> &mut Option<Opt<Navigator>> {&mut self.1}
 }
 
 /// Event used to open or close keyboard.

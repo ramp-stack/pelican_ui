@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::path::Path;
-use image::{ImageReader, RgbaImage};
+use image::RgbaImage;
 use include_dir::{DirEntry, Dir, include_dir};
 use prism::canvas;
 

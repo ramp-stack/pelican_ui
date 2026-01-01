@@ -6,7 +6,7 @@ use prism::layout::Stack;
 
 use crate::theme::Color;
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct Rectangle(Stack, ExpandableShape, Option<ExpandableShape>);
 impl OnEvent for Rectangle {}
 
@@ -24,7 +24,7 @@ impl Rectangle {
     pub fn size(&self) -> (f32, f32) {self.1.0.shape.size()}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExpandableShape(Shape);
 
 impl ExpandableShape {

@@ -1,4 +1,4 @@
-use prism::{Context, drawable::Drawable};
+use prism::Context;
 use crate::components::interface::Interface;
 
 pub mod components;

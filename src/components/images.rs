@@ -107,7 +107,7 @@ impl AspectRatioImage {
 
 /// A wrapper around an [`Image`] that optionally supports custom dimensions.  
 /// If no size is provided, the image defaults to `(0.0, 0.0)` and will expand according to its container.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExpandableImage(Image, Option<(f32, f32)>);
 
 impl ExpandableImage {

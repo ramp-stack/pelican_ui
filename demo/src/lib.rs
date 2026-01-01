@@ -2,6 +2,7 @@
 use prism::canvas::{Shape, ShapeType, Color, Align};
 use ramp::prism::{self, canvas::Image, Context, layout::{Offset, Stack, Column, Size, Padding}, event::OnEvent, drawable::Component, drawables};
 
+use pelican_ui::components::Toggle;
 use pelican_ui::components::Slider;
 use pelican_ui::components::QRCode;
 use pelican_ui::components::Checkbox;
@@ -17,23 +18,6 @@ use image::RgbaImage;
 use std::sync::Arc;
 use pelican_ui::PelicanUI;
 
-
-#[derive(Default)]
-pub struct Parent(Child, String);
-impl Parent {
-    pub fn redraw(&mut self) {
-        Child::redraw_w_self(self);
-    }
-}
-
-#[derive(Default)]
-pub struct Child(String);
-impl Child {
-    pub fn redraw_w_self(parent: &mut Parent) {
-        parent.0.0 = parent.1.to_string();
-    }
-}
-
 #[derive(Debug, Component)]
 pub struct DemoApp(Stack, Page);
 impl OnEvent for DemoApp {}
@@ -43,6 +27,11 @@ impl DemoApp {
         let image: Arc<RgbaImage> = Arc::new(image::open("./seagull.png").unwrap().into());
         let img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
         let text = ExpandableText::default(ctx, "seagull.png");
+
+        let image: Arc<RgbaImage> = Arc::new(image::open("./flamingo.png").unwrap().into());
+        let img2 = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 2050.0/6.0), 0.0), image: image.clone(), color: None};
+        let text2 = ExpandableText::default(ctx, "flamingo.png");
+
         let avatar = Avatar::default(ctx);
         let button = SecondaryButton::default(ctx);
         let checkbox = Checkbox::default(ctx);
@@ -51,12 +40,9 @@ impl DemoApp {
         let radio = RadioSelector::default(ctx);
         let slider = Slider::default(ctx);
         let input = TextInput::default(ctx);
+        let toggle = Toggle::default(ctx);
 
-
-        let mut parent = Parent(Child::default(), "TESTESTES".to_string());
-        parent.redraw();
-
-        let content = Content::new(Offset::Start, drawables![input, slider, radio, qrcode, listitem, checkbox, button, avatar, img, text]);
+        let content = Content::new(Offset::Start, drawables![img2, text2, qrcode, radio, slider, input, listitem, toggle, checkbox, button, avatar, img, text]);
         let header = Header::home(ctx, "Demo App", None);
         Self(Stack::default(), Page::new(header, content, Some(Bumper::default(ctx))))
     }

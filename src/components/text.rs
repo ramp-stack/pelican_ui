@@ -2,13 +2,13 @@ use prism::event::{OnEvent, MouseState, MouseEvent, Event, TickEvent, Key, Named
 use prism::layout::{Stack, Size, Offset, Padding, SizeRequest};
 use prism::display::Opt;
 use prism::drawable::{Drawable, Component, SizedTree, RequestTree, Rect}; 
-use prism::canvas::{self, Align, Span, Cursor, Text as BasicText, Area as CanvasArea, Item as CanvasItem};
+use prism::canvas::{self, Align, Span, Text as BasicText, Area as CanvasArea, Item as CanvasItem};
 use prism::Context;
 
 use pelican_ui::components::Rectangle;
 use pelican_ui::{Theme, theme::Color};
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 pub struct Text {
     layout: Stack,
     inner: BasicText,
@@ -101,7 +101,7 @@ impl TextSize {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExpandableText(pub Text);
 impl ExpandableText {
     pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {

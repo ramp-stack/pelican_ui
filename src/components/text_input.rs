@@ -89,10 +89,7 @@ impl OnEvent for TextInput {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
             ctx.state.insert(TextInputState(self.tag.to_string(), self.value()));
-            println!("Inserting {:?}", self.value());
-
             self.hint.display_left(self.error.is_some()); 
-            // self.inner.error(self.error.is_some());
             if let Some(e) = &self.error { 
                 self.hint.right().0.spans[0] = e.to_string(); 
             } 
@@ -170,14 +167,14 @@ impl OnEvent for _InputContent {
             self.empty.display(!self.is_focused);
             self.default.inner().inner().display_cursor(self.is_focused);
 
-            // if !self.is_focused {
-            //     self.default.display(!self.value.is_empty());
-            //     self.empty.display(self.value.is_empty());
-            // }
+            if !self.is_focused {
+                self.default.display(!self.value.is_empty());
+                self.empty.display(self.value.is_empty());
+            }
         } else if let Some(TextInputEvent::Submit) = event.downcast_ref::<TextInputEvent>() { 
-            // if let Some(on_submit) = &mut self.on_submit {
-            //     (on_submit)(ctx, &mut self.value);
-            // }
+            if let Some(on_submit) = &mut self.on_submit {
+                (on_submit)(ctx, &mut self.value);
+            }
         }
         vec![event]
     }

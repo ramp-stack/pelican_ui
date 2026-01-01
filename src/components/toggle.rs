@@ -24,6 +24,10 @@ impl Toggle {
 
         Toggle(Column::start(16.0), label, interactions::Toggle::new(on, off, is_selected, on_click))
     }
+
+    pub fn default(ctx: &mut Context) -> Self {
+        Self::new(ctx, "Toggle", true, |_: &mut Context, is_on: bool| println!("Toggle is now {is_on}"))
+    }
 }
 
 #[derive(Debug, Component)]
@@ -36,7 +40,7 @@ impl _Toggle {
         let colors = ctx.state.get_or_default::<Theme>().colors;
 
         let (hc, bc) = match is_selected {
-            true => (colors.background.primary, colors.brand),
+            true => (colors.text.heading, colors.brand),
             false => (colors.background.primary, colors.text.secondary)
         };
 
