@@ -65,4 +65,8 @@ impl Circle {
         let outline = if outlined { size * 0.06 } else { 0.0 };
         Shape { shape: ShapeType::Ellipse(outline, (size, size), 0.0), color: color.into() }
     }
+
+    pub fn default() -> Shape {
+        Self::new(48.0, Color::WHITE, false)
+    }
 }

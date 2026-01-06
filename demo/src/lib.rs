@@ -1,7 +1,8 @@
 
 use prism::canvas::{Shape, ShapeType, Color, Align};
-use ramp::prism::{self, canvas::Image, Context, layout::{Offset, Stack, Column, Size, Padding}, event::OnEvent, drawable::Component, drawables};
+use ramp::prism::{self, canvas::{Image, Text as CanvasText}, Context, layout::{Offset, Row, Stack, Column, Size, Padding}, event::OnEvent, drawable::Component, drawables};
 
+use pelican_ui::components::Circle;
 use pelican_ui::components::Toggle;
 use pelican_ui::components::Slider;
 use pelican_ui::components::QRCode;
@@ -13,6 +14,8 @@ use pelican_ui::components::list_item::ListItem;
 use pelican_ui::components::button::SecondaryButton;
 use pelican_ui::components::interface::{AppPage, Interface, Page, Header, Bumper, Content, RootInfo};
 use pelican_ui::components::text::{ExpandableText, Text, TextSize, TextStyle, TextEditor};
+
+use crate::prism::display::{Enum, Opt};
 
 use image::RgbaImage;
 use std::sync::Arc;
@@ -42,7 +45,9 @@ impl DemoApp {
         let input = TextInput::default(ctx);
         let toggle = Toggle::default(ctx);
 
-        let content = Content::new(Offset::Start, drawables![img2, text2, qrcode, radio, slider, input, listitem, toggle, checkbox, button, avatar, img, text]);
+        let circle = Circle::default();
+
+        let content = Content::new(Offset::Start, drawables![circle.clone(), circle.clone(), circle.clone(), circle.clone(), circle.clone(), circle.clone(), circle]); //img2, text2, qrcode, radio, slider, input, listitem, toggle, checkbox, button, avatar, img, text]);
         let header = Header::home(ctx, "Demo App", None);
         Self(Stack::default(), Page::new(header, content, Some(Bumper::default(ctx))))
     }
@@ -72,17 +77,67 @@ impl DemoApp2 {
         let input = TextInput::default(ctx);
         let toggle = Toggle::default(ctx);
 
-        let content = Content::new(Offset::Start, drawables![listitem, toggle, checkbox, button, avatar, img, text]);
+        let content = Content::new(Offset::Start, drawables![text.clone(), listitem, toggle, checkbox, button, avatar, img, text]);
         let header = Header::home(ctx, "Demo App", None);
         Self(Stack::default(), Page::new(header, content, Some(Bumper::default(ctx))))
     }
 }
 
+// #[derive(Debug, Component)]
+// pub enum Test {
+//     One {stack: Stack, text: CanvasText, circle: Shape, #[skip] img: u8},
+//     Image {layout: Stack, img: Image}
+// }
+
+
+#[derive(Debug, Component)]
+pub struct Test(Stack, Enum);
+impl OnEvent for Test {}
+impl Test {
+    pub fn new(ctx: &mut Context) -> Self {
+        Test(Stack::default(), Enum::new(vec![
+            ("circle".to_string(), Box::new(Circle::default())),
+            ("text".to_string(), Box::new(Text::default(ctx, "Text Text Text"))),
+        ], "text".to_string()))
+    }
+}
+
+
+
+#[derive(Debug, Component)]
+pub struct OptTest(Row, Opt<Shape>, Opt<Shape>);
+impl OnEvent for OptTest {}
+impl OptTest {
+    pub fn new(ctx: &mut Context) -> Self {
+        OptTest(Row::default(), Opt::new(Circle::default(), true), Opt::new(Circle::default(), false))
+    }
+}
+
+
+
+
 ramp::run!{|ctx: &mut Context| {
     let demo = RootInfo::icon("home", "Demo App", Box::new(DemoApp::new(ctx)));
     let demo2 = RootInfo::icon("explore", "Demo App 2", Box::new(DemoApp2::new(ctx)));
-    Interface::new(ctx, vec![demo, demo2])
+    Interface::new(ctx, vec![demo2, demo])
+    // Text::default(ctx, "test").inner().clone()
+
+    // Circle::default()
+    //OneTest{stack: Stack::default(), circle: Circle::default()}
+    // Test::new(ctx)
 }}
+
+// circle without mini-timers = 31k, 30k, 32k, 29k
+// circle with mini-timers = 67k, 83k, 85k, 73k
+
+// text without mini-timers = 63k, 66k, 73k, 61k
+// text with mini-timers = 119k, 106k, 108k, 105k
+
+// drawable shape circle = 79,750
+
+// BEFORE: component text = 3,298,750
+// AFTER:  component text = 1,855,417
+// drawable text = 138,208
 
 // for ever ycomponent we need to keep track of the state objects requeired to build it 
 

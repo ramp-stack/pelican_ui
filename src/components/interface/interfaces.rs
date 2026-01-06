@@ -67,18 +67,37 @@ impl Pages {
 
 #[derive(Component, Debug)]
 pub enum Interface {
-    Desktop(Box<InterfaceDesktop>),
-    Mobile(Box<InterfaceMobile>),
-    Web(Box<InterfaceWeb>)
+    Mobile {
+        layout: Column,
+        safe_area_left: Bin<Stack, Rectangle>,
+        pages: Pages,
+        keyboard: Opt<MobileKeyboard>,
+        navigator: Option<Opt<Navigator>>,
+        safe_area_right: Bin<Stack, Rectangle>,
+    },
+
+    Desktop {
+        layout: Row, 
+        navigator: Option<Opt<Navigator>>,
+        separator: Bin<Stack, Rectangle>, 
+        pages: Pages 
+    },
+
+    Web {
+        layout: Column, 
+        navigator: Option<Opt<Navigator>>, 
+        pages: Pages
+    }
 }
+
 
 impl OnEvent for Interface {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Interface::Mobile(interface) = self {
+        if let Interface::Mobile{keyboard, ..} = self {
             if event.downcast_mut::<NavigationEvent>().is_some() {
-                interface.keyboard.display(false);
+                keyboard.display(false);
             } else if let Some(ShowKeyboard(b)) = event.downcast_ref::<ShowKeyboard>() {
-                interface.keyboard.display(*b);
+                keyboard.display(*b);
             }
         }
 
@@ -104,56 +123,28 @@ impl OnEvent for Interface {
 }
 
 impl Interface {
-    pub fn desktop(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
-        Interface::Desktop(Box::new(InterfaceDesktop::new(ctx, navigation)))
-    }
-
-    pub fn mobile(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
-        Interface::Mobile(Box::new(InterfaceMobile::new(ctx, navigation)))
-    }
-
-    pub fn web(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
-        Interface::Web(Box::new(InterfaceWeb::new(ctx, navigation)))
-    }
-
-    pub fn pages(&mut self) -> &mut Pages {
-        match self {
-            Interface::Desktop(s) => &mut s.pages,
-            Interface::Mobile(s) => &mut s.pages,
-            Interface::Web(s) => &mut s.pages,
+    pub fn desktop(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
+        let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
+        let color = ctx.state.get_or_default::<Theme>().colors.outline.secondary;
+        let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::desktop(ctx, navigation), true));
+        let line_layout = Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default());
+        let separator = Bin(line_layout, Rectangle::new(color, 0.0, None));
+        Interface::Desktop {
+            layout: Row::start(0.0), 
+            navigator, 
+            separator, 
+            pages: Pages::new(pages)
         }
     }
 
-    pub fn navigator(&mut self) -> &mut Option<Opt<Navigator>> {
-        match self {
-            Interface::Desktop(s) => &mut s.navigator,
-            Interface::Mobile(s) => &mut s.navigator,
-            Interface::Web(s) => &mut s.navigator,
-        }
-    }
-}
-
-#[derive(Component, Debug)]
-pub struct InterfaceMobile {
-    layout: Column,
-    safe_area_left: Bin<Stack, Rectangle>,
-    pub pages: Pages,
-    pub keyboard: Opt<MobileKeyboard>,
-    pub navigator: Option<Opt<Navigator>>,
-    safe_area_right: Bin<Stack, Rectangle>,
-}
-
-impl OnEvent for InterfaceMobile {}
-
-impl InterfaceMobile {
-    pub fn new(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
+    pub fn mobile(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
         let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
         let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::mobile(ctx, navigation), true));
         // let (_left, _right, top, bottom) = ctx.send(Request::Hardware(Hardware::SafeAreaInsets));
         let (top, bottom) = (18.0, 18.0);
         let layout = Column::new(0.0, Offset::Center, Size::Fit, Padding::default(), None);
 
-        InterfaceMobile {
+        Interface::Mobile {
             layout,
             safe_area_left: Spacer::new(ctx, top),
             pages: Pages::new(pages),
@@ -162,49 +153,30 @@ impl InterfaceMobile {
             safe_area_right: Spacer::new(ctx, bottom)
         }
     }
-}
 
-#[derive(Component, Debug)]
-pub struct InterfaceDesktop {
-    layout: Row, 
-    pub navigator: Option<Opt<Navigator>>,
-    separator: Bin<Stack, Rectangle>, 
-    pub pages: Pages 
-}
-
-impl OnEvent for InterfaceDesktop {}
-
-impl InterfaceDesktop {
-    pub fn new(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
-        let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
-        let color = ctx.state.get_or_default::<Theme>().colors.outline.secondary;
-        let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::desktop(ctx, navigation), true));
-        let line_layout = Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default());
-        let separator = Bin(line_layout, Rectangle::new(color, 0.0, None));
-        InterfaceDesktop {
-            layout: Row::start(0.0), 
-            navigator, 
-            separator, 
-            pages: Pages::new(pages)
-        }
-    }
-}
-
-#[derive(Component, Debug)]
-pub struct InterfaceWeb {
-    layout: Column, 
-    pub navigator: Option<Opt<Navigator>>, 
-    pub pages: Pages
-}
-
-impl OnEvent for InterfaceWeb {}
-
-impl InterfaceWeb {
-    pub fn new(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
+    pub fn web(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
         let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
         let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::web(ctx, navigation), true));
         let layout = Column::new(0.0, Offset::Start, Size::Fill, Padding::default(), None);
-        InterfaceWeb{layout, navigator, pages: Pages::new(pages)}
+        Interface::Web{layout, navigator, pages: Pages::new(pages)}
+    }
+
+    pub fn pages(&mut self) -> &mut Pages {
+        match self {
+            Interface::Desktop {pages, ..} => pages,
+            Interface::Mobile {pages, ..} => pages,
+            Interface::Web {pages, ..} => pages,
+            _ => panic!("Something went wrong while getting interface's pages")
+        }
+    }
+
+    pub fn navigator(&mut self) -> &mut Option<Opt<Navigator>> {
+        match self {
+            Interface::Desktop {navigator, ..} => navigator,
+            Interface::Mobile {navigator, ..} => navigator,
+            Interface::Web {navigator, ..} => navigator,
+            _ => panic!("Something went wrong while getting interface's navigator")
+        }
     }
 }
 

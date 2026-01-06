@@ -123,57 +123,32 @@ impl Event for NavigatorSelect {
 
 #[derive(Debug, Component)]
 pub enum Navigator {
-    Mobile(NavigatorMobile),
-    Desktop(NavigatorDesktop),
-    Web(NavigatorWeb),
+    Desktop {
+        layout: Column, 
+        brandmark: Image, 
+        top: ButtonColumn, 
+        spacer: Option<Bin<Stack, Rectangle>>, 
+        bottom: Option<ButtonColumn>
+    },
+
+    Mobile {
+        layout: Stack, 
+        background: Rectangle, 
+        content: MobileNavigatorContent
+    },
+
+    Web {
+        layout: Row, 
+        brandmark: Image, 
+        spacer: Bin<Stack, Rectangle>, 
+        content: ButtonRow
+    }
 }
 
 impl OnEvent for Navigator {}
 
 impl Navigator {
-    pub fn mobile(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
-        Navigator::Mobile(NavigatorMobile::new(ctx, navigation))
-    }
-
     pub fn desktop(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
-        Navigator::Desktop(NavigatorDesktop::new(ctx, navigation))
-    }
-
-    pub fn web(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
-        Navigator::Web(NavigatorWeb::new(ctx, navigation))
-    }
-}
-
-#[derive(Debug, Component)]
-pub struct NavigatorMobile(Stack, Rectangle, MobileNavigatorContent);
-impl OnEvent for NavigatorMobile {}
-
-impl NavigatorMobile {
-    pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
-        let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
-        let background = ctx.state.get_or_default::<Theme>().colors.background.primary;
-
-        let group_id = uuid::Uuid::new_v4();
-        let mut tabs = Vec::new();
-        for (i, info) in navigation.into_iter().enumerate() {
-            let closure = move |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Root(info.label.to_string()))));
-            tabs.push(NavigatorSelectable::mobile(ctx, &info.icon, closure, 0 == i, group_id));
-        }
-
-        NavigatorMobile(
-            Stack(Offset::Center, Offset::Start, Size::Fill, height, Padding::default()), 
-            Rectangle::new(background, 0.0, None),
-            MobileNavigatorContent::new(tabs)
-        )
-    }
-}
-
-#[derive(Debug, Component)]
-pub struct NavigatorDesktop(Column, Image, ButtonColumn, Option<Bin<Stack, Rectangle>>, Option<ButtonColumn>);
-impl OnEvent for NavigatorDesktop {}
-
-impl NavigatorDesktop {
-    pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let (mut top_col, mut bot_col) = (Vec::new(), Vec::new());
         let mut i = 0;
@@ -202,22 +177,35 @@ impl NavigatorDesktop {
         let wordmark = ctx.state.get_or_default::<Theme>().brand.wordmark.clone();
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 200.0));
 
-        NavigatorDesktop(
-            Column::new(32.0, Offset::Center, width, Padding(16.0, 32.0, 16.0, 32.0), None),
-            AspectRatioImage::new(wordmark, (100.0, 25.0)), 
-            ButtonColumn::new(top_col), 
+        Navigator::Desktop {
+            layout: Column::new(32.0, Offset::Center, width, Padding(16.0, 32.0, 16.0, 32.0), None),
+            brandmark: AspectRatioImage::new(wordmark, (100.0, 25.0)), 
+            top: ButtonColumn::new(top_col), 
             spacer,
-            (!bot_col.is_empty()).then_some(ButtonColumn::new(bot_col))
-        )
+            bottom: (!bot_col.is_empty()).then_some(ButtonColumn::new(bot_col))
+        }
     }
-}
 
-#[derive(Debug, Component)]
-pub struct NavigatorWeb(Row, Image, Bin<Stack, Rectangle>, ButtonRow);
-impl OnEvent for NavigatorWeb {}
+    pub fn mobile(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
+        let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
+        let background = ctx.state.get_or_default::<Theme>().colors.background.primary;
 
-impl NavigatorWeb {
-    pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
+        let group_id = uuid::Uuid::new_v4();
+        let mut tabs = Vec::new();
+        for (i, info) in navigation.into_iter().enumerate() {
+            let closure = move |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Root(info.label.to_string()))));
+            tabs.push(NavigatorSelectable::mobile(ctx, &info.icon, closure, 0 == i, group_id));
+        }
+
+        Navigator::Mobile {
+            layout: Stack(Offset::Center, Offset::Start, Size::Fill, height, Padding::default()), 
+            background: Rectangle::new(background, 0.0, None),
+            content: MobileNavigatorContent::new(tabs)
+        }
+    }
+
+
+    pub fn web(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
         let mut buttons = Vec::new();
         let group_id = uuid::Uuid::new_v4();
 
@@ -230,14 +218,15 @@ impl NavigatorWeb {
         let wordmark = ctx.state.get_or_default::<Theme>().brand.wordmark.clone();
 
         let bin_layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(5.0), Padding::default());
-        NavigatorWeb(
-            Row::new(32.0, Offset::Center, Size::Fit, Padding::new(48.0)),
-            AspectRatioImage::new(wordmark, (150.0, 35.0)),
-            Bin (bin_layout, Rectangle::new(Color::TRANSPARENT, 0.0, None)),
-            ButtonRow::new(buttons)
-        )
+        Navigator::Web {
+            layout: Row::new(32.0, Offset::Center, Size::Fit, Padding::new(48.0)),
+            brandmark: AspectRatioImage::new(wordmark, (150.0, 35.0)),
+            spacer: Bin (bin_layout, Rectangle::new(Color::TRANSPARENT, 0.0, None)),
+            content: ButtonRow::new(buttons)
+        }
     }
 }
+
 
 #[derive(Debug, Component)]
 struct MobileNavigatorContent(Row, Vec<NavigatorSelectable>);

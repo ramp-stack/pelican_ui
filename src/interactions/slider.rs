@@ -79,8 +79,8 @@ impl OnEvent for _Slider {
         } else if event.downcast_ref::<TickEvent>().is_some() {
             let handle_size = Drawable::request_size(&(**self.handle.inner())).0.min_width() / 2.0;
             let clamped_x = (sized.0.0 * self.value).clamp(0.0, sized.0.0);
-            self.handle.layout().0 = Offset::Static((clamped_x - handle_size).max(0.0));
-            self.foreground.layout().2 = Size::Static(clamped_x);
+            self.handle.get_layout().0 = Offset::Static((clamped_x - handle_size).max(0.0));
+            self.foreground.get_layout().2 = Size::Static(clamped_x);
         }
 
         vec![event]

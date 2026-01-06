@@ -50,6 +50,8 @@ impl Text {
     pub fn default(ctx: &mut Context, text: &str) -> Self {
         Self::new(ctx, text, TextSize::H4, TextStyle::Heading, Align::Center, None)
     }
+
+    pub fn inner(&self) -> &BasicText {&self.inner}
 }
 
 
