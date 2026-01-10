@@ -23,21 +23,16 @@ use crate::components::list_item::ListItemInfoLeft;
 ///     ("System Default", "Match the system appearance setting", |_| println!("Selected System Default")),
 /// ]);
 /// ```
-#[derive(Debug, Component)]
+#[derive(Component, Debug)]
 pub struct RadioSelector(Column, pub Vec<interactions::Selectable>);
 impl OnEvent for RadioSelector {}
 impl RadioSelector {
-    pub fn new(ctx: &mut Context, index: usize, tag: &str, items: Vec<(&str, &str, Callback)>) -> Self {
+    pub fn new(ctx: &mut Context, index: usize, items: Vec<(&str, &str, Callback)>) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let selectables = items.into_iter().enumerate().map(|(i, (t, s, c))| {
-            let title = t.to_string(); let tag = tag.to_string();
-
-            let selected = ListItem::new(ctx, None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some("radio_filled"), None, |_| {}            );
-            
-            let default = ListItem::new(ctx,
-                None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some("radio"), None, 
-                move |ctx: &mut Context| {ctx.state.insert(RadioSelectorState(tag.to_string(), title.to_string()));},
-            );
+            let title = t.to_string();
+            let selected = ListItem::new(ctx, None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some("radio_filled"), None, |_| {});
+            let default = ListItem::new(ctx, None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some("radio"), None, |_| {});
 
             interactions::Selectable::new(default, selected, i == index, false, c, group_id)
         }).collect::<Vec<_>>();
@@ -47,7 +42,7 @@ impl RadioSelector {
     }
 
     pub fn default(ctx: &mut Context) -> Self {
-        Self::new(ctx, 0, "radio_selector", vec![
+        Self::new(ctx, 0, vec![
             ("Option A", "Press this to select option A", Box::new(|_: &mut Context| println!("Option A Selected")) as Callback),
             ("Option B", "Press this to select option B", Box::new(|_: &mut Context| println!("Option B Selected")) as Callback),
             ("Option C", "Press this to select option C", Box::new(|_: &mut Context| println!("Option C Selected")) as Callback)

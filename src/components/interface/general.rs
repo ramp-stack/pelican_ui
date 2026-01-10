@@ -3,6 +3,7 @@ use prism::event::{Event, OnEvent, MouseEvent, MouseState, TickEvent};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
 use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
+use prism::display::Bin;
 
 use crate::Theme;
 use crate::components::{Rectangle};
@@ -11,7 +12,10 @@ use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton}
 use crate::components::interface::navigation::{NavigationEvent, RootInfo};
 use crate::components::interface::interfaces;
 
+use crate::utils::ValidationFn;
 use crate::utils::Callback;
+
+type OnEventFn = Box<dyn FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>>;
 
 /// The top-level interface of an app built with Pelican.
 ///
@@ -21,15 +25,12 @@ pub struct Interface {
     layout: Stack,
     background: Rectangle,
     inner: interfaces::Interface,
-    #[skip] pub on_tick: Option<Callback>
+    #[skip] pub on_event: OnEventFn
 }
 
 impl OnEvent for Interface {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() {
-            if let Some(callback) = &mut self.on_tick {(callback)(ctx);}
-        }
-        vec![event]
+        (self.on_event)(ctx, event)
     }
 }
 
@@ -40,7 +41,7 @@ impl std::fmt::Debug for Interface {
 }
 
 impl Interface {
-    pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
+    pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>, on_event: Box<dyn FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>>) -> Self {
         let color = ctx.state.get_or_default::<Theme>().colors.background.primary;
         Interface {
             layout: Stack::default(),
@@ -50,7 +51,7 @@ impl Interface {
                 false if IS_MOBILE => interfaces::Interface::mobile(ctx, navigation),
                 false => interfaces::Interface::desktop(ctx, navigation),
             },
-            on_tick: None
+            on_event,
         }
     }
 }
@@ -108,11 +109,12 @@ pub struct Content {
 impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
     pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>) -> Self {
+        println!("PAGE OFFSET {:?}", offset);
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }
         Content {
-            layout: Column::new(24.0, Offset::Center, width, Padding::new(16.0), Some(anchor)),
+            layout: Column::new(24.0, offset, width, Padding::new(16.0), Some(anchor)),
             children,
         }
     }
@@ -202,32 +204,17 @@ impl OnEvent for Header {}
 
 impl Header {
     /// A `Header` preset used for home pages.
-    ///
-    /// ```rust
-    /// let header = Header::home(ctx, "My Account", None);
-    /// let header = Header::home(ctx, "Explore", Some(("search", 1)))
-    /// ```
     pub fn home(ctx: &mut Context, title: &str, icon: Option<(String, Callback)>) -> Self {
         Self::_new(ctx, title, None, icon, TextSize::H3)
     }
 
     /// A `Header` preset used for in-flow pages.
-    /// This header contains a back button that always navigates to index 0.
-    ///
-    /// ```rust
-    /// let header = Header::stack(ctx, "Select role");
-    /// ```
     pub fn stack(ctx: &mut Context, title: &str, icon: Option<(String, Callback)>) -> Self {
         let closure = |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Pop)));
         Self::_new(ctx, title, Some(("left".to_string(), Box::new(closure))), icon, TextSize::H4)
     }
 
     /// A `Header` preset used for end-of-flow pages.
-    /// This header contains a close button that always pops back the number of times provided.
-    ///
-    /// ```rust
-    /// let header = Header::stack_end(ctx, "Select role");
-    /// ```
     pub fn stack_end(ctx: &mut Context, title: &str) -> Self {
         let closure = move |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Reset)));
         Self::_new(ctx, title, Some(("close".to_string(), Box::new(closure))), None, TextSize::H4)
@@ -281,168 +268,69 @@ impl HeaderIcon {
     }
 }
 
-
-/// # Bumper
-///
-/// A fixed container at the bottom of the screen, 
-/// usually holding key actions like buttons or text inputs, 
-/// ensuring important interactions stay accessible without scrolling.
-///
-/// Bumper components can only be used inside [`Page`] components.
-///
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/bumper.png"
-///      alt="Bumper Example"
-///      width="450">
-///
-///```rust
-/// let button = Button::primary(ctx, "Continue");
-/// let bumper = Bumper::single_button(ctx, button);
-///```
-#[derive(Component)]
-pub struct Bumper {
-    layout: Stack,
-    background: Rectangle,
-    pub content: BumperContent,
-    #[skip] validation: Option<BumperFn>
-}
-impl OnEvent for Bumper {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() {
-            if let Some(validate) = &mut self.validation {
-                (validate)(&mut self.content, ctx);
-            }
-        }
-
-        vec![event]
-    }
-}
-
-type ValidateFn = Box<dyn FnMut(&mut Context) -> bool + 'static>;
-type BumperFn = Box<dyn FnMut(&mut BumperContent, &mut Context) + 'static>;
-
-impl std::fmt::Debug for Bumper {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Bumper {:?}", self.content)
-    }
-}
+#[derive(Component, Debug)]
+pub struct Bumper {layout: Stack, background: Rectangle, content: BumperContent}
+impl OnEvent for Bumper {}
 
 impl Bumper {
     /// A `Bumper` preset used for home pages.
-    ///
-    /// ```rust
-    /// let bumper = Header::home(ctx, "New Message", None); // navigates to 1
-    /// let bumper = Header::home(ctx, "Receive", Some("Send")) // navigates to 1 and 2
-    /// ```
-    pub fn home(ctx: &mut Context, first: (String, Callback), second: Option<(String, Callback)>, validity_fn: Option<ValidateFn>) -> Self {
-        let mut drawables: Vec<Box<dyn Drawable>> = drawables![PrimaryButton::new(ctx, &first.0, Box::new(first.1), false)];
-
-        if let Some((label, on_click)) = second {
-            drawables.push(Box::new(PrimaryButton::new(ctx, &label, on_click, false)));
-        }
-
-        let validate = validity_fn.map(|mut vfn| Box::new(move |content: &mut BumperContent, ctx: &mut Context| { 
-            content.children.iter_mut().for_each(|i| if let Some(a) = (**i).as_any_mut().downcast_mut::<PrimaryButton>() { 
-                a.1.disable((vfn)(ctx));
-            }); 
-        }) as BumperFn);
-
-        Self::new(ctx, drawables, validate)
+    pub fn home(ctx: &mut Context, first: (String, Callback), second: Option<(String, Callback)>, validation: Option<Box<dyn ValidationFn>>) -> Self {
+        let mut content = drawables![PrimaryButton::new(ctx, &first.0, Box::new(first.1), validation.clone())];
+        if let Some((l, c)) = second { content.push(Box::new(PrimaryButton::new(ctx, &l, c, validation))); }
+        let (layout, background) = Self::layout(ctx);
+        Bumper { layout, background, content: BumperContent::new(content) }
     }
 
     /// A `Bumper` preset used for in-flow pages.
-    /// This bumper contains a button. If no label is provided, it will default to "Continue".
-    ///
-    /// ```rust
-    /// let bumper = Bumper::stack(ctx, false);
-    /// ```
-    pub fn stack(ctx: &mut Context, label: Option<&str>, is_disabled: bool, on_click: impl FnMut(&mut Context) + 'static, secondary: Option<(String, Callback)>, validity_fn: Option<ValidateFn>) -> Self {
-        
-        let button = PrimaryButton::new(ctx, label.unwrap_or("Continue"), Box::new(on_click), is_disabled);
-        let validate = validity_fn.map(|mut vfn| Box::new(move |content: &mut BumperContent, ctx: &mut Context| { 
-            content.children.iter_mut().for_each(|i| if let Some(a) = (**i).as_any_mut().downcast_mut::<PrimaryButton>() { 
-                a.1.disable((vfn)(ctx));
-            }); 
-        }) as BumperFn);
-
-        let mut drawables: Vec<Box<dyn Drawable>> = drawables![button];
-        
-        if let Some((label, on_click)) = secondary {
-            drawables.push(Box::new(PrimaryButton::new(ctx, &label, on_click, is_disabled)));
-        }
-        
-
-        Self::new(ctx, drawables, validate)
+    pub fn stack(
+        ctx: &mut Context, 
+        label: Option<&str>, 
+        on_click: impl FnMut(&mut Context) + 'static, 
+        secondary: Option<(String, Callback)>, 
+        validation: Option<Box<dyn ValidationFn>>
+    ) -> Self {
+        let mut content = drawables![PrimaryButton::new(ctx, label.unwrap_or("Continue"), Box::new(on_click), validation.clone())];
+        if let Some((l, c)) = secondary { content.push(Box::new(SecondaryButton::large(ctx, &l, c, validation))); }
+        let (layout, background) = Self::layout(ctx);
+        Bumper { layout, background, content: BumperContent::new(content) }
     }
 
     /// A `Bumper` preset used for end-of-flow pages.
-    /// This bumper contains a button labeled "Done".
-    ///
-    /// ```rust
-    /// let bumper = Bumper::stack_end(ctx);
-    /// ```
     pub fn stack_end(ctx: &mut Context, exact_pages: Option<usize>) -> Self {
-        let closure = move |ctx: &mut Context| {
-            match exact_pages {
-                Some(num) => (0..num).for_each(|_| ctx.send(Request::Event(Box::new(NavigationEvent::Pop)))),
-                None => ctx.send(Request::Event(Box::new(NavigationEvent::Reset)))
-            }
+        let closure = move |ctx: &mut Context| match exact_pages {
+            Some(num) => (0..num).for_each(|_| ctx.send(Request::Event(Box::new(NavigationEvent::Pop)))),
+            None => ctx.send(Request::Event(Box::new(NavigationEvent::Reset)))
         };
-        let button = SecondaryButton::large(ctx, "Done", Box::new(closure));
-        Self::new(ctx, drawables![button], None)
+        
+        let content = SecondaryButton::large(ctx, "Done", Box::new(closure), None);
+        let (layout, background) = Self::layout(ctx);
+        Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }
 
-    /// Creates a new `Bumper` from a vector of boxed [`Drawables`](Drawable)
-    pub fn new(ctx: &mut Context, content: Vec<Box<dyn Drawable>>, validation: Option<BumperFn>) -> Self {
-        let background = ctx.state.get_or_default::<Theme>().colors.background.primary;
-        let max = 375.0;
-        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(max), max));
+    fn layout(ctx: &mut Context) -> (Stack, Rectangle) {
+        let background = Rectangle::new(ctx.state.get_or_default::<Theme>().colors.background.primary, 0.0, None);
+        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
-        Bumper {
-            layout,
-            background: Rectangle::new(background, 0.0, None),
-            content: BumperContent::new(content),
-            validation
-        }
+        
+        (layout, background)
     }
 
     pub fn default(ctx: &mut Context) -> Self {
-        Self::home(ctx, ("Press me".to_string(), Box::new(|_: &mut Context| println!("Pressed...."))), None, None)
-    }
-
-    /// Find an item in the bumper. Will return the first instance of the type.
-    ///
-    /// ```rust
-    /// let button = bumper.find::<Button>().expect("Could not find button in bumper");
-    /// ```
-    pub fn find<T: std::any::Any>(&mut self) -> Option<&mut T> {
-        self.content.children.iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
-    }
-
-    /// Find an item in the bumper at a specific index.
-    ///
-    /// ```rust
-    /// let button = bumper.find_at::<Button>(0).expect("Could not find button at the first index in the bumper");
-    /// ```
-    pub fn find_at<T: std::any::Any>(&mut self, i: usize) -> Option<&mut T> {
-        self.content.children.get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
+        Self::home(ctx, 
+            ("Press me".to_string(), Box::new(|_: &mut Context| println!("Pressed...."))), 
+            Some(("No Press me".to_string(), Box::new(|_: &mut Context| println!("Pressed....")))), 
+            None
+        )
     }
 }
 
 #[derive(Debug, Component)]
-pub struct BumperContent {
-    layout: Row, 
-    pub children: Vec<Box<dyn Drawable>> 
-}
-
+pub struct BumperContent { layout: Row, children: Vec<Box<dyn Drawable>> }
 impl OnEvent for BumperContent {}
-
 impl BumperContent {
     fn new(children: Vec<Box<dyn Drawable>>) -> Self {
-        BumperContent{
-            layout: Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0)), 
-            children
-        }
+        BumperContent{ layout: Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0)), children }
     }
 }
 

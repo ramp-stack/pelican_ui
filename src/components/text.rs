@@ -131,18 +131,25 @@ impl Drawable for ExpandableText {
     }
 }
 
-#[derive(Component, Debug)]
-pub struct TextEditor(Stack, pub ExpandableText, TextCursor);
+#[derive(Component)]
+pub struct TextEditor(Stack, pub ExpandableText, TextCursor, #[skip] EditorCallback);
+type EditorCallback = Box<dyn FnMut(&mut Context, &mut String)>;
+
+impl std::fmt::Debug for TextEditor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("TextEditor").field(&self.0).field(&self.1).field(&self.2).finish()
+    }
+}
 
 impl TextEditor {
-    pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
+    pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align, on_edit: EditorCallback) -> Self {
         let mut built = ExpandableText::new(ctx, text, size, style, align, None);
         built.0.inner.cursor = Some(text.len());
-        TextEditor(Stack::start(), built, TextCursor::new(ctx, style, size))
+        TextEditor(Stack::start(), built, TextCursor::new(ctx, style, size), on_edit)
     }
 
     pub fn default(ctx: &mut Context) -> Self {
-        Self::new(ctx, "", TextSize::Md, TextStyle::Primary, Align::Left)
+        Self::new(ctx, "", TextSize::Md, TextStyle::Primary, Align::Left, Box::new(|_, _| println!("TextEditor Edited")))
     }
 
     pub fn display_cursor(&mut self, display: bool) {
@@ -151,7 +158,7 @@ impl TextEditor {
 }
 
 impl OnEvent for TextEditor {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() && self.1.0.inner.cursor.is_some() {
             let cursor_pos = self.1.0.inner.cursor_position();
             *self.2.x_offset() = Offset::Static(cursor_pos.0);
@@ -194,6 +201,8 @@ impl OnEvent for TextEditor {
                     if let Some(c) = self.1.0.inner.cursor.as_mut() { *c = c.saturating_sub(1); }
                 }
             }
+
+            (self.3)(ctx, &mut self.1.0.spans[0])
         }
         
         vec![event]

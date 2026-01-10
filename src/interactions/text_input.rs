@@ -80,7 +80,8 @@ impl OnEvent for _InputField {
                 event::TextInput::Focused(false) => {
                     // ctx.trigger_event(ShowKeyboard(false));
                     self.1.display(if self.3 {"error"} else {"default"});
-                }
+                },
+                _ => {}
             }
         }
         

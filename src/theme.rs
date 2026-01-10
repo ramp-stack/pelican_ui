@@ -12,6 +12,25 @@ pub struct Theme {
     pub brand: BrandResources,
 }
 
+impl Theme {
+    pub fn light(color: Color) -> Self {
+        let mut t = Theme::default();
+        t.colors = ColorResources::light(color);
+        t
+    }
+
+    pub fn dark(color: Color) -> Self {
+        let mut t = Theme::default();
+        t.colors = ColorResources::dark(color);
+        t
+    }
+
+    pub fn from(color: Color) -> Self {match color.is_high_contrast() {
+        true => Self::dark(color),
+        false => Self::light(color)
+    }}
+}
+
 /// Represents a collection of font resources, including fonts and font sizes.
 #[derive(Clone, Default)]
 pub struct FontResources {
@@ -368,8 +387,8 @@ impl Color {
         Color(canvas::Color(f(c.0), f(c.1), f(c.2), c.3))
     }
 
-    pub fn is_high_contrast(c: Color) -> bool {
-        let c: canvas::Color = c.into();
+    pub fn is_high_contrast(&self) -> bool {
+        let c: canvas::Color = (*self).into();
         0.299*(c.0 as f32) + 0.587*(c.1 as f32) + 0.114*(c.2 as f32) > 128.0
     }
 }

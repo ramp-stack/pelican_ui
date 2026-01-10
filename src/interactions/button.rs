@@ -1,8 +1,10 @@
-use prism::event::{self, OnEvent, Event};
+use prism::event::{self, OnEvent, Event, TickEvent};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::display::Enum;
 use prism::layout::Stack;
 use prism::{emitters, Context, Request, Hardware};
+
+use crate::utils::ValidationFn;
 
 #[derive(Component, Debug)]
 pub struct Button(Stack, emitters::Button<_Button>);
@@ -15,8 +17,9 @@ impl Button {
         disabled: Option<impl Drawable + 'static>,
         is_disabled: bool,
         callback: impl FnMut(&mut Context) + 'static,
+        validation: Option<Box<dyn ValidationFn>>
     ) -> Self {
-        let button = _Button::new(default, hover, pressed, disabled, is_disabled, callback);
+        let button = _Button::new(default, hover, pressed, disabled, is_disabled, callback, validation);
         Self(Stack::default(), emitters::Button::new(button))
     }
 }
@@ -31,7 +34,7 @@ impl std::ops::DerefMut for Button {
 }
 
 #[derive(Component)]
-pub struct _Button(Stack, Enum, #[skip] bool, #[skip] Box<dyn FnMut(&mut Context)>);
+pub struct _Button(Stack, Enum, #[skip] bool, #[skip] Box<dyn FnMut(&mut Context)>, #[skip] Option<Box<dyn ValidationFn>>);
 
 impl _Button {
     pub fn new(
@@ -41,6 +44,7 @@ impl _Button {
         disabled: Option<impl Drawable + 'static>,
         is_disabled: bool,
         callback: impl FnMut(&mut Context) + 'static,
+        validate: Option<Box<dyn ValidationFn>>
     ) -> Self {
         let start = if is_disabled {"disabled"} else {"default"};
         let mut items: Vec<(String, Box<dyn Drawable>)> = Vec::new();
@@ -48,22 +52,27 @@ impl _Button {
         if let Some(h) = hover { items.push(("hover".to_string(), Box::new(h))) }
         if let Some(p) = pressed { items.push(("pressed".to_string(), Box::new(p))) }
         if let Some(d) = disabled { items.push(("disabled".to_string(), Box::new(d))) }
-        _Button(Stack::default(), Enum::new(items, start.to_string()), is_disabled, Box::new(callback))
+        _Button(Stack::default(), Enum::new(items, start.to_string()), is_disabled, Box::new(callback), validate)
     }
 
     pub fn disable(&mut self, disable: bool) {
-        self.2 = disable;
+        if self.2 != disable {
+            self.2 = disable;
 
-        match self.2 {
-            true => self.1.display("disabled"),
-            false => self.1.display("default")
+            match self.2 {
+                true => self.1.display("disabled"),
+                false => self.1.display("default")
+            }
         }
     }
 }
 
 impl OnEvent for _Button {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(event) = event.downcast_ref::<event::Button>() {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            let disable = self.4.as_mut().map(|vfn| (vfn)(ctx)).unwrap_or_default();
+            self.disable(disable);
+        } else if let Some(event) = event.downcast_ref::<event::Button>() {
             if !self.2 {
                 match event {
                     event::Button::Hover(true) => self.1.display("hover"),

@@ -47,7 +47,7 @@ impl ListItem {
         on_click: impl FnMut(&mut Context) + 'static,
     ) -> Self {
         let list_item = ListItemContent::new(ctx, avatar, left, right, icon_l, icon_r);
-        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, false, Box::new(on_click)))
+        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, false, Box::new(on_click), None))
     }
 
     pub fn default(ctx: &mut Context) -> Self {

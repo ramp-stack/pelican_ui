@@ -112,3 +112,18 @@ impl TitleSubtitle {
         }
     }
 }
+
+
+pub trait ValidationFn: FnMut(&mut Context) -> bool + 'static {
+    fn clone_box(&self) -> Box<dyn ValidationFn>;
+}
+
+impl<F> ValidationFn for F where F: FnMut(&mut Context) -> bool + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn ValidationFn> { Box::new(self.clone()) }
+}
+
+impl Clone for Box<dyn ValidationFn> { fn clone(&self) -> Self { self.as_ref().clone_box() } }
+
+impl std::fmt::Debug for dyn ValidationFn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {  write!(f, "ValidationFn...") }
+}

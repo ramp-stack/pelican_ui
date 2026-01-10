@@ -8,6 +8,8 @@ use prism::{emitters, Context, Request};
 use crate::theme::Theme;
 use crate::components::text::{TextSize, TextStyle, Text};
 
+type EditedCallback = Box<dyn FnMut(&mut Context, &mut String)>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum SlotType {
     // A permanent visible character (e.g. "$")
@@ -171,31 +173,37 @@ impl OnEvent for InputSegment {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Component, Debug)]
 pub struct NumericalInput(Stack, emitters::NumericalInput<_NumericalInput>);
 impl OnEvent for NumericalInput {}
 
-
 impl NumericalInput {
-    pub fn new(ctx: &mut Context, items: Vec<SlotType>) -> Self {
-        NumericalInput(Stack::default(), emitters::NumericalInput::new(_NumericalInput::new(ctx, items)))
+    pub fn new(ctx: &mut Context, on_edited: EditedCallback, items: Vec<SlotType>) -> Self {
+        NumericalInput(Stack::default(), emitters::NumericalInput::new(_NumericalInput::new(ctx, items, on_edited)))
     }
 
     pub fn value(&mut self) -> String { self.1.1.value() }
 }
 
-#[derive(Debug, Component)]
+#[derive(Component)]
 pub struct _NumericalInput {
     layout: Row,
     segments: Vec<InputSegment>,
-    #[skip] cursor: usize
+    #[skip] cursor: usize,
+    #[skip] on_edited: EditedCallback,
+}
+
+impl std::fmt::Debug for _NumericalInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("_NumericalInput").field("layout", &self.layout).field("segments", &self.segments).field("cursor", &self.cursor).finish()
+    }
 }
 
 impl _NumericalInput {
-    pub fn new(ctx: &mut Context, items: Vec<SlotType>) -> Self {
+    pub fn new(ctx: &mut Context, items: Vec<SlotType>, on_edited: EditedCallback) -> Self {
         let segments = items.into_iter().map(|i| InputSegment::new(ctx, i)).collect();
 
-        _NumericalInput { layout: Row::center(0.0), segments, cursor: 0, }
+        _NumericalInput { layout: Row::center(0.0), segments, cursor: 0, on_edited }
     }
 
     pub fn value(&mut self) -> String {
@@ -224,6 +232,7 @@ impl _NumericalInput {
 
 impl OnEvent for _NumericalInput {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        let mut edited = false;
         if event.downcast_ref::<TickEvent>().is_some() {
             let text_size = match self.value().len() {
                 0..=3 => TextSize::Title,
@@ -285,12 +294,19 @@ impl OnEvent for _NumericalInput {
                     }
                 }
             }
+            edited = true;
         } else if let Some(InputEvent::Triggered(is_delete)) = event.downcast_ref::<InputEvent>() {
             for seg in &mut self.segments {
                 if let SlotType::GhostInput(_) = seg.slot {
                     seg.inner.display(!*is_delete);
+                    edited = true;
                 }
             }
+        }
+
+        if edited {
+            let mut val = self.value();
+            (self.on_edited)(ctx, &mut val)
         }
 
         vec![event]

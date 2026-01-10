@@ -31,6 +31,12 @@ pub enum NavigationEvent {
     Error(String)
 }
 
+impl NavigationEvent {
+    pub fn push(page: impl AppPage + 'static) -> Self {
+        NavigationEvent::Push(Some(Box::new(page)))
+    }
+}
+
 impl Event for NavigationEvent {
     fn pass(self: Box<Self>, _ctx: &mut Context, _children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
         vec![Some(Box::new(_NavEvent(self)))]

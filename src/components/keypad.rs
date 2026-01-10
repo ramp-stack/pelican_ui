@@ -70,6 +70,6 @@ impl GhostButton {
             Button::new(drawables, ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.default.background, colors.default.outline)
         };
         
-        GhostButton(Stack::default(), interactions::Button::new(default, None::<Button>, None::<Button>, None::<Button>, is_disabled, Box::new(on_click)))
+        GhostButton(Stack::default(), interactions::Button::new(default, None::<Button>, None::<Button>, None::<Button>, is_disabled, Box::new(on_click), None))
     }
 }

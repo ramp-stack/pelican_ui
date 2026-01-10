@@ -4,6 +4,7 @@ use prism::drawable::{Component, SizedTree};
 use prism::{Context, Request};
 use prism::layout::{Padding, Column, Offset, Size, Row, Stack, Area};
 use prism::display::{EitherOr, Opt, Bin};
+use prism::drawable::Drawable;
 
 use crate::{interactions, Theme, theme::Color};
 use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableText};
@@ -36,7 +37,6 @@ pub struct TextInput {
     pub inner: interactions::InputField,
     hint: EitherOr<Option<ExpandableText>, ExpandableText>,
     #[skip] pub error: Option<String>,
-    #[skip] tag: String,
 }
 
 type InputCallback = Box<dyn FnMut(&mut Context, &mut String)>;
@@ -45,11 +45,11 @@ impl TextInput {
     pub fn new(
         ctx: &mut Context,
         value: Option<&str>,
-        label: (&str, bool),
+        label: Option<&str>,
         placeholder: Option<&str>,
         help_text: Option<&str>,
         icon_button: Option<(&str, InputCallback)>,
-        tag: &str
+        on_edit: impl FnMut(&mut Context, &mut String) + 'static,
     ) -> Self {
         let background = |bg: Color, o: Color| Rectangle::new(bg, 8.0, Some((1.0, o)));
         let colors = ctx.state.get_or_default::<Theme>().colors;
@@ -59,7 +59,7 @@ impl TextInput {
             background(Color::TRANSPARENT, colors.outline.primary),
             Some(background(colors.background.secondary, colors.outline.secondary)),
             Some(background(Color::TRANSPARENT, colors.status.danger)),
-            _InputContent::new(ctx, value, placeholder, icon_button, label.0.to_string()),
+            _InputContent::new(ctx, value, placeholder, icon_button, Box::new(on_edit)),
             48.0,
         );
 
@@ -68,16 +68,15 @@ impl TextInput {
 
         TextInput { 
             layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
-            label: label.1.then_some(Text::new(ctx, label.0, TextSize::H5, TextStyle::Heading, Align::Left, None)),
+            label: label.map(|l| Text::new(ctx, l, TextSize::H5, TextStyle::Heading, Align::Left, None)),
             inner: input_field, 
             hint: EitherOr::new(help, error),
-            error: None,
-            tag: tag.to_string(),
+            error: None
         }
     }
     
     pub fn default(ctx: &mut Context) -> Self {
-        Self::new(ctx, None, ("First name", true), None, None, None, "FirstNameTextInput")
+        Self::new(ctx, None, Some("First name"), None, None, None, |_, _| println!("Default TextInput Edited"))
     }
 
     pub fn value(&mut self) -> String {
@@ -88,7 +87,6 @@ impl TextInput {
 impl OnEvent for TextInput { 
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
-            ctx.state.insert(TextInputState(self.tag.to_string(), self.value()));
             self.hint.display_left(self.error.is_some()); 
             if let Some(e) = &self.error { 
                 self.hint.right().0.spans[0] = e.to_string(); 
@@ -109,7 +107,6 @@ struct _InputContent {
     #[skip] pub value: String,
     #[skip] on_submit: Option<InputCallback>,
     #[skip] is_focused: bool,
-    #[skip] state_name: String,
 }
 
 
@@ -125,16 +122,14 @@ impl _InputContent {
         value: Option<&str>,
         placeholder: Option<&str>,
         button: Option<(&str, InputCallback)>,
-        state_name: String,
+        on_edit: InputCallback
     ) -> Self {
-        ctx.state.insert(TextInputState(state_name.to_string(), value.unwrap_or_default().to_string()));
-
         let (button, on_submit) = button.map(|(icon, cb)| {
             let btn = SecondaryIconButton::medium(ctx, icon, |ctx: &mut Context| ctx.send(Request::Event(Box::new(TextInputEvent::Submit))));
             (Some(btn), Some(cb))
         }).unwrap_or((None, None));
         
-        let default = TextEditor::new(ctx, value.unwrap_or_default(), TextSize::Md, TextStyle::Primary, Align::Left); 
+        let default = TextEditor::new(ctx, value.unwrap_or_default(), TextSize::Md, TextStyle::Primary, Align::Left, on_edit); 
         let empty = ExpandableText::new(ctx, placeholder.unwrap_or("Enter text..."), TextSize::Md, TextStyle::Secondary, Align::Left, None);
         _InputContent { 
             layout: Row::new(0.0, Offset::End, Size::Fit, Padding(16.0, 8.0, 8.0, 8.0)), 
@@ -144,7 +139,6 @@ impl _InputContent {
             value: value.unwrap_or_default().to_string(), 
             on_submit,
             is_focused: false,
-            state_name,
         }
     }
 }
@@ -183,6 +177,7 @@ impl OnEvent for _InputContent {
 #[derive(Debug, Clone)]
 pub enum TextInputEvent {
     Submit,
+    Edited(String, String),
 }
 
 impl Event for TextInputEvent {
@@ -211,3 +206,18 @@ impl Event for TextInputEvent {
 //         true
 //     }
 // }
+
+
+// i am using rust to build a ui system.
+// currently the average set up looks like this
+// let text_input = TextInput::default(ctx);
+// let content = Content::new(vec![text_input]);
+// let bumper = Bumper::new("Continue", |ctx: &mut Context| ctx.state.get::<TextInput>().value().is_some());
+// Page::new(header, content, bumper)
+// The bumper takes in a button label and a closure that returns a boolean that gets run to check if the button should be enabled or disabled
+// the issue is, currently i am storing a textinput structure in state. this is bad because i don't want two copies of the same object. One that gets displayed, one one stored for data
+// the other issue is i need the user to be able to tell the page to get the value of the text input, check if the value is empty or not, then enable the button
+// i have an event system so where ever from the project i can run ctx.send(Request::event(MyEventStruct(data_var))) 
+// and every component has an on_event method where i can check if that event has been sent and run code if it has and based on the data it carries
+// what is the best way to solve my issue using my events system and rusts type system
+// i want to avoid using ids such as uuid, or string ids like each TextINput has a name "AddressTextInput" or "UsernameTextInput" etc
