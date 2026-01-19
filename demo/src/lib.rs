@@ -1,4 +1,3 @@
-
 use prism::canvas::{Shape, ShapeType, Color, Align};
 use ramp::prism::{self, canvas::{Image, Text as CanvasText}, Context, layout::{Offset, Row, Stack, Column, Size, Padding}, event::{OnEvent, Event}, drawable::{Component, SizedTree}, drawables};
 
@@ -22,6 +21,20 @@ use crate::prism::display::{Enum, Opt, EitherOr};
 use image::RgbaImage;
 use std::sync::Arc;
 use pelican_ui::PelicanUI;
+
+#[derive(Debug, Component)]
+pub struct DemoApp8(Stack, Page);
+impl OnEvent for DemoApp8 {}
+impl AppPage for DemoApp8 {}
+impl DemoApp8 {
+    pub fn new(ctx: &mut Context) -> Self {
+        let toggle = Toggle::default(ctx);
+        let circle = Circle::default();
+        let content = Content::new(Offset::Start, drawables![toggle]);
+        let header = Header::stack(ctx, "Demo App 8", None);
+        Self(Stack::default(), Page::new(header, content, Some(Bumper::default(ctx))))
+    }
+}
 
 #[derive(Debug, Component)]
 pub struct DemoApp(Stack, Page);
@@ -55,7 +68,7 @@ impl DemoApp {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
 pub struct StateTest(String);
 
 #[derive(Debug, Component)]
@@ -81,13 +94,16 @@ impl DemoApp2 {
         let header = Header::home(ctx, "Demo App", None);
         let bumper = Bumper::home(ctx, 
             ("Receive".to_string(), Box::new(|ctx: &mut Context| {
-                if ctx.state.get::<StateTest>().unwrap().0 == "flamingo.png".to_string() {
-                    ctx.state.get_mut_or_default::<StateTest>().0 = "seagull.png".to_string();
-                } else if ctx.state.get::<StateTest>().unwrap().0 == "seagull.png".to_string() {
-                    ctx.state.get_mut_or_default::<StateTest>().0 = "turtle.png".to_string();
-                } else {
-                    ctx.state.get_mut_or_default::<StateTest>().0 = "flamingo.png".to_string();
-                } 
+                // if ctx.state.get::<StateTest>().unwrap().0 == "flamingo.png".to_string() {
+                //     ctx.state.get_mut_or_default::<StateTest>().0 = "seagull.png".to_string();
+                // } else if ctx.state.get::<StateTest>().unwrap().0 == "seagull.png".to_string() {
+                //     ctx.state.get_mut_or_default::<StateTest>().0 = "turtle.png".to_string();
+                // } else {
+                //     ctx.state.get_mut_or_default::<StateTest>().0 = "flamingo.png".to_string();
+                // }
+
+                let demo = DemoApp8::new(ctx);
+                ctx.send(Request::event(NavigationEvent::push(demo)))
             })),
             None,
             None

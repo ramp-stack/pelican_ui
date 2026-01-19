@@ -19,7 +19,6 @@ use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, Ic
 ///
 ///
 pub trait AppPage: Drawable + std::fmt::Debug + 'static {}
-
 /// Event used to navigate between pages of the app.
 
 #[derive(Debug)]
@@ -117,18 +116,18 @@ impl NavigatorSelectable {
     }
 }
 
-/// Selects the [`NavigationButton`] with the given [`uuid::Uuid`].
-#[derive(Debug, Clone)]
-pub struct NavigatorSelect(pub uuid::Uuid);
+// /// Selects the [`NavigationButton`] with the given [`uuid::Uuid`].
+// #[derive(Debug, Clone)]
+// pub struct NavigatorSelect(pub uuid::Uuid);
 
-impl Event for NavigatorSelect {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
+// impl Event for NavigatorSelect {
+//     fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
+//         children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+//     }
+// }
 
 #[derive(Debug, Component)]
-pub enum Navigator {
+pub(crate) enum Navigator {
     Desktop {
         layout: Column, 
         brandmark: Image, 
@@ -154,7 +153,7 @@ pub enum Navigator {
 impl OnEvent for Navigator {}
 
 impl Navigator {
-    pub fn desktop(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
+    pub(crate) fn desktop(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let (mut top_col, mut bot_col) = (Vec::new(), Vec::new());
         let mut i = 0;
@@ -192,7 +191,7 @@ impl Navigator {
         }
     }
 
-    pub fn mobile(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
+    pub(crate) fn mobile(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let background = ctx.state.get_or_default::<Theme>().colors.background.primary;
 
@@ -211,7 +210,7 @@ impl Navigator {
     }
 
 
-    pub fn web(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
+    pub(crate) fn web(ctx: &mut Context, navigation: Vec<RootInfo>) -> Self {
         let mut buttons = Vec::new();
         let group_id = uuid::Uuid::new_v4();
 
@@ -235,7 +234,7 @@ impl Navigator {
 
 
 #[derive(Debug, Component)]
-struct MobileNavigatorContent(Row, Vec<NavigatorSelectable>);
+pub struct MobileNavigatorContent(Row, Vec<NavigatorSelectable>);
 impl OnEvent for MobileNavigatorContent {}
 
 impl MobileNavigatorContent {
@@ -246,7 +245,7 @@ impl MobileNavigatorContent {
 }
 
 #[derive(Debug, Component)]
-struct ButtonColumn(Column, Vec<NavigatorSelectable>);
+pub struct ButtonColumn(Column, Vec<NavigatorSelectable>);
 impl OnEvent for ButtonColumn {}
 
 impl ButtonColumn {
@@ -256,7 +255,7 @@ impl ButtonColumn {
 }
 
 #[derive(Debug, Component)]
-struct ButtonRow(Row, Vec<NavigatorSelectable>);
+pub struct ButtonRow(Row, Vec<NavigatorSelectable>);
 impl OnEvent for ButtonRow {}
 
 impl ButtonRow {

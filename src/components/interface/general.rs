@@ -1,9 +1,8 @@
 use prism::{drawables, Context, IS_MOBILE, IS_WEB, Request};
-use prism::event::{Event, OnEvent, MouseEvent, MouseState, TickEvent};
+use prism::event::{Event, OnEvent, MouseEvent, MouseState};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
 use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
-use prism::display::Bin;
 
 use crate::Theme;
 use crate::components::{Rectangle};
@@ -41,7 +40,7 @@ impl std::fmt::Debug for Interface {
 }
 
 impl Interface {
-    pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>, on_event: Box<dyn FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>>) -> Self {
+    pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>, on_event: OnEventFn) -> Self {
         let color = ctx.state.get_or_default::<Theme>().colors.background.primary;
         Interface {
             layout: Stack::default(),
@@ -109,7 +108,6 @@ pub struct Content {
 impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
     pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>) -> Self {
-        println!("PAGE OFFSET {:?}", offset);
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }

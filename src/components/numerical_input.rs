@@ -1,5 +1,5 @@
 use prism::{Context, IS_MOBILE};
-use prism::event::{OnEvent, Event, TickEvent};
+use prism::event::{OnEvent, Event};
 use prism::drawable::{Component, SizedTree};
 use prism::canvas::Align;
 use prism::display::Bin;
@@ -12,7 +12,7 @@ use crate::interactions::{SlotType, self};
 #[derive(Debug, Component)]
 pub struct NumericalInput(Column, Bin<Stack, _NumericalInput>, Option<Keypad>, #[skip] bool);
 impl OnEvent for NumericalInput { 
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
         // if let Some(tag) = &self.3 {
         //     if event.as_any().downcast_ref::<TickEvent>().is_some() { 
         //         ctx.state.insert::<(String, String)>((tag.to_string(), self.value()));

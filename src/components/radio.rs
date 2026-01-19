@@ -49,5 +49,3 @@ impl RadioSelector {
         ])
     }
 }
-
-pub struct RadioSelectorState(String, String);

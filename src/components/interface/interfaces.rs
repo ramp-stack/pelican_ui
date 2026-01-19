@@ -69,24 +69,24 @@ impl Pages {
 pub enum Interface {
     Mobile {
         layout: Column,
-        safe_area_left: Bin<Stack, Rectangle>,
-        pages: Pages,
-        keyboard: Opt<MobileKeyboard>,
-        navigator: Option<Opt<Navigator>>,
-        safe_area_right: Bin<Stack, Rectangle>,
+        safe_area_left: Box<Bin<Stack, Rectangle>>,
+        pages: Box<Pages>,
+        keyboard: Box<Opt<MobileKeyboard>>,
+        navigator: Box<Option<Opt<Navigator>>>,
+        safe_area_right: Box<Bin<Stack, Rectangle>>,
     },
 
     Desktop {
         layout: Row, 
-        navigator: Option<Opt<Navigator>>,
+        navigator: Box<Option<Opt<Navigator>>>,
         separator: Bin<Stack, Rectangle>, 
-        pages: Pages 
+        pages: Box<Pages> 
     },
 
     Web {
         layout: Column, 
-        navigator: Option<Opt<Navigator>>, 
-        pages: Pages
+        navigator: Box<Option<Opt<Navigator>>>, 
+        pages: Box<Pages>
     }
 }
 
@@ -131,9 +131,9 @@ impl Interface {
         let separator = Bin(line_layout, Rectangle::new(color, 0.0, None));
         Interface::Desktop {
             layout: Row::start(0.0), 
-            navigator, 
+            navigator: Box::new(navigator), 
             separator, 
-            pages: Pages::new(pages)
+            pages: Box::new(Pages::new(pages))
         }
     }
 
@@ -146,11 +146,11 @@ impl Interface {
 
         Interface::Mobile {
             layout,
-            safe_area_left: Spacer::new(ctx, top),
-            pages: Pages::new(pages),
-            keyboard: Opt::new(MobileKeyboard::new(ctx, true), false),
-            navigator,
-            safe_area_right: Spacer::new(ctx, bottom)
+            safe_area_left: Box::new(Spacer::new(ctx, top)),
+            pages: Box::new(Pages::new(pages)),
+            keyboard: Box::new(Opt::new(MobileKeyboard::new(ctx, true), false)),
+            navigator: Box::new(navigator),
+            safe_area_right: Box::new(Spacer::new(ctx, bottom))
         }
     }
 
@@ -158,7 +158,7 @@ impl Interface {
         let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
         let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::web(ctx, navigation), true));
         let layout = Column::new(0.0, Offset::Start, Size::Fill, Padding::default(), None);
-        Interface::Web{layout, navigator, pages: Pages::new(pages)}
+        Interface::Web{layout, navigator: Box::new(navigator), pages: Box::new(Pages::new(pages))}
     }
 
     pub fn pages(&mut self) -> &mut Pages {
@@ -166,7 +166,6 @@ impl Interface {
             Interface::Desktop {pages, ..} => pages,
             Interface::Mobile {pages, ..} => pages,
             Interface::Web {pages, ..} => pages,
-            _ => panic!("Something went wrong while getting interface's pages")
         }
     }
 
@@ -175,7 +174,6 @@ impl Interface {
             Interface::Desktop {navigator, ..} => navigator,
             Interface::Mobile {navigator, ..} => navigator,
             Interface::Web {navigator, ..} => navigator,
-            _ => panic!("Something went wrong while getting interface's navigator")
         }
     }
 }

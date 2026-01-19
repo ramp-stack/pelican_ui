@@ -16,7 +16,7 @@ use crate::components::button::GhostIconButton;
 
 use std::sync::mpsc::{self, Receiver, Sender};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum ButtonState {Default, Pressed}
 
 #[derive(Component, Debug)]
@@ -93,6 +93,7 @@ impl OnEvent for KeyboardIcons {
 }
 
 
+// TODO: remove receiver use event instead, default impl for PartialEq
 #[derive(Component, Debug)]
 struct KeyboardContent(Column, KeyboardHeader, KeyboardRow, KeyboardRow, KeyboardRow, KeyboardRow, #[skip] Receiver<u8>);
 

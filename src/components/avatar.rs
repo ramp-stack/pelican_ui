@@ -97,7 +97,7 @@ impl OnEvent for Avatar {
     }
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, PartialEq)]
 struct PrimaryAvatar(Stack, Option<AvatarIcon>, Option<Image>, Option<Shape>);
 impl OnEvent for PrimaryAvatar {}
 
@@ -115,7 +115,7 @@ impl PrimaryAvatar {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, PartialEq)]
 struct AvatarIcon(Stack, Shape, Image);
 impl OnEvent for AvatarIcon {}
 impl AvatarIcon {
@@ -130,7 +130,7 @@ impl AvatarIcon {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, PartialEq)]
 struct Flair(Stack, AvatarIcon, Shape);
 impl OnEvent for Flair {}
 impl Flair {
@@ -144,7 +144,7 @@ impl Flair {
 }
 
 /// Variations of avatar content.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AvatarContent {
     /// Display an icon on a circle background.
     Icon(String, AvatarIconStyle),
@@ -163,7 +163,7 @@ impl AvatarContent {
 }
 
 /// Style presets for avatar icons and backgrounds.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum AvatarIconStyle {
     Primary,
     Secondary,
@@ -188,7 +188,7 @@ impl AvatarIconStyle {
 }
 
 /// Size presets for avatars.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum AvatarSize {
     /// `128.0`
     Xxl, 

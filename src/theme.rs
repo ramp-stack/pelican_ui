@@ -14,15 +14,11 @@ pub struct Theme {
 
 impl Theme {
     pub fn light(color: Color) -> Self {
-        let mut t = Theme::default();
-        t.colors = ColorResources::light(color);
-        t
+        Theme { colors: ColorResources::light(color), ..Default::default() }
     }
 
     pub fn dark(color: Color) -> Self {
-        let mut t = Theme::default();
-        t.colors = ColorResources::dark(color);
-        t
+        Theme { colors: ColorResources::dark(color), ..Default::default() }
     }
 
     pub fn from(color: Color) -> Self {match color.is_high_contrast() {
@@ -367,7 +363,7 @@ impl NeutralPalette {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Color(canvas::Color);
 
 impl Color {

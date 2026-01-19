@@ -4,7 +4,6 @@ use prism::drawable::{Component, SizedTree};
 use prism::{Context, Request};
 use prism::layout::{Padding, Column, Offset, Size, Row, Stack, Area};
 use prism::display::{EitherOr, Opt, Bin};
-use prism::drawable::Drawable;
 
 use crate::{interactions, Theme, theme::Color};
 use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableText};
@@ -85,7 +84,7 @@ impl TextInput {
 }
 
 impl OnEvent for TextInput { 
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
             self.hint.display_left(self.error.is_some()); 
             if let Some(e) = &self.error { 
@@ -95,8 +94,6 @@ impl OnEvent for TextInput {
         vec![event] 
     } 
 }
-
-pub struct TextInputState(String, String);
 
 #[derive(Component)]
 struct _InputContent {
@@ -108,7 +105,6 @@ struct _InputContent {
     #[skip] on_submit: Option<InputCallback>,
     #[skip] is_focused: bool,
 }
-
 
 impl std::fmt::Debug for _InputContent { 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { 

@@ -149,7 +149,7 @@ fn decode_image(img_rgba: RgbaImage, mut decoder: Quirc) -> Option<String> {
     None
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct QRCodeScannedEvent(pub String);
 
 impl Event for QRCodeScannedEvent {
@@ -158,7 +158,7 @@ impl Event for QRCodeScannedEvent {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CameraEvent {
     ReceivedFrame(Option<Arc<RgbaImage>>)
 }

@@ -226,11 +226,11 @@ impl ButtonContent {
 }
 
 /// Various button styles.
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, Clone, Copy, Debug, PartialEq)]
 pub enum ButtonStyle {Primary, Secondary, Ghost}
 
 /// Available button width behaviors.
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, Clone, Copy, Debug, PartialEq)]
 pub enum ButtonWidth {Fit, Fill}
 impl ButtonWidth{
     pub(crate) fn get(&self) -> Size {
@@ -242,7 +242,7 @@ impl ButtonWidth{
 }
 
 /// Available button sizes and their corresponding layout, font, and icon properties.
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, Clone, Copy, Debug, PartialEq)]
 pub enum ButtonSize {Large, Medium}
 impl ButtonSize {
     /// Regular button sizing
