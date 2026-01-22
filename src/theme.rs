@@ -294,15 +294,18 @@ impl ButtonVariants {
             let r = r as f64 / 255.0;
             let g = g as f64 / 255.0;
             let b = b as f64 / 255.0;
-            let l = 0.2126*r + 0.7152*g + 0.0722*b;
-            match l < 0.75 && (l < 0.35 || (r.max(g.max(b)) - r.min(g.min(b))) < 0.3) {
+
+            let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            let saturation = r.max(g.max(b)) - r.min(g.min(b));
+
+            match luminance < 0.6 || (luminance < 0.75 && saturation > 0.25) {
                 true => Color::WHITE,
                 false => Color::BLACK
             }
         };
 
         let label = contrasted(brand);
-        
+
         Self {
             default: ButtonColorScheme::new(brand, label, Color::TRANSPARENT),
             hover: ButtonColorScheme::new(Color::darken(brand, 0.75), label, Color::TRANSPARENT),
