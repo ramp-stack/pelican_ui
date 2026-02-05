@@ -1,5 +1,5 @@
 use chrono::{DateTime, Local, Datelike, Timelike, TimeZone};
-use prism::Context;
+use prism::{Context, drawable::Drawable};
 
 // #[derive(Clone, Copy, Deserialize, Serialize, Debug)]
 // pub struct InternetConnection(pub bool);
@@ -114,11 +114,11 @@ impl TitleSubtitle {
 }
 
 
-pub trait ValidationFn: FnMut(&mut Context) -> bool + 'static {
+pub trait ValidationFn: FnMut(&Vec<Box<dyn Drawable>>) -> bool + 'static {
     fn clone_box(&self) -> Box<dyn ValidationFn>;
 }
 
-impl<F> ValidationFn for F where F: FnMut(&mut Context) -> bool + Clone + 'static {
+impl<F> ValidationFn for F where F: FnMut(&Vec<Box<dyn Drawable>>) -> bool + Clone + 'static {
     fn clone_box(&self) -> Box<dyn ValidationFn> { Box::new(self.clone()) }
 }
 

@@ -1,11 +1,11 @@
 use prism::event::OnEvent;
 use prism::drawable::Component;
 use prism::canvas::Align;
-use prism::Context;
 use prism::layout::{Column, Row, Padding, Offset, Size};
 
 use crate::components::text::{Text, ExpandableText, TextStyle, TextSize};
 use crate::components::button::{QuickActions, QuickAction};
+use crate::theme::Theme;
 
 /// ## Data Item
 ///
@@ -42,22 +42,22 @@ pub struct DataItem(Column, Text, Option<ExpandableText>, Option<ExpandableText>
 impl OnEvent for DataItem {}
 
 impl DataItem {
-    pub fn text(ctx: &mut Context, label: &str, secondary: &str, description: &str, quick_actions: Option<Vec<QuickAction>>) -> Self {
+    pub fn text(theme: &Theme, label: &str, secondary: &str, description: &str, quick_actions: Option<Vec<QuickAction>>) -> Self {
         DataItem(
             Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
-            Text::new(ctx, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
-            Some(ExpandableText::new(ctx, secondary, TextSize::Md, TextStyle::Primary, Align::Left, None)),
-            Some(ExpandableText::new(ctx, description, TextSize::Sm, TextStyle::Secondary, Align::Left, None)),
-            None, quick_actions.map(|actions| QuickActions::new(ctx, actions))
+            Text::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
+            Some(ExpandableText::new(theme, secondary, TextSize::Md, TextStyle::Primary, Align::Left, None)),
+            Some(ExpandableText::new(theme, description, TextSize::Sm, TextStyle::Secondary, Align::Left, None)),
+            None, quick_actions.map(|actions| QuickActions::new(theme, actions))
         )
     }
 
-    pub fn table(ctx: &mut Context, label: &str, table: Vec<(String, String)>, quick_actions: Option<Vec<QuickAction>>) -> Self {
+    pub fn table(theme: &Theme, label: &str, table: Vec<(String, String)>, quick_actions: Option<Vec<QuickAction>>) -> Self {
         DataItem(
             Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
-            Text::new(ctx, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
-            None, None, Some(Table::new(ctx, table)),
-            quick_actions.map(|actions| QuickActions::new(ctx, actions))
+            Text::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
+            None, None, Some(Table::new(theme, table)),
+            quick_actions.map(|actions| QuickActions::new(theme, actions))
         )
     }
 }
@@ -67,8 +67,8 @@ struct Table(pub Column, pub Vec<Tabular>);
 impl OnEvent for Table {}
 
 impl Table {
-    pub fn new(ctx: &mut Context, items: Vec<(String, String)>) -> Self {
-        Table(Column::center(0.0), items.iter().map(|(name, data)| Tabular::new(ctx, name, data)).collect())
+    pub fn new(theme: &Theme, items: Vec<(String, String)>) -> Self {
+        Table(Column::center(0.0), items.iter().map(|(name, data)| Tabular::new(theme, name, data)).collect())
     }
 }
 
@@ -77,11 +77,11 @@ struct Tabular(Row, ExpandableText, Text);
 impl OnEvent for Tabular {}
 
 impl Tabular {
-    fn new(ctx: &mut Context, name: &str, data: &str) -> Self {
+    fn new(theme: &Theme, name: &str, data: &str) -> Self {
         Tabular (
             Row::new(8.0, Offset::Start, Size::Fit, Padding(0.0, 4.0, 0.0, 4.0)),
-            ExpandableText::new(ctx, name, TextSize::Sm, TextStyle::Primary, Align::Left, Some(1)),
-            Text::new(ctx, data, TextSize::Sm, TextStyle::Primary, Align::Left, Some(1)),
+            ExpandableText::new(theme, name, TextSize::Sm, TextStyle::Primary, Align::Left, Some(1)),
+            Text::new(theme, data, TextSize::Sm, TextStyle::Primary, Align::Left, Some(1)),
         )
     }
 }

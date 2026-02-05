@@ -21,17 +21,17 @@ pub struct Text {
 }
 
 impl OnEvent for Text {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            let (color, font) = self.style.get(ctx);
+            // let (color, font) = self.style.get(ctx);
             self.inner.align = self.align;
             self.inner.max_lines = self.max_lines;
             self.inner.spans.iter_mut().enumerate().for_each(|(i, s)| {
                 s.text = self.spans[i].to_string();
-                s.font_size = self.size.get(ctx);
+                // s.font_size = self.size.get(ctx);
                 s.line_height = Some(s.font_size * 1.25);
-                s.color = color.into();
-                s.font = font.clone().into();
+                // s.color = color.into();
+                // s.font = font.clone().into();
                 s.kerning = self.kerning;
             });
         }
@@ -40,15 +40,15 @@ impl OnEvent for Text {
 }
 
 impl Text {
-    pub fn new(ctx: &mut Context, text: &str, text_size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
-        let (color, font) = style.get(ctx);
-        let size = text_size.get(ctx);
+    pub fn new(theme: &Theme, text: &str, text_size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
+        let (color, font) = style.get(theme);
+        let size = text_size.get(theme);
         let inner = BasicText::new(vec![Span::new(text.to_string(), size, Some(size*1.25), font.into(), color.into(), 0.0)], None, align, max_lines);
         Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size: text_size, style, align, max_lines, kerning: 0.0}
     }
 
-    pub fn default(ctx: &mut Context, text: &str) -> Self {
-        Self::new(ctx, text, TextSize::H4, TextStyle::Heading, Align::Center, None)
+    pub fn default(theme: &Theme, text: &str) -> Self {
+        Self::new(theme, text, TextSize::H4, TextStyle::Heading, Align::Center, None)
     }
 
     pub fn inner(&self) -> &BasicText {&self.inner}
@@ -66,8 +66,7 @@ pub enum TextStyle {
 }
 
 impl TextStyle {
-    pub fn get(&self, ctx: &mut Context) -> (Color, canvas::Font) {
-        let theme = ctx.state.get_or_default::<Theme>();
+    pub fn get(&self, theme: &Theme) -> (Color, canvas::Font) {
         let fonts = theme.fonts.fonts.clone();
         let colors = theme.colors;
         match self {
@@ -84,8 +83,8 @@ impl TextStyle {
 #[derive(Copy, Clone, Debug, Default)]
 pub enum TextSize { Title, H1, H2, H3, H4, H5, H6, Xl, #[default] Lg, Md, Sm, Xs }
 impl TextSize {
-    fn get(&self, ctx: &mut Context) -> f32 {
-        let font_size = ctx.state.get_or_default::<Theme>().fonts.size;
+    fn get(&self, theme: &Theme) -> f32 {
+        let font_size = theme.fonts.size;
         match self {
             TextSize::Title => font_size.title,
             TextSize::H1 => font_size.h1,
@@ -106,12 +105,12 @@ impl TextSize {
 #[derive(Debug, Clone)]
 pub struct ExpandableText(pub Text);
 impl ExpandableText {
-    pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
-        ExpandableText(Text::new(ctx, text, size, style, align, max_lines))
+    pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
+        ExpandableText(Text::new(theme, text, size, style, align, max_lines))
     }
 
-    pub fn default(ctx: &mut Context, text: &str) -> Self {
-        Self::new(ctx, text, TextSize::H4, TextStyle::Heading, Align::Center, None)
+    pub fn default(theme: &Theme, text: &str) -> Self {
+        Self::new(theme, text, TextSize::H4, TextStyle::Heading, Align::Center, None)
     }
 }
 
@@ -142,14 +141,14 @@ impl std::fmt::Debug for TextEditor {
 }
 
 impl TextEditor {
-    pub fn new(ctx: &mut Context, text: &str, size: TextSize, style: TextStyle, align: Align, on_edit: EditorCallback) -> Self {
-        let mut built = ExpandableText::new(ctx, text, size, style, align, None);
+    pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align, on_edit: EditorCallback) -> Self {
+        let mut built = ExpandableText::new(theme, text, size, style, align, None);
         built.0.inner.cursor = Some(text.len());
-        TextEditor(Stack::start(), built, TextCursor::new(ctx, style, size), on_edit)
+        TextEditor(Stack::start(), built, TextCursor::new(theme, style, size), on_edit)
     }
 
-    pub fn default(ctx: &mut Context) -> Self {
-        Self::new(ctx, "", TextSize::Md, TextStyle::Primary, Align::Left, Box::new(|_, _| println!("TextEditor Edited")))
+    pub fn default(theme: &Theme) -> Self {
+        Self::new(theme, "", TextSize::Md, TextStyle::Primary, Align::Left, Box::new(|_, _| println!("TextEditor Edited")))
     }
 
     pub fn display_cursor(&mut self, display: bool) {
@@ -163,10 +162,8 @@ impl OnEvent for TextEditor {
             let cursor_pos = self.1.0.inner.cursor_position();
             *self.2.x_offset() = Offset::Static(cursor_pos.0);
             *self.2.y_offset() = Offset::Static(cursor_pos.1+2.0);
-        } else if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            if event.state == MouseState::Pressed && event.position.is_some() {
-                self.1.0.inner.cursor_click(event.position.unwrap().0, event.position.unwrap().1) 
-            }
+        } else if let Some(event) = event.downcast_ref::<MouseEvent>() && let Some(pos) = event.position && event.state == MouseState::Pressed {
+            self.1.0.inner.cursor_click(pos.0, pos.1) 
         } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key}) = event.downcast_ref() {
             let index = self.1.0.inner.cursor.unwrap();
             
@@ -215,9 +212,9 @@ pub struct TextCursor(Stack, Opt<Rectangle>);
 impl OnEvent for TextCursor {}
 
 impl TextCursor {
-    pub fn new(ctx: &mut Context, style: TextStyle, size: TextSize) -> Self {
-        let (color, _) = style.get(ctx);
-        let size = size.get(ctx);
+    pub fn new(theme: &Theme, style: TextStyle, size: TextSize) -> Self {
+        let (color, _) = style.get(theme);
+        let size = size.get(theme);
         TextCursor(
             Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()), 
             Opt::new(Rectangle::new(color, 0.0, None), true)

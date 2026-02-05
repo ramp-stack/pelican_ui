@@ -38,7 +38,7 @@ impl OnEvent for ListItem {}
 
 impl ListItem {
     pub fn new(
-        ctx: &mut Context,
+        theme: &Theme,
         avatar: Option<AvatarContent>,
         left: ListItemInfoLeft,
         right: Option<TitleSubtitle>,
@@ -46,12 +46,12 @@ impl ListItem {
         icon_r: Option<&'static str>,
         on_click: impl FnMut(&mut Context) + 'static,
     ) -> Self {
-        let list_item = ListItemContent::new(ctx, avatar, left, right, icon_l, icon_r);
-        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, false, Box::new(on_click), None))
+        let list_item = ListItemContent::new(theme, avatar, left, right, icon_l, icon_r);
+        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, Box::new(on_click)))
     }
 
-    pub fn default(ctx: &mut Context) -> Self {
-        Self::new(ctx, None, ListItemInfoLeft::new("List Item", Some("Click me for details"), None, None), None, None, Some("forward"), |_: &mut Context| println!("Pressed..."))
+    pub fn default(theme: &Theme, ) -> Self {
+        Self::new(theme, None, ListItemInfoLeft::new("List Item", Some("Click me for details"), None, None), None, None, Some("forward"), |_: &mut Context| println!("Pressed..."))
     }
 }
 
@@ -62,17 +62,18 @@ impl OnEvent for ListItemContent {}
 impl ListItemContent {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        ctx: &mut Context,
+        theme: &Theme, 
         avatar: Option<AvatarContent>,
         left: ListItemInfoLeft,
         right: Option<TitleSubtitle>,
         icon_l: Option<&'static str>,
         icon_r: Option<&'static str>,
     ) -> Self {
-        let avatar = avatar.map(|data| Avatar::new(ctx, data, None, false, AvatarSize::Md, None));
-        let content = ListItemData::new(ctx, left, right);
-        let icon_l = icon_l.map(|i| {let c = ctx.state.get_or_default::<Theme>().colors.text.primary; Icon::new(ctx, i, Some(c), 24.0)});
-        let icon_r = icon_r.map(|i| {let c = ctx.state.get_or_default::<Theme>().colors.text.primary; Icon::new(ctx, i, Some(c), 16.0)});
+        let c = theme.colors.text.primary; 
+        let avatar = avatar.map(|data| Avatar::new(theme, data, None, false, AvatarSize::Md, None));
+        let content = ListItemData::new(theme, left, right);
+        let icon_l = icon_l.map(|i| Icon::new(theme, i, Some(c), 24.0));
+        let icon_r = icon_r.map(|i| Icon::new(theme, i, Some(c), 16.0));
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0));
         ListItemContent(layout, icon_l, avatar, content, icon_r)
     }
@@ -83,8 +84,8 @@ struct ListItemData(Row, LeftData, Option<RightData>);
 impl OnEvent for ListItemData {}
 
 impl ListItemData {
-    fn new(ctx: &mut Context, left: ListItemInfoLeft, right: Option<TitleSubtitle>) -> Self {
-        ListItemData(Row::start(8.0), LeftData::new(ctx, left), right.map(|info| RightData::new(ctx, info)))
+    fn new(theme: &Theme, left: ListItemInfoLeft, right: Option<TitleSubtitle>) -> Self {
+        ListItemData(Row::start(8.0), LeftData::new(theme, left), right.map(|info| RightData::new(theme, info)))
     }
 }
 
@@ -93,11 +94,11 @@ struct LeftData(Column, TitleRow, Option<ExpandableText>, Option<ExpandableText>
 impl OnEvent for LeftData {}
 
 impl LeftData {
-    pub fn new(ctx: &mut Context, info: ListItemInfoLeft) -> Self {
+    pub fn new(theme: &Theme, info: ListItemInfoLeft) -> Self {
         let layout = Column::new(4.0, Offset::Start, Size::Fill, Padding::default(), None);
-        let subtitle = info.title.subtitle.map(|s| ExpandableText::new(ctx, &s, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
-        let description = info.description.map(|text| ExpandableText::new(ctx, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
-        LeftData(layout, TitleRow::new(ctx, &info.title.title, info.flair), subtitle, description)
+        let subtitle = info.title.subtitle.map(|s| ExpandableText::new(theme, &s, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
+        let description = info.description.map(|text| ExpandableText::new(theme, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
+        LeftData(layout, TitleRow::new(theme, &info.title.title, info.flair), subtitle, description)
     }
 }
 
@@ -106,10 +107,10 @@ struct TitleRow(Row, ExpandableText, Option<Image>);
 impl OnEvent for TitleRow {}
 
 impl TitleRow {
-    fn new(ctx: &mut Context, title: &str, flair: Option<(&'static str, Color)>) -> Self {
+    fn new(theme: &Theme, title: &str, flair: Option<(&'static str, Color)>) -> Self {
         let layout = Row::new(4.0, Offset::Center, Size::Fit, Padding::default());
-        let text = ExpandableText::new(ctx, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
-        let flair = flair.map(|(name, color)| Icon::new(ctx, name, Some(color), 16.0));
+        let text = ExpandableText::new(theme, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
+        let flair = flair.map(|(name, color)| Icon::new(theme, name, Some(color), 16.0));
         TitleRow(layout, text, flair)
     }
 }
@@ -119,9 +120,9 @@ struct RightData(Column, Text, Option<Text>);
 impl OnEvent for RightData {}
 
 impl RightData {
-    fn new(ctx: &mut Context, info: TitleSubtitle) -> Self {
-        let title = Text::new(ctx, &info.title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
-        let subtitle = info.subtitle.map(|s| Text::new(ctx, &s, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
+    fn new(theme: &Theme, info: TitleSubtitle) -> Self {
+        let title = Text::new(theme, &info.title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
+        let subtitle = info.subtitle.map(|s| Text::new(theme, &s, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)));
         RightData(Column::end(4.0), title, subtitle)
     }
 }
@@ -157,8 +158,8 @@ impl ListItemGroup {
 pub struct ListItemSection(Column, Option<ExpandableText>, ListItemGroup);
 impl OnEvent for ListItemSection {}
 impl ListItemSection {
-    pub fn new(ctx: &mut Context, label: Option<String>, items: Vec<ListItem>) -> Self {
-        let text = label.as_ref().map(|l| ExpandableText::new(ctx, l, TextSize::H5, TextStyle::Heading, Align::Left, None));
+    pub fn new(theme: &Theme, label: Option<String>, items: Vec<ListItem>) -> Self {
+        let text = label.as_ref().map(|l| ExpandableText::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None));
         ListItemSection(Column::center(16.0), text, ListItemGroup::new(items))
     }
 

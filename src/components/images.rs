@@ -1,7 +1,6 @@
 use prism::layout::SizeRequest;
 use prism::drawable::{Drawable, SizedTree, RequestTree, Rect}; 
 use prism::canvas::{ShapeType, Image, Area as CanvasArea, Item as CanvasItem};
-use prism::Context;
 
 use crate::theme::{Theme, Color};
 
@@ -24,9 +23,8 @@ use image::RgbaImage;
 pub struct Icon;
 impl Icon {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(ctx: &mut Context, name: &str, color: Option<Color>, size: f32) -> Image {
-        let icon = ctx.state.get_or_default::<Theme>().icons.get(name);
-        Image{shape: ShapeType::Rectangle(0.0, (size, size), 0.0), image: icon, color: color.map(|c| c.into())}
+    pub fn new(theme: &Theme, name: &str, color: Option<Color>, size: f32) -> Image {
+        Image{shape: ShapeType::Rectangle(0.0, (size, size), 0.0), image: theme.icons.get(name), color: color.map(|c| c.into())}
     }
 }
 

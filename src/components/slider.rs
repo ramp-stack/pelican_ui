@@ -19,7 +19,7 @@ use crate::components::{Circle, Rectangle};
 /// ### Example
 /// ```rust
 /// let slider = Slider::new(
-///     ctx,
+///     theme,
 ///     50.0,
 ///     Some("Volume"),
 ///     None,
@@ -33,24 +33,23 @@ pub struct Slider(Column, Option<Text>, Option<ExpandableText>, interactions::Sl
 impl OnEvent for Slider {}
 impl Slider {
     pub fn new(
-        ctx: &mut Context,
+        theme: &Theme,
         start: f32,
         label: Option<&str>,
         description: Option<&str>,
         on_change: impl FnMut(&mut Context, f32) + 'static,
     ) -> Self {
-        let colors = ctx.state.get_or_default::<Theme>().colors;
-        let background = Rectangle::new(colors.outline.primary, 3.0, None);
-        let foreground = Rectangle::new(colors.brand, 3.0, None);
-        let handle = Circle::new(18.0, colors.brand, false);
+        let background = Rectangle::new(theme.colors.outline.primary, 3.0, None);
+        let foreground = Rectangle::new(theme.colors.brand, 3.0, None);
+        let handle = Circle::new(18.0, theme.colors.brand, false);
         Slider(Column::start(8.0),
-            label.map(|l| Text::new(ctx, l, TextSize::H5, TextStyle::Heading, Align::Left, None)),
-            description.map(|t| ExpandableText::new(ctx, t, TextSize::Md, TextStyle::Primary, Align::Left, None)),
+            label.map(|l| Text::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None)),
+            description.map(|t| ExpandableText::new(theme, t, TextSize::Md, TextStyle::Primary, Align::Left, None)),
             interactions::Slider::new(start, background, foreground, handle, on_change),
         )
     }
 
-    pub fn default(ctx: &mut Context) -> Self {
-        Self::new(ctx, 0.5, Some("Slider"), None, |_: &mut Context, p: f32| println!("Slider moved... {p:?}"))
+    pub fn default(theme: &Theme) -> Self {
+        Self::new(theme, 0.5, Some("Slider"), None, |_: &mut Context, p: f32| println!("Slider moved... {p:?}"))
     }
 }

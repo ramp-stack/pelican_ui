@@ -21,9 +21,9 @@ pub struct QuickActions{
 
 impl OnEvent for QuickActions {}
 impl QuickActions {
-    pub fn new(ctx: &mut Context, actions: Vec<QuickAction>) -> Self {
+    pub fn new(theme: &Theme, actions: Vec<QuickAction>) -> Self {
         let buttons = actions.into_iter().map(|(l, o, a)| {
-            SecondaryButton::medium(ctx, "edit", &l, o.as_deref(), a)
+            SecondaryButton::medium(theme, "edit", &l, o.as_deref(), a)
         }).collect();
         QuickActions{layout: Wrap::start(8.0, 8.0), buttons}
     }
@@ -43,21 +43,20 @@ impl QuickActions {
 pub struct PrimaryButton(Stack, pub interactions::Button);
 impl OnEvent for PrimaryButton {}
 impl PrimaryButton {
-    pub fn new(ctx: &mut Context, label: &str, on_click: impl FnMut(&mut Context) + 'static, mut validation: Option<Box<dyn ValidationFn>>) -> Self {
-        let is_disabled = validation.as_mut().map(|v| (v)(ctx)).unwrap_or_default();
-        let colors = ctx.state.get_or_default::<Theme>().colors.button.primary;
+    pub fn new(theme: &Theme, label: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+        let colors = theme.colors.button.primary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             let font_size = ButtonSize::Large.font();
-            let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+            let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
         
-        PrimaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), is_disabled, Box::new(on_click), validation))
+        PrimaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
     }
 
-    pub fn default(ctx: &mut Context) -> Self { 
-        Self::new(ctx, "Primary Button", |_: &mut Context| println!("Pressed...."), None)
+    pub fn default(theme: &Theme) -> Self { 
+        Self::new(theme, "Primary Button", |_: &mut Context| println!("Pressed...."))
     }
 }
 
@@ -75,36 +74,35 @@ impl PrimaryButton {
 pub struct SecondaryButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryButton {}
 impl SecondaryButton {
-    pub fn medium(ctx: &mut Context, icon: &str, label: &str, active_label: Option<&str>, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = ctx.state.get_or_default::<Theme>().colors.button.secondary;
+    pub fn medium(theme: &Theme, icon: &str, label: &str, active_label: Option<&str>, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+        let colors = theme.colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.disabled];
-        let [default, hover, disabled] = buttons.map(|colors| Self::_medium(ctx, icon, label, colors));
-        let pressed = Self::_medium(ctx, icon, active_label.unwrap_or(label), colors.pressed);
-        SecondaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), false, Box::new(on_click), None))
+        let [default, hover, disabled] = buttons.map(|colors| Self::_medium(theme, icon, label, colors));
+        let pressed = Self::_medium(theme, icon, active_label.unwrap_or(label), colors.pressed);
+        SecondaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
     }
 
-    fn _medium(ctx: &mut Context, icon: &str, label: &str, colors: ButtonColorScheme) -> Button {
+    fn _medium(theme: &Theme, icon: &str, label: &str, colors: ButtonColorScheme) -> Button {
         let font_size = ButtonSize::Medium.font();
         let icon_size = ButtonSize::Medium.icon();
-        let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-        let icon = Icon::new(ctx, icon, Some(colors.label), icon_size);
+        let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+        let icon = Icon::new(theme, icon, Some(colors.label), icon_size);
         Button::new(drawables![icon, text], ButtonSize::Medium, ButtonWidth::Fit, Offset::Center, colors.background, colors.outline)
     }
 
-    pub fn large(ctx: &mut Context, label: &str, on_click: impl FnMut(&mut Context) + 'static, mut validation: Option<Box<dyn ValidationFn>>) -> Self {
-        let is_disabled = validation.as_mut().map(|v| (v)(ctx)).unwrap_or_default();
-        let colors = ctx.state.get_or_default::<Theme>().colors.button.secondary;
+    pub fn large(theme: &Theme, label: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+        let colors = theme.colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             let font_size = ButtonSize::Large.font();
-            let text = Text::new(ctx, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+            let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
-        SecondaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), is_disabled, Box::new(on_click), validation))
+        SecondaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
     }
 
-    pub fn default(ctx: &mut Context) -> Self { 
-        Self::medium(ctx, "edit", "Secondary", None, |_: &mut Context| println!("Pressed...."))
+    pub fn default(theme: &Theme) -> Self { 
+        Self::medium(theme, "edit", "Secondary", None, |_: &mut Context| println!("Pressed...."))
     }
 }
 
@@ -122,26 +120,26 @@ impl SecondaryButton {
 pub struct SecondaryIconButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryIconButton {}
 impl SecondaryIconButton {
-    pub fn large(ctx: &mut Context, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = ctx.state.get_or_default::<Theme>().colors.button.secondary;
+    pub fn large(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+        let colors = theme.colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
-            IconButton::new(ctx, icon, ButtonStyle::Secondary, ButtonSize::Large, colors.background, colors.outline, colors.label)
+            IconButton::new(theme, icon, ButtonStyle::Secondary, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
-        SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), false, Box::new(on_click), None))
+        SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
     }
 
-    pub fn medium(ctx: &mut Context, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = ctx.state.get_or_default::<Theme>().colors.button.secondary;
+    pub fn medium(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+        let colors = theme.colors.button.secondary;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
-            IconButton::new(ctx, icon, ButtonStyle::Secondary, ButtonSize::Medium, colors.background, colors.outline, colors.label)
+            IconButton::new(theme, icon, ButtonStyle::Secondary, ButtonSize::Medium, colors.background, colors.outline, colors.label)
         });
-        SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), false, Box::new(on_click), None))
+        SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
     }
 
-    pub fn default(ctx: &mut Context) -> Self { 
-        Self::medium(ctx, "explore", |_: &mut Context| println!("Pressed...."))
+    pub fn default(theme: &Theme) -> Self { 
+        Self::medium(theme, "explore", |_: &mut Context| println!("Pressed...."))
     }
 }
 
@@ -159,17 +157,17 @@ impl SecondaryIconButton {
 pub struct GhostIconButton(Stack, pub interactions::Button);
 impl OnEvent for GhostIconButton {}
 impl GhostIconButton {
-    pub fn new(ctx: &mut Context, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = ctx.state.get_or_default::<Theme>().colors.button.ghost;
+    pub fn new(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+        let colors = theme.colors.button.ghost;
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
-            IconButton::new(ctx, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
+            IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
         });
-        GhostIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), false, Box::new(on_click), None))
+        GhostIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
     }
 
-    pub fn default(ctx: &mut Context) -> Self { 
-        Self::new(ctx, "left", |_: &mut Context| println!("Pressed...."))
+    pub fn default(theme: &Theme) -> Self { 
+        Self::new(theme, "left", |_: &mut Context| println!("Pressed...."))
     }
 }
 
@@ -179,7 +177,7 @@ impl OnEvent for IconButton {}
 
 impl IconButton {
     pub(crate) fn new(
-        ctx: &mut Context,
+        theme: &Theme,
         icon: &str,
         style: ButtonStyle,
         size: ButtonSize,
@@ -188,7 +186,7 @@ impl IconButton {
         label: Color,
     ) -> Self {
         let (size, icon_size, radius) = size.icon_button(style);
-        let icon = Icon::new(ctx, icon, Some(label), icon_size);
+        let icon = Icon::new(theme, icon, Some(label), icon_size);
         let background = Rectangle::new(background, radius, Some((1.0, outline)));
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(size), Size::Static(size), Padding::default());
         IconButton(layout, background, icon)
@@ -246,7 +244,7 @@ impl ButtonWidth{
 pub enum ButtonSize {Large, Medium}
 impl ButtonSize {
     /// Regular button sizing
-    pub(crate) fn get(&self) -> (f32, f32, Padding) {
+    pub fn get(&self) -> (f32, f32, Padding) {
         match self {
             ButtonSize::Medium => (4.0, 32.0, Padding(12.0, 0.0, 12.0, 0.0)),
             ButtonSize::Large => (12.0, 48.0, Padding(24.0, 0.0, 24.0, 0.0))
@@ -254,7 +252,7 @@ impl ButtonSize {
     }
 
     /// Regular button font size
-    pub(crate) fn font(&self) -> TextSize {
+    pub fn font(&self) -> TextSize {
         match self {
             ButtonSize::Medium => TextSize::Md,
             ButtonSize::Large => TextSize::Lg,
@@ -262,7 +260,7 @@ impl ButtonSize {
     }
 
     /// Regular button icon size
-    pub(crate) fn icon(&self) -> f32 {
+    pub fn icon(&self) -> f32 {
         match self {
             ButtonSize::Medium => 16.0,
             ButtonSize::Large => 24.0,
@@ -270,7 +268,7 @@ impl ButtonSize {
     }
 
     /// Icon button outer size, inner icon size, and corner radius
-    pub(crate) fn icon_button(&self, style: ButtonStyle) -> (f32, f32, f32) {
+    pub fn icon_button(&self, style: ButtonStyle) -> (f32, f32, f32) {
         match (style, self) {
             (ButtonStyle::Secondary, ButtonSize::Large) => (52.0, 32.0, 12.0),
             (ButtonStyle::Secondary, ButtonSize::Medium) => (36.0, 20.0, 8.0),

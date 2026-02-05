@@ -33,11 +33,11 @@ pub struct QRCodeScanner(
 );
 
 impl QRCodeScanner {
-    pub fn new(ctx: &mut Context) -> Self {
+    pub fn new(theme: &Theme) -> Self {
         QRCodeScanner(
             Stack::center(), 
             None, 
-            QRGuide::new(ctx),
+            QRGuide::new(theme),
             Arc::new(Mutex::new(None)), 
             Arc::new(Mutex::new(false))
         )
@@ -64,8 +64,7 @@ impl QRCodeScanner {
 
 impl OnEvent for QRCodeScanner {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(CameraEvent::ReceivedFrame(frame)) = event.downcast_ref::<CameraEvent>() {
-            if let Some(image) = frame {
+        if let Some(CameraEvent::ReceivedFrame(Some(image))) = event.downcast_ref::<CameraEvent>() {
                 self.find_code(image.clone());
             
                 if let Some(data) = &*self.3.lock().unwrap() {
@@ -79,11 +78,12 @@ impl OnEvent for QRCodeScanner {
                     image: image.clone(), 
                     color: None
                 });
-            } else {
-                let background = ctx.state.get_or_default::<Theme>().colors.background.secondary;
-                *self.2.background() = Some(Rectangle::new(background, 8.0, None));
-                *self.2.message() = Some(Message::new(ctx, "settings", "Camera not available."));
-            }
+            //else {
+                //TODO: fix this 
+                // let background = ctx.state.get_or_default::<Theme>().colors.background.secondary;
+                // *self.2.background() = Some(Rectangle::new(background, 8.0, None));
+                // *self.2.message() = Some(Message::new(ctx, "settings", "Camera not available."));
+            //}
         }
         vec![event]
     }
@@ -94,15 +94,14 @@ struct QRGuide(Stack, Option<Rectangle>, Rectangle, Option<Message>);
 impl OnEvent for QRGuide {}
 
 impl QRGuide {
-    pub fn new(ctx: &mut Context) -> Self {
-        let colors = ctx.state.get_or_default::<Theme>().colors;
-        let background = colors.background.secondary;
-        let outline = colors.outline.secondary;
+    pub fn new(theme: &Theme) -> Self {
+        let background = theme.colors.background.secondary;
+        let outline = theme.colors.outline.secondary;
         QRGuide(
             Stack(Offset::Center, Offset::Center, Size::Static(308.0), Size::Static(308.0), Padding::default()), 
             Some(Rectangle::new(background, 8.0, None)), 
             Rectangle::new(outline, 8.0, Some((4.0, background))), 
-            Some(Message::new(ctx, "camera", "Accessing device camera."))
+            Some(Message::new(theme, "camera", "Accessing device camera."))
         )
     }
 
@@ -115,12 +114,10 @@ struct Message(Column, Image, Text);
 impl OnEvent for Message {}
 
 impl Message {
-    pub fn new(ctx: &mut Context, icon: &'static str, msg: &str) -> Self {
-        let color = ctx.state.get_or_default::<Theme>().colors.text.heading;
-
+    pub fn new(theme: &Theme, icon: &'static str, msg: &str) -> Self {
         Message(Column::center(4.0), 
-            Icon::new(ctx, icon, Some(color), 48.0),
-            Text::new(ctx, msg, TextSize::Sm, TextStyle::Secondary, Align::Left, None)
+            Icon::new(theme, icon, Some(theme.colors.text.heading), 48.0),
+            Text::new(theme, msg, TextSize::Sm, TextStyle::Secondary, Align::Left, None)
         )
     }
 }

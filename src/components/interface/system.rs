@@ -24,13 +24,13 @@ pub struct MobileKeyboard(Stack, Rectangle, KeyboardContent);
 impl OnEvent for MobileKeyboard {}
 
 impl MobileKeyboard {
-    pub fn new(ctx: &mut Context, actions: bool) -> Self {
+    pub fn new(theme: &Theme, actions: bool) -> Self {
         let height = Size::custom(|heights: Vec<(f32, f32)>| heights[1]);
-        let color = ctx.state.get_or_default::<Theme>().colors.background.secondary;
+        let color = theme.colors.background.secondary;
         MobileKeyboard(
             Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default()), 
             Rectangle::new(color, 0.0, None),
-            KeyboardContent::new(ctx, actions)
+            KeyboardContent::new(theme, actions)
         )
     }
 }
@@ -40,11 +40,11 @@ struct KeyboardHeader(Column, KeyboardIcons, Bin<Stack, Rectangle>);
 impl OnEvent for KeyboardHeader {}
 
 impl KeyboardHeader {
-    fn new(ctx: &mut Context, actions: bool) -> Self {
+    fn new(theme: &Theme, actions: bool) -> Self {
         let layout = Stack(Offset::default(), Offset::default(), Size::Fit, Size::Static(1.0), Padding(0.0,0.0,0.0,2.0));
         KeyboardHeader(Column::start(0.0),
-            KeyboardIcons::new(ctx, actions),
-            Bin(layout, Rectangle::new(ctx.state.get_or_default::<Theme>().colors.outline.secondary, 0.0, None))
+            KeyboardIcons::new(theme, actions),
+            Bin(layout, Rectangle::new(theme.colors.outline.secondary, 0.0, None))
         )
     }
 }
@@ -57,12 +57,12 @@ impl OnEvent for KeyboardActions {}
 struct KeyboardIcons(Row, Option<KeyboardActions>, Bin<Stack, Rectangle>, GhostIconButton);
 
 impl KeyboardIcons {
-    fn new(ctx: &mut Context, icons: bool) -> Self {
+    fn new(theme: &Theme, icons: bool) -> Self {
         // let (sender, _) = mpsc::channel();
         let actions = vec![
             // IconButton::keyboard(ctx, "emoji", |_ctx: &mut Context| ()),
             // IconButton::keyboard(ctx, "gif", |_ctx: &mut Context| ()),
-            GhostIconButton::new(ctx, "photos", |_ctx: &mut Context| {}) //ctx.send(Request::Hardware(Hardware::PhotoPicker(sender.clone())))),
+            GhostIconButton::new(theme, "photos", |_ctx: &mut Context| {}) //ctx.send(Request::Hardware(Hardware::PhotoPicker(sender.clone())))),
             // IconButton::keyboard(ctx, "camera", |_ctx: &mut Context| ()),
         ];
 
@@ -73,7 +73,7 @@ impl KeyboardIcons {
                 Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(1.0),  Padding::default()), 
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
-            GhostIconButton::new(ctx, "down_arrow", |ctx: &mut Context| {
+            GhostIconButton::new(theme, "down_arrow", |ctx: &mut Context| {
                 ctx.send(Request::Event(Box::new(ShowKeyboard(false))));
                 ctx.send(Request::Event(Box::new(event::TextInput::Focused(false))));
             }),
@@ -98,15 +98,15 @@ impl OnEvent for KeyboardIcons {
 struct KeyboardContent(Column, KeyboardHeader, KeyboardRow, KeyboardRow, KeyboardRow, KeyboardRow, #[skip] Receiver<u8>);
 
 impl KeyboardContent {
-    fn new(ctx: &mut Context, actions: bool) -> Self {
+    fn new(theme: &Theme, actions: bool) -> Self {
         let (sender, receiver) = mpsc::channel();
         KeyboardContent(
             Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
-            KeyboardHeader::new(ctx, actions),
-            KeyboardRow::top(ctx),
-            KeyboardRow::middle(ctx),
-            KeyboardRow::bottom(ctx, sender.clone()),
-            KeyboardRow::modifier(ctx, sender),
+            KeyboardHeader::new(theme, actions),
+            KeyboardRow::top(theme),
+            KeyboardRow::middle(theme),
+            KeyboardRow::bottom(theme, sender.clone()),
+            KeyboardRow::modifier(theme, sender),
             receiver
         )
     }
@@ -140,8 +140,8 @@ struct KeyRow(Row, Vec<Key>);
 impl OnEvent for KeyRow {}
 
 impl KeyRow {
-    fn new(ctx: &mut Context, keys: Vec<&str>) -> Self {
-        let keys = keys.iter().map(|k| Key::character(ctx, k)).collect();
+    fn new(theme: &Theme, keys: Vec<&str>) -> Self {
+        let keys = keys.iter().map(|k| Key::character(theme, k)).collect();
         KeyRow(Row::center(0.0), keys)
     }
 
@@ -154,27 +154,27 @@ struct KeyboardRow(Row, Option<Capslock>, Option<Paginator>, Option<KeyRow>, Opt
 impl OnEvent for KeyboardRow {}
 
 impl KeyboardRow {
-    fn top(ctx: &mut Context) -> Self {
-        let key_row = KeyRow::new(ctx, top_keys(&0));
+    fn top(theme: &Theme) -> Self {
+        let key_row = KeyRow::new(theme, top_keys(&0));
         KeyboardRow(Row::center(0.0), None, None, Some(key_row), None, None)
     }
 
-    fn middle(ctx: &mut Context) -> Self {
-        let key_row = KeyRow::new(ctx, mid_keys(&0));
+    fn middle(theme: &Theme) -> Self {
+        let key_row = KeyRow::new(theme, mid_keys(&0));
         KeyboardRow(Row::center(0.0), None, None, Some(key_row), None, None)
     }
 
-    fn bottom(ctx: &mut Context, sender: Sender<u8>) -> Self {
-        let capslock = Capslock::new(ctx, sender);
-        let backspace = Key::backspace(ctx);
-        let key_row = KeyRow::new(ctx, bot_keys(&0));
+    fn bottom(theme: &Theme, sender: Sender<u8>) -> Self {
+        let capslock = Capslock::new(theme, sender);
+        let backspace = Key::backspace(theme);
+        let key_row = KeyRow::new(theme, bot_keys(&0));
         KeyboardRow(Row::center(6.0), Some(capslock), None, Some(key_row), None, Some(backspace))
     }
 
-    fn modifier(ctx: &mut Context, sender: Sender<u8>) -> Self {
-        let paginator = Paginator::new(ctx, sender);
-        let spacebar = Key::spacebar(ctx);
-        let newline = Key::newline(ctx);
+    fn modifier(theme: &Theme, sender: Sender<u8>) -> Self {
+        let paginator = Paginator::new(theme, sender);
+        let spacebar = Key::spacebar(theme);
+        let newline = Key::newline(theme);
         KeyboardRow(Row::center(6.0), None, Some(paginator), None, Some(spacebar), Some(newline))
     }
 
@@ -186,16 +186,12 @@ impl KeyboardRow {
             }
         };
     
-        if let Some(spacebar) = &mut self.4 {
-            if let Some(text) = spacebar.1.character().get_text().as_mut() {
-                text.spans = vec![format_text("space")];
-            }
+        if let Some(spacebar) = &mut self.4 && let Some(text) = spacebar.1.character().get_text().as_mut() {
+            text.spans = vec![format_text("space")];
         }
     
-        if let Some(newline) = &mut self.5 {
-            if let Some(text) = newline.1.character().get_text().as_mut() {
-                text.spans = vec![format_text("return")];
-            }
+        if let Some(newline) = &mut self.5 && let Some(text) = newline.1.character().get_text().as_mut() {
+            text.spans = vec![format_text("return")];
         }
 
         if let Some(keys) = &mut self.3 {
@@ -217,27 +213,27 @@ impl KeyboardRow {
 struct Key(Stack, KeyContent, #[skip] ButtonState, #[skip] WinitKey);
 
 impl Key {
-    fn character(ctx: &mut Context, c: &str) -> Self {
-        let character = KeyCharacter::char(ctx, c);
-        let content = KeyContent::new(ctx, 33.0, Offset::End, character);
+    fn character(theme: &Theme, c: &str) -> Self {
+        let character = KeyCharacter::char(theme, c);
+        let content = KeyContent::new(33.0, Offset::End, character);
         Key(Stack::default(), content, ButtonState::Default, WinitKey::Character(c.to_string()))
     }
 
-    fn spacebar(ctx: &mut Context) -> Self {
-        let character = KeyCharacter::text(ctx, "space");
-        let content = KeyContent::new(ctx, f32::MAX, Offset::Center, character);
+    fn spacebar(theme: &Theme) -> Self {
+        let character = KeyCharacter::text(theme, "space");
+        let content = KeyContent::new(f32::MAX, Offset::Center, character);
         Key(Stack::default(), content, ButtonState::Default, WinitKey::Named(NamedKey::Space))
     }
 
-    fn backspace(ctx: &mut Context) -> Self {
-        let character = KeyCharacter::icon(ctx, "backspace");
-        let content = KeyContent::new(ctx, 42.0, Offset::Center, character);
+    fn backspace(theme: &Theme) -> Self {
+        let character = KeyCharacter::icon(theme, "backspace");
+        let content = KeyContent::new(42.0, Offset::Center, character);
         Key(Stack::default(), content, ButtonState::Default, WinitKey::Named(NamedKey::Delete))
     }
 
-    fn newline(ctx: &mut Context) -> Self {
-        let character = KeyCharacter::text(ctx, "return");
-        let content = KeyContent::new(ctx, 92.0, Offset::Center, character);
+    fn newline(theme: &Theme) -> Self {
+        let character = KeyCharacter::text(theme, "return");
+        let content = KeyContent::new(92.0, Offset::Center, character);
         Key(Stack::default(), content, ButtonState::Default, WinitKey::Named(NamedKey::Enter))
     }
 }
@@ -245,7 +241,7 @@ impl Key {
 impl OnEvent for Key {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            self.2 = handle_state(ctx, self.2, *event);
+            self.2 = handle_state(self.2, *event);
 
             *self.1.background() = match self.2 {
                 ButtonState::Default => Color::from_hex("ffffff", 110).into(),
@@ -267,9 +263,9 @@ impl OnEvent for Key {
 struct Capslock(Stack, KeyContent, #[skip] ButtonState, #[skip] bool, #[skip] Sender<u8>);
 
 impl Capslock {
-    fn new(ctx: &mut Context, sender: Sender<u8>) -> Self {
-        let character = KeyCharacter::icon(ctx, "capslock");
-        let content = KeyContent::new(ctx, 42.0, Offset::Center, character);
+    fn new(theme: &Theme, sender: Sender<u8>) -> Self {
+        let character = KeyCharacter::icon(theme, "capslock");
+        let content = KeyContent::new(42.0, Offset::Center, character);
         Capslock(Stack::default(), content, ButtonState::Default, false, sender)
     }
 
@@ -283,20 +279,20 @@ impl std::fmt::Debug for Capslock {
 }
 
 impl OnEvent for Capslock {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            self.2 = handle_state(ctx, self.2, *event);
+            self.2 = handle_state(self.2, *event);
 
             *self.1.background() = match self.2 {
                 ButtonState::Default => Color::from_hex("ffffff", 110).into(),
                 ButtonState::Pressed => Color::from_hex("ffffff", 180).into(),
             };
 
-            if event.state == MouseState::Pressed && event.position.is_some() {
-                self.3 = !self.3;
-                let icon = if self.3 { "capslock_on" } else { "capslock" };
-                *self.1.character() = KeyCharacter::icon(ctx, icon);
-            }
+            // if event.state == MouseState::Pressed && event.position.is_some() {
+            //     self.3 = !self.3;
+            //     let icon = if self.3 { "capslock_on" } else { "capslock" };
+            //     *self.1.character() = KeyCharacter::icon(ctx, icon);
+            // }
 
             if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
                 self.4.send(0).unwrap();
@@ -312,9 +308,9 @@ impl OnEvent for Capslock {
 struct Paginator(Stack, KeyContent, #[skip] ButtonState, #[skip] u32, #[skip] Sender<u8>);
 
 impl Paginator {
-    fn new(ctx: &mut Context, sender: Sender<u8>) -> Self {
-        let character = KeyCharacter::paginator(ctx, 0);
-        let content = KeyContent::new(ctx, 92.0, Offset::Center, character);
+    fn new(theme: &Theme, sender: Sender<u8>) -> Self {
+        let character = KeyCharacter::paginator(theme, 0);
+        let content = KeyContent::new(92.0, Offset::Center, character);
         Paginator(Stack::default(), content, ButtonState::Default, 0, sender)
     }
 
@@ -328,9 +324,9 @@ impl std::fmt::Debug for Paginator {
 }
 
 impl OnEvent for Paginator {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            self.2 = handle_state(ctx, self.2, *event);
+            self.2 = handle_state(self.2, *event);
 
             *self.1.background() = match self.2 {
                 ButtonState::Default => Color::from_hex("ffffff", 110).into(),
@@ -370,7 +366,7 @@ struct KeyContent(Stack, Rectangle, KeyCharacter);
 impl OnEvent for KeyContent {}
 
 impl KeyContent {
-    fn new(_ctx: &mut Context, size: f32, offset: Offset, content: KeyCharacter) -> Self {
+    fn new(size: f32, offset: Offset, content: KeyCharacter) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, size));
         KeyContent(
             Stack(Offset::Center, offset, width, Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
@@ -388,25 +384,25 @@ struct KeyCharacter(Row, Option<Image>, Option<Text>, Option<Text>, Option<Text>
 impl OnEvent for KeyCharacter {}
 
 impl KeyCharacter {
-    fn char(ctx: &mut Context, key: &str) -> Self {
+    fn char(theme: &Theme, key: &str) -> Self {
         KeyCharacter(
             Row::new(0.0, Offset::Center, Size::Fit, Padding(0.0, 0.0, 0.0, 10.0)),
             None,
-            Some(Text::new(ctx, key, TextSize::Xl, TextStyle::Keyboard, Align::Left, None)),
+            Some(Text::new(theme, key, TextSize::Xl, TextStyle::Keyboard, Align::Left, None)),
             None, None
         )
     }
 
-    fn text(ctx: &mut Context, key: &str) -> Self {
-        KeyCharacter(Row::center(0.0), None, Some(Text::new(ctx, key, TextSize::Md, TextStyle::Keyboard, Align::Left, None)), None, None)
+    fn text(theme: &Theme, key: &str) -> Self {
+        KeyCharacter(Row::center(0.0), None, Some(Text::new(theme, key, TextSize::Md, TextStyle::Keyboard, Align::Left, None)), None, None)
     }
 
-    fn icon(ctx: &mut Context, i: &'static str) -> Self {
-        let c = ctx.state.get_or_default::<Theme>().colors.text.heading;
-        KeyCharacter(Row::center(0.0), Some(Icon::new(ctx, i, Some(c), 36.0)), None, None, None)
+    fn icon(theme: &Theme, i: &'static str) -> Self {
+        let c = theme.colors.text.heading;
+        KeyCharacter(Row::center(0.0), Some(Icon::new(theme, i, Some(c), 36.0)), None, None, None)
     }
 
-    fn paginator(ctx: &mut Context, page: u32) -> Self {
+    fn paginator(theme: &Theme, page: u32) -> Self {
         let (highlight, dim) = (TextStyle::Keyboard, TextStyle::Secondary);
 
         let styles = match page {
@@ -418,16 +414,16 @@ impl KeyCharacter {
         KeyCharacter(
             Row::center(1.0),
             None,
-            Some(Text::new(ctx, "•", TextSize::H2, styles.0, Align::Left, None)),
-            Some(Text::new(ctx, "•", TextSize::H2, styles.1, Align::Left, None)),
-            Some(Text::new(ctx, "•", TextSize::H2, styles.2, Align::Left, None)),
+            Some(Text::new(theme, "•", TextSize::H2, styles.0, Align::Left, None)),
+            Some(Text::new(theme, "•", TextSize::H2, styles.1, Align::Left, None)),
+            Some(Text::new(theme, "•", TextSize::H2, styles.2, Align::Left, None)),
         )
     }
 
     fn get_text(&mut self) -> &mut Option<Text> {&mut self.2}
 }
 
-fn handle_state(_ctx: &mut Context, state: ButtonState, event: MouseEvent) -> ButtonState {
+fn handle_state(state: ButtonState, event: MouseEvent) -> ButtonState {
     match state {
         ButtonState::Default if event.position.is_some() => {
             match event.state {

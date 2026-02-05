@@ -56,7 +56,7 @@ impl Pages {
 
     // pub fn pages(&mut self) -> { &mut self.pages }
 
-    pub fn _current(&mut self) -> &mut Box<dyn Drawable> {
+    pub fn current(&mut self) -> &mut Box<dyn Drawable> {
         if !self.history.is_empty() || self.pages.right().is_some() {
             self.pages.right().as_mut().unwrap()
         } else {
@@ -123,10 +123,10 @@ impl OnEvent for Interface {
 }
 
 impl Interface {
-    pub fn desktop(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
+    pub fn desktop(theme: &Theme, mut navigation: Vec<RootInfo>) -> Self {
         let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
-        let color = ctx.state.get_or_default::<Theme>().colors.outline.secondary;
-        let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::desktop(ctx, navigation), true));
+        let color = theme.colors.outline.secondary;
+        let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::desktop(theme, navigation), true));
         let line_layout = Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default());
         let separator = Bin(line_layout, Rectangle::new(color, 0.0, None));
         Interface::Desktop {
@@ -137,26 +137,26 @@ impl Interface {
         }
     }
 
-    pub fn mobile(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
+    pub fn mobile(theme: &Theme, mut navigation: Vec<RootInfo>) -> Self {
         let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
-        let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::mobile(ctx, navigation), true));
+        let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::mobile(theme, navigation), true));
         // let (_left, _right, top, bottom) = ctx.send(Request::Hardware(Hardware::SafeAreaInsets));
         let (top, bottom) = (18.0, 18.0);
         let layout = Column::new(0.0, Offset::Center, Size::Fit, Padding::default(), None);
 
         Interface::Mobile {
             layout,
-            safe_area_left: Box::new(Spacer::new(ctx, top)),
+            safe_area_left: Box::new(Spacer::new(theme, top)),
             pages: Box::new(Pages::new(pages)),
-            keyboard: Box::new(Opt::new(MobileKeyboard::new(ctx, true), false)),
+            keyboard: Box::new(Opt::new(MobileKeyboard::new(theme, true), false)),
             navigator: Box::new(navigator),
-            safe_area_right: Box::new(Spacer::new(ctx, bottom))
+            safe_area_right: Box::new(Spacer::new(theme, bottom))
         }
     }
 
-    pub fn web(ctx: &mut Context, mut navigation: Vec<RootInfo>) -> Self {
+    pub fn web(theme: &Theme, mut navigation: Vec<RootInfo>) -> Self {
         let pages: Vec<(String, Box<dyn Drawable>)> = navigation.iter_mut().map(|nav| (nav.label.to_string(), nav.page.take().unwrap() as Box<dyn Drawable>)).collect();
-        let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::web(ctx, navigation), true));
+        let navigator = (navigation.len() > 1).then_some(Opt::new(Navigator::web(theme, navigation), true));
         let layout = Column::new(0.0, Offset::Start, Size::Fill, Padding::default(), None);
         Interface::Web{layout, navigator: Box::new(navigator), pages: Box::new(Pages::new(pages))}
     }
@@ -191,8 +191,8 @@ impl Event for ShowKeyboard {
 pub struct Spacer; 
 impl Spacer {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(ctx: &mut Context, height: f32) -> Bin<Stack, Rectangle> {
-        let color = ctx.state.get_or_default::<Theme>().colors.background.primary;
+    pub fn new(theme: &Theme, height: f32) -> Bin<Stack, Rectangle> {
+        let color = theme.colors.background.primary;
         let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(height), Padding::default());
         Bin(layout, Rectangle::new(color, 0.0, None))
     }

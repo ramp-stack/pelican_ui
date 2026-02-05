@@ -42,43 +42,43 @@ pub struct InputSegment {
 }
 
 impl InputSegment {
-    pub fn new(ctx: &mut Context, slot: SlotType) -> Self {
-        let ghost = ctx.state.get_or_default::<Theme>().colors.text.secondary;
+    pub fn new(theme: &Theme, slot: SlotType) -> Self {
+        let ghost = theme.colors.text.secondary;
         let (inner, replacement) = match slot.clone() {
             // A permanent visible character (e.g. "$", "/", ":")
             SlotType::FixedChar(c) => {
-                let text = Text::new(ctx, &c.to_string(), TextSize::Title, TextStyle::Heading, Align::Left, None);
+                let text = Text::new(theme, &c.to_string(), TextSize::Title, TextStyle::Heading, Align::Left, None);
                 (Opt::new(text, true), None)
             },
 
             // A ghost placeholder that becomes primary when the user inputs a digit.
             // Example: 'D', 'M', 'Y', or ghost cents '0'.
             SlotType::Ghost(c, _max) => {
-                let text = Text::new(ctx, &c.to_string(), TextSize::Title, TextStyle::Label(ghost), Align::Left, None);
-                let rep = Text::new(ctx, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
+                let text = Text::new(theme, &c.to_string(), TextSize::Title, TextStyle::Label(ghost), Align::Left, None);
+                let rep = Text::new(theme, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
                 (Opt::new(text, true), Some(Opt::new(rep, false)))
             },
 
             // A primary placeholder that stays primary when the user inputs a digit.
             // Example: '0' after the '$'
             SlotType::Primary(c, _max) => {
-                let text = Text::new(ctx, &c.to_string(), TextSize::Title, TextStyle::Heading, Align::Left, None);
-                let rep = Text::new(ctx, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
+                let text = Text::new(theme, &c.to_string(), TextSize::Title, TextStyle::Heading, Align::Left, None);
+                let rep = Text::new(theme, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
                 (Opt::new(text, true), Some(Opt::new(rep, false)))
             },
 
             // A slot that is created only when triggered by input.
             // Example: currency fractional digits ("00" ghost cents).
             SlotType::Triggered(c) => {
-                let text = Text::new(ctx, &c.to_string(), TextSize::Title, TextStyle::Heading, Align::Left, None);
-                let rep = Text::new(ctx, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
+                let text = Text::new(theme, &c.to_string(), TextSize::Title, TextStyle::Heading, Align::Left, None);
+                let rep = Text::new(theme, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
                 (Opt::new(text, false), Some(Opt::new(rep, false)))
             }
 
             // this only shows up when it is 'next' and is replaced by primary texto n input 
             SlotType::GhostInput(c) => {
-                let text = Text::new(ctx, &c.to_string(), TextSize::Title, TextStyle::Label(ghost), Align::Left, None);
-                let rep = Text::new(ctx, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
+                let text = Text::new(theme, &c.to_string(), TextSize::Title, TextStyle::Label(ghost), Align::Left, None);
+                let rep = Text::new(theme, "", TextSize::Title, TextStyle::Heading, Align::Left, None);
                 (Opt::new(text, false), Some(Opt::new(rep, false)))
             },
         };
@@ -178,8 +178,8 @@ pub struct NumericalInput(Stack, emitters::NumericalInput<_NumericalInput>);
 impl OnEvent for NumericalInput {}
 
 impl NumericalInput {
-    pub fn new(ctx: &mut Context, on_edited: EditedCallback, items: Vec<SlotType>) -> Self {
-        NumericalInput(Stack::default(), emitters::NumericalInput::new(_NumericalInput::new(ctx, items, on_edited)))
+    pub fn new(theme: &Theme, items: Vec<SlotType>) -> Self {
+        NumericalInput(Stack::default(), emitters::NumericalInput::new(_NumericalInput::new(theme, items)))
     }
 
     pub fn value(&mut self) -> String { self.1.1.value() }
@@ -190,7 +190,6 @@ pub struct _NumericalInput {
     layout: Row,
     segments: Vec<InputSegment>,
     #[skip] cursor: usize,
-    #[skip] on_edited: EditedCallback,
 }
 
 impl std::fmt::Debug for _NumericalInput {
@@ -200,10 +199,10 @@ impl std::fmt::Debug for _NumericalInput {
 }
 
 impl _NumericalInput {
-    pub fn new(ctx: &mut Context, items: Vec<SlotType>, on_edited: EditedCallback) -> Self {
-        let segments = items.into_iter().map(|i| InputSegment::new(ctx, i)).collect();
+    pub fn new(theme: &Theme, items: Vec<SlotType>) -> Self {
+        let segments = items.into_iter().map(|i| InputSegment::new(theme, i)).collect();
 
-        _NumericalInput { layout: Row::center(0.0), segments, cursor: 0, on_edited }
+        _NumericalInput { layout: Row::center(0.0), segments, cursor: 0 }
     }
 
     pub fn value(&mut self) -> String {
@@ -211,12 +210,10 @@ impl _NumericalInput {
 
         for seg in &mut self.segments {
             // If replacement is visible, it always overrides inner.
-            if let Some(rep) = &mut seg.replacement {
-                if rep.is_showing() {
-                    let text = rep.inner().spans[0].clone();
-                    out.push_str(&text);
-                    continue;
-                }
+            if let Some(rep) = &mut seg.replacement && rep.is_showing() {
+                let text = rep.inner().spans[0].clone();
+                out.push_str(&text);
+                continue;
             }
 
             // Fallback to inner text if visible.
@@ -247,21 +244,15 @@ impl OnEvent for _NumericalInput {
             }
         }
 
-        if let Some(InputEvent::MoveForward) = event.downcast_ref::<InputEvent>() {
-            if self.cursor < self.segments.len() - 1 {
+        if let Some(InputEvent::MoveForward) = event.downcast_ref::<InputEvent>() && self.cursor < self.segments.len() - 1 {
+            self.cursor += 1;
+            if let Some(seg) = self.segments.get(self.cursor) && let SlotType::FixedChar(_) = seg.slot { 
                 self.cursor += 1;
-                if let Some(seg) = self.segments.get(self.cursor) {
-                    if let SlotType::FixedChar(_) = seg.slot { 
-                        self.cursor += 1; 
-                    }
-                }
             }
         } else if let Some(InputEvent::MoveBack) = event.downcast_ref::<InputEvent>() {
             self.cursor = self.cursor.saturating_sub(1);
-            if let Some(seg) = self.segments.get(self.cursor) {
-                if let SlotType::FixedChar(_) = seg.slot {
-                    self.cursor = self.cursor.saturating_sub(1);
-                }
+            if let Some(seg) = self.segments.get(self.cursor) && let SlotType::FixedChar(_) = seg.slot {
+                self.cursor = self.cursor.saturating_sub(1);
             }
         } else if let Some(event) = event.downcast_ref::<event::NumericalInput>() {
             match event {
@@ -271,22 +262,16 @@ impl OnEvent for _NumericalInput {
                     }
                 },
                 event::NumericalInput::Digit(c) => {
-                    if let Some(seg) = self.segments.get(self.cursor) {
-                        if let SlotType::FixedChar(_) = seg.slot { self.cursor += 1; }
-                    }
+                    if let Some(seg) = self.segments.get(self.cursor) && let SlotType::FixedChar(_) = seg.slot { self.cursor += 1; }
 
                     if let Some(seg) = self.segments.get_mut(self.cursor) {
                         seg.on_event(ctx, &SizedTree::default(), Box::new(InputEvent::InputDigit(*c)));
                     }
                 },
                 event::NumericalInput::Char(c) => {
-                    if let Some(seg) = self.segments.get(self.cursor) {
-                        if let SlotType::FixedChar(_) = seg.slot { self.cursor += 1; }
-                    }
+                    if let Some(seg) = self.segments.get(self.cursor) && let SlotType::FixedChar(_) = seg.slot { self.cursor += 1; }
                     for (i, segment) in self.segments.iter_mut().enumerate() {
-                        if let SlotType::Triggered(trigger) = segment.slot {
-                            if i > self.cursor && *c == trigger { self.cursor = i; }
-                        }
+                        if let SlotType::Triggered(trigger) = segment.slot && i > self.cursor && *c == trigger { self.cursor = i; }
                     }
 
                     if let Some(seg) = self.segments.get_mut(self.cursor) {
@@ -304,10 +289,10 @@ impl OnEvent for _NumericalInput {
             }
         }
 
-        if edited {
-            let mut val = self.value();
-            (self.on_edited)(ctx, &mut val)
-        }
+        // if edited {
+        //     let mut val = self.value();
+        //     (self.on_edited)(ctx, &mut val)
+        // }
 
         vec![event]
     }

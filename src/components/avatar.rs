@@ -51,7 +51,7 @@ impl std::fmt::Debug for Avatar {
 
 impl Avatar {
     pub fn new(
-        ctx: &mut Context, 
+        theme: &Theme, 
         content: AvatarContent, 
         flair: Option<(String, AvatarIconStyle)>, 
         outline: bool, 
@@ -60,8 +60,8 @@ impl Avatar {
     ) -> Self {
         Avatar {
             _layout: Stack(Offset::End, Offset::End, Size::Fit, Size::Fit, Padding::default()),
-            _avatar: PrimaryAvatar::new(ctx, content.clone(), outline, size),
-            _flair: flair.clone().map(|(name, style)| Flair::new(ctx, &name, style, size)),
+            _avatar: PrimaryAvatar::new(theme, content.clone(), outline, size),
+            _flair: flair.clone().map(|(name, style)| Flair::new(theme, &name, style, size)),
             _size: size,
             on_click,
             content,
@@ -70,8 +70,8 @@ impl Avatar {
         }
     }
 
-    pub fn default(ctx: &mut Context) -> Self {
-        Self::new(ctx, AvatarContent::icon("profile", AvatarIconStyle::Secondary), None, false, AvatarSize::Lg, None)
+    pub fn default(theme: &Theme) -> Self {
+        Self::new(theme, AvatarContent::icon("profile", AvatarIconStyle::Secondary), None, false, AvatarSize::Lg, None)
     }
 }
 
@@ -83,15 +83,16 @@ impl OnEvent for Avatar {
                 (on_click)(ctx)
             }
         } else if event.as_any().downcast_ref::<TickEvent>().is_some() {
-            let (circle_icon, image) = match &self.content {
-                AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (self._size.get(), self._size.get()), 0.0), image: image.clone(), color: None})),
-                AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(ctx, name, *style, self._size.get())), None)
-            };
+            // TODO: allow this
+            // let (circle_icon, image) = match &self.content {
+            //     AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (self._size.get(), self._size.get()), 0.0), image: image.clone(), color: None})),
+            //     AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(theme, name, *style, self._size.get())), None)
+            // };
             
-            self._avatar.1 = circle_icon;
-            self._avatar.2 = image;
-            self._avatar.3 = self.outline.then(|| Circle::new(self._size.get(), Color::BLACK, true));
-            self._flair = self.flair.clone().map(|(name, style)| Flair::new(ctx, &name, style, self._size));
+            // self._avatar.1 = circle_icon;
+            // self._avatar.2 = image;
+            // self._avatar.3 = self.outline.then(|| Circle::new(self._size.get(), Color::BLACK, true));
+            // self._flair = self.flair.clone().map(|(name, style)| Flair::new(theme, &name, style, self._size));
         }
         vec![event]
     }
@@ -102,10 +103,10 @@ struct PrimaryAvatar(Stack, Option<AvatarIcon>, Option<Image>, Option<Shape>);
 impl OnEvent for PrimaryAvatar {}
 
 impl PrimaryAvatar {
-    fn new(ctx: &mut Context, content: AvatarContent, outline: bool, size: AvatarSize) -> Self {
+    fn new(theme: &Theme, content: AvatarContent, outline: bool, size: AvatarSize) -> Self {
         let (circle_icon, image) = match content {
             AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (size.get(), size.get()), 0.0), image, color: None})),
-            AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(ctx, &name, style, size.get())), None)
+            AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(theme, &name, style, size.get())), None)
         };
 
         PrimaryAvatar(
@@ -119,13 +120,13 @@ impl PrimaryAvatar {
 struct AvatarIcon(Stack, Shape, Image);
 impl OnEvent for AvatarIcon {}
 impl AvatarIcon {
-    fn new(ctx: &mut Context, name: &str, style: AvatarIconStyle, size: f32) -> Self {
+    fn new(theme: &Theme, name: &str, style: AvatarIconStyle, size: f32) -> Self {
         let icon_size = size * 0.75;
-        let (background, icon_color) = style.get(ctx);
+        let (background, icon_color) = style.get(theme);
         AvatarIcon(
             Stack::center(),
             Circle::new(size - 2.0, background, false), 
-            Icon::new(ctx, name, Some(icon_color), icon_size)
+            Icon::new(theme, name, Some(icon_color), icon_size)
         )
     }
 }
@@ -134,10 +135,10 @@ impl AvatarIcon {
 struct Flair(Stack, AvatarIcon, Shape);
 impl OnEvent for Flair {}
 impl Flair {
-    fn new(ctx: &mut Context, name: &str, style: AvatarIconStyle, size: AvatarSize) -> Self {
+    fn new(theme: &Theme, name: &str, style: AvatarIconStyle, size: AvatarSize) -> Self {
         Flair(
             Stack::center(),
-            AvatarIcon::new(ctx, name, style, size.get() / 3.0),
+            AvatarIcon::new(theme, name, style, size.get() / 3.0),
             Circle::new(size.get() / 3.0,  Color::BLACK, true)
         )
     }
@@ -174,15 +175,14 @@ pub enum AvatarIconStyle {
 }
 
 impl AvatarIconStyle {
-    fn get(&self, ctx: &mut Context) -> (Color, Color) {
-        let colors = ctx.state.get_or_default::<Theme>().colors;
+    fn get(&self, theme: &Theme) -> (Color, Color) {
         match self {
-            AvatarIconStyle::Primary => (colors.background.primary, colors.background.secondary),
-            AvatarIconStyle::Secondary => (colors.background.secondary, colors.text.secondary),
-            AvatarIconStyle::Brand => (colors.brand, Color::WHITE),
-            AvatarIconStyle::Success => (colors.status.success, Color::WHITE),
-            AvatarIconStyle::Warning => (colors.status.warning, Color::WHITE),
-            AvatarIconStyle::Danger => (colors.status.danger, Color::WHITE),
+            AvatarIconStyle::Primary => (theme.colors.background.primary, theme.colors.background.secondary),
+            AvatarIconStyle::Secondary => (theme.colors.background.secondary, theme.colors.text.secondary),
+            AvatarIconStyle::Brand => (theme.colors.brand, Color::WHITE),
+            AvatarIconStyle::Success => (theme.colors.status.success, Color::WHITE),
+            AvatarIconStyle::Warning => (theme.colors.status.warning, Color::WHITE),
+            AvatarIconStyle::Danger => (theme.colors.status.danger, Color::WHITE),
         }
     }
 }

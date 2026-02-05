@@ -1,5 +1,5 @@
 use prism::{drawables, Context, IS_MOBILE, IS_WEB, Request};
-use prism::event::{Event, OnEvent, MouseEvent, MouseState};
+use prism::event::{self, Event, OnEvent, MouseEvent, MouseState, TickEvent};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
 use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
@@ -14,7 +14,7 @@ use crate::components::interface::interfaces;
 use crate::utils::ValidationFn;
 use crate::utils::Callback;
 
-type OnEventFn = Box<dyn FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>>;
+type OnEventFn = Box<dyn FnMut(&mut Box<dyn Drawable>, &mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>>;
 
 /// The top-level interface of an app built with Pelican.
 ///
@@ -24,12 +24,19 @@ pub struct Interface {
     layout: Stack,
     background: Rectangle,
     inner: interfaces::Interface,
-    #[skip] pub on_event: OnEventFn
+    #[skip] pub on_event: Option<OnEventFn>
 }
 
 impl OnEvent for Interface {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        (self.on_event)(ctx, event)
+        if let Some(InterfaceEvent::Disable(disable)) = event.downcast_ref::<InterfaceEvent>() {
+            ctx.send(Request::event(event::Button::Disable(*disable)));
+        }
+
+        let mut closure = self.on_event.take().expect("on_event missing");
+        let result = (closure)(self.inner(), ctx, event);
+        self.on_event = Some(closure);
+        result
     }
 }
 
@@ -40,18 +47,21 @@ impl std::fmt::Debug for Interface {
 }
 
 impl Interface {
-    pub fn new(ctx: &mut Context, navigation: Vec<RootInfo>, on_event: OnEventFn) -> Self {
-        let color = ctx.state.get_or_default::<Theme>().colors.background.primary;
+    pub fn new(theme: &Theme, navigation: Vec<RootInfo>, on_event: OnEventFn) -> Self {
         Interface {
             layout: Stack::default(),
-            background: Rectangle::new(color, 0.0, None),
+            background: Rectangle::new(theme.colors.background.primary, 0.0, None),
             inner: match IS_WEB {
-                true => interfaces::Interface::web(ctx, navigation),
-                false if IS_MOBILE => interfaces::Interface::mobile(ctx, navigation),
-                false => interfaces::Interface::desktop(ctx, navigation),
+                true => interfaces::Interface::web(theme, navigation),
+                false if IS_MOBILE => interfaces::Interface::mobile(theme, navigation),
+                false => interfaces::Interface::desktop(theme, navigation),
             },
-            on_event,
+            on_event: Some(on_event),
         }
+    }
+
+    fn inner(&mut self) -> &mut Box<dyn Drawable> {
+        self.inner.pages().current()
     }
 }
 
@@ -102,18 +112,20 @@ impl Page {
 #[derive(Debug, Component)]
 pub struct Content {
     layout: Column,
-    pub children: Vec<Box<dyn Drawable>>
+    pub children: Vec<Box<dyn Drawable>>,
+    #[skip] validation: Box<dyn ValidationFn>
 }
 
 impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
-    pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>) -> Self {
+    pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>, validation: Box<dyn ValidationFn>) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
         // if offset == Offset::End { layout.set_scroll(f32::MAX); }
         Content {
             layout: Column::new(24.0, offset, width, Padding::new(16.0), Some(anchor)),
             children,
+            validation,
         }
     }
 
@@ -151,8 +163,10 @@ impl Content {
 }
 
 impl OnEvent for Content {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            ctx.send(Request::event(InterfaceEvent::Disable((self.validation)(&self.children))));
+        } else if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.layout.adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
         //     if roost_ui::IS_MOBILE {
@@ -202,24 +216,24 @@ impl OnEvent for Header {}
 
 impl Header {
     /// A `Header` preset used for home pages.
-    pub fn home(ctx: &mut Context, title: &str, icon: Option<(String, Callback)>) -> Self {
-        Self::_new(ctx, title, None, icon, TextSize::H3)
+    pub fn home(theme: &Theme, title: &str, icon: Option<(String, Callback)>) -> Self {
+        Self::_new(theme, title, None, icon, TextSize::H3)
     }
 
     /// A `Header` preset used for in-flow pages.
-    pub fn stack(ctx: &mut Context, title: &str, icon: Option<(String, Callback)>) -> Self {
+    pub fn stack(theme: &Theme, title: &str, icon: Option<(String, Callback)>) -> Self {
         let closure = |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Pop)));
-        Self::_new(ctx, title, Some(("left".to_string(), Box::new(closure))), icon, TextSize::H4)
+        Self::_new(theme, title, Some(("left".to_string(), Box::new(closure))), icon, TextSize::H4)
     }
 
     /// A `Header` preset used for end-of-flow pages.
-    pub fn stack_end(ctx: &mut Context, title: &str) -> Self {
+    pub fn stack_end(theme: &Theme, title: &str) -> Self {
         let closure = move |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Reset)));
-        Self::_new(ctx, title, Some(("close".to_string(), Box::new(closure))), None, TextSize::H4)
+        Self::_new(theme, title, Some(("close".to_string(), Box::new(closure))), None, TextSize::H4)
     }
 
     fn _new(
-        ctx: &mut Context,
+        theme: &Theme,
         title: &str,
         l_icon: Option<(String, Callback)>,
         r_icon: Option<(String, Callback)>,
@@ -227,10 +241,10 @@ impl Header {
     ) -> Self {
         let clean: String = title.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
         let title = clean[..1].to_uppercase() + &clean[1..].to_lowercase();
-        let text = ExpandableText::new(ctx, &title, size, TextStyle::Heading, Align::Center, Some(1));
+        let text = ExpandableText::new(theme, &title, size, TextStyle::Heading, Align::Center, Some(1));
 
-        let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(ctx, &n, c)).unwrap_or_default();
-        let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(ctx, &n, c)).unwrap_or_default();
+        let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(theme, &n, c)).unwrap_or_default();
+        let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(theme, &n, c)).unwrap_or_default();
 
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0));
         Header {
@@ -255,9 +269,9 @@ impl OnEvent for HeaderIcon {}
 impl Default for HeaderIcon {fn default() -> Self {Self::none()}}
 
 impl HeaderIcon {
-    pub fn new(ctx: &mut Context, icon: &str, closure: impl FnMut(&mut Context) + 'static) -> Self {
+    pub fn new(theme: &Theme, icon: &str, closure: impl FnMut(&mut Context) + 'static) -> Self {
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(48.0), Size::Static(48.0), Padding::default());
-        HeaderIcon{layout, icon: Some(GhostIconButton::new(ctx, icon, closure))}
+        HeaderIcon{layout, icon: Some(GhostIconButton::new(theme, icon, closure))}
     }
 
     pub fn none() -> Self {
@@ -272,41 +286,40 @@ impl OnEvent for Bumper {}
 
 impl Bumper {
     /// A `Bumper` preset used for home pages.
-    pub fn home(ctx: &mut Context, first: (String, Callback), second: Option<(String, Callback)>, validation: Option<Box<dyn ValidationFn>>) -> Self {
-        let mut content = drawables![PrimaryButton::new(ctx, &first.0, Box::new(first.1), validation.clone())];
-        if let Some((l, c)) = second { content.push(Box::new(PrimaryButton::new(ctx, &l, c, validation))); }
-        let (layout, background) = Self::layout(ctx);
+    pub fn home(theme: &Theme, first: (String, Callback), second: Option<(String, Callback)>) -> Self {
+        let mut content = drawables![PrimaryButton::new(theme, &first.0, Box::new(first.1))];
+        if let Some((l, c)) = second { content.push(Box::new(PrimaryButton::new(theme, &l, c))); }
+        let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(content) }
     }
 
     /// A `Bumper` preset used for in-flow pages.
     pub fn stack(
-        ctx: &mut Context, 
+        theme: &Theme,
         label: Option<&str>, 
         on_click: impl FnMut(&mut Context) + 'static, 
         secondary: Option<(String, Callback)>, 
-        validation: Option<Box<dyn ValidationFn>>
     ) -> Self {
-        let mut content = drawables![PrimaryButton::new(ctx, label.unwrap_or("Continue"), Box::new(on_click), validation.clone())];
-        if let Some((l, c)) = secondary { content.push(Box::new(SecondaryButton::large(ctx, &l, c, validation))); }
-        let (layout, background) = Self::layout(ctx);
+        let mut content = drawables![PrimaryButton::new(theme, label.unwrap_or("Continue"), Box::new(on_click))];
+        if let Some((l, c)) = secondary { content.push(Box::new(SecondaryButton::large(theme, &l, c))); }
+        let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(content) }
     }
 
     /// A `Bumper` preset used for end-of-flow pages.
-    pub fn stack_end(ctx: &mut Context, exact_pages: Option<usize>) -> Self {
+    pub fn stack_end(theme: &Theme, exact_pages: Option<usize>) -> Self {
         let closure = move |ctx: &mut Context| match exact_pages {
             Some(num) => (0..num).for_each(|_| ctx.send(Request::Event(Box::new(NavigationEvent::Pop)))),
             None => ctx.send(Request::Event(Box::new(NavigationEvent::Reset)))
         };
         
-        let content = SecondaryButton::large(ctx, "Done", Box::new(closure), None);
-        let (layout, background) = Self::layout(ctx);
+        let content = SecondaryButton::large(theme, "Done", Box::new(closure));
+        let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }
 
-    fn layout(ctx: &mut Context) -> (Stack, Rectangle) {
-        let background = Rectangle::new(ctx.state.get_or_default::<Theme>().colors.background.primary, 0.0, None);
+    fn layout(theme: &Theme) -> (Stack, Rectangle) {
+        let background = Rectangle::new(theme.colors.background.primary, 0.0, None);
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
@@ -314,11 +327,10 @@ impl Bumper {
         (layout, background)
     }
 
-    pub fn default(ctx: &mut Context) -> Self {
-        Self::home(ctx, 
+    pub fn default(theme: &Theme) -> Self {
+        Self::home(theme, 
             ("Press me".to_string(), Box::new(|_: &mut Context| println!("Pressed...."))), 
             Some(("No Press me".to_string(), Box::new(|_: &mut Context| println!("Pressed....")))), 
-            None
         )
     }
 }
@@ -340,6 +352,18 @@ pub enum AdjustScrollEvent {
 }
 
 impl Event for AdjustScrollEvent {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
+        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+    }
+}
+
+/// Adjust the scroll value of a [`Scroll`] layout.
+#[derive(Debug, Clone)]
+pub enum InterfaceEvent {
+    Disable(bool)
+}
+
+impl Event for InterfaceEvent {
     fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
         children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }

@@ -1,7 +1,6 @@
 use prism::event::OnEvent;
 use prism::canvas::{ShapeType, Image};
 use prism::drawable::Component;
-use prism::Context;
 use prism::layout::{Padding, Size, Offset, Stack};
 use prism::display::Bin;
 
@@ -31,8 +30,8 @@ pub struct QRCode(Stack, Rectangle, Image, Bin<Stack, Image>);
 impl OnEvent for QRCode {}
 
 impl QRCode {
-    pub fn new(ctx: &mut Context, data: &str) -> Self {
-        let app_icon = ctx.state.get_or_default::<Theme>().brand.app_icon.clone();
+    pub fn new(theme: &Theme, data: &str) -> Self {
+        let app_icon = theme.brand.app_icon.clone();
         let qr_size = 300.0;
         let logo_size = 64.0;
 
@@ -48,8 +47,8 @@ impl QRCode {
         )
     }
 
-    pub fn default(ctx: &mut Context) -> Self {
-        Self::new(ctx, "https://ramp.com/design_systems/pelican_ui")
+    pub fn default(theme: &Theme) -> Self {
+        Self::new(theme, "https://ramp.com/design_systems/pelican_ui")
     }
 }
 
@@ -162,7 +161,7 @@ fn is_in_finder_pattern_area(
 
 fn ceil_to_odd(val: f32) -> usize {
     let mut v = val.ceil() as usize;
-    if v % 2 == 0 { v += 1 }
+    if v.is_multiple_of(2) { v += 1 }
     v
 }
 

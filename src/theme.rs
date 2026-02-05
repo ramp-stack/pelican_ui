@@ -4,7 +4,7 @@ use image::RgbaImage;
 use include_dir::{DirEntry, Dir, include_dir};
 use prism::canvas;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Theme {
     pub colors: ColorResources,
     pub fonts: FontResources,
@@ -93,6 +93,7 @@ impl Default for FontSize {
 /// - Icons will automatically be adde to resources when they meet these conditions:
 ///     - Icons must be `.svg` files.
 ///     - Icons must be located in `project/resources/icons/`.
+#[derive(Clone)]
 pub struct IconResources(HashMap<String, Arc<RgbaImage>>);
 
 impl Default for IconResources {

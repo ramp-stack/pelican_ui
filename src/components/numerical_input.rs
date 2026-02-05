@@ -5,6 +5,7 @@ use prism::canvas::Align;
 use prism::display::Bin;
 use prism::layout::{Stack, Column, Offset, Size, Padding};
 
+use crate::theme::Theme;
 use crate::components::Keypad;
 use crate::components::text::{Text, TextStyle, TextSize};
 use crate::interactions::{SlotType, self};
@@ -26,28 +27,28 @@ impl OnEvent for NumericalInput {
 type EditedCallback = Box<dyn FnMut(&mut Context, &mut String)>;
 
 impl NumericalInput {
-    pub fn display(ctx: &mut Context, _amount: f32, instructions: &str) -> Self {
-        let keypad = IS_MOBILE.then_some(Keypad::new(ctx, '.'));
+    pub fn display(theme: &Theme, _amount: f32, instructions: &str) -> Self {
+        let keypad = IS_MOBILE.then_some(Keypad::new(theme, '.'));
         let layout = Stack::new(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::currency(CurrencyInput::new(ctx, '$', instructions, Box::new(|_, _| {})))), keypad, false)
+        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::currency(CurrencyInput::new(theme, '$', instructions))), keypad, false)
     }
 
-    pub fn currency(ctx: &mut Context, instructions: &str, on_edited: EditedCallback) -> Self {
-        let keypad = IS_MOBILE.then_some(Keypad::new(ctx, '.'));
+    pub fn currency(theme: &Theme, instructions: &str) -> Self {
+        let keypad = IS_MOBILE.then_some(Keypad::new(theme, '.'));
         let layout = Stack::new(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::currency(CurrencyInput::new(ctx, '$', instructions, on_edited))), keypad, true)
+        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::currency(CurrencyInput::new(theme, '$', instructions))), keypad, true)
     }
 
-    pub fn date(ctx: &mut Context, instructions: &str, on_edited: EditedCallback) -> Self {
-        let keypad = IS_MOBILE.then_some(Keypad::new(ctx, '/'));
+    pub fn date(theme: &Theme, instructions: &str) -> Self {
+        let keypad = IS_MOBILE.then_some(Keypad::new(theme, '/'));
         let layout = Stack::new(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::date(DateInput::new(ctx, instructions, on_edited))), keypad, true)
+        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::date(DateInput::new(theme, instructions))), keypad, true)
     }
 
-    pub fn time(ctx: &mut Context, instructions: &str, on_edited: EditedCallback) -> Self {
-        let keypad = IS_MOBILE.then_some(Keypad::new(ctx, ':'));
+    pub fn time(theme: &Theme, instructions: &str) -> Self {
+        let keypad = IS_MOBILE.then_some(Keypad::new(theme, ':'));
         let layout = Stack::new(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::time(TimeInput::new(ctx, instructions, on_edited))), keypad, true)
+        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::time(TimeInput::new(theme, instructions))), keypad, true)
     }
 
     pub fn value(&mut self) -> String {
@@ -80,8 +81,8 @@ pub struct CurrencyInput(Column, interactions::NumericalInput, pub Text);
 impl OnEvent for CurrencyInput { }
 
 impl CurrencyInput {
-    pub fn new(ctx: &mut Context, currency: char, instructions: &str, on_edited: EditedCallback) -> Self {
-        let input = interactions::NumericalInput::new(ctx, on_edited, vec![
+    pub fn new(theme: &Theme, currency: char, instructions: &str) -> Self {
+        let input = interactions::NumericalInput::new(theme, vec![
             SlotType::FixedChar(currency), // This always shows and cannot be delted
             SlotType::Primary('0', 6), // this always shows, but can be replaced by another digit, when deleted on, it goes back to the char
             SlotType::Triggered('.'), // This shows up as primary only when the user types the decimal
@@ -89,7 +90,7 @@ impl CurrencyInput {
             SlotType::GhostInput('0'), 
         ]);
 
-        let text = Text::new(ctx, instructions, TextSize::Md, TextStyle::Secondary, Align::Left, None);
+        let text = Text::new(theme, instructions, TextSize::Md, TextStyle::Secondary, Align::Left, None);
         CurrencyInput(Column::center(8.0), input, text)
     }
 }
@@ -100,8 +101,8 @@ pub struct DateInput(Column, interactions::NumericalInput, pub Text);
 impl OnEvent for DateInput {}
 
 impl DateInput {
-    pub fn new(ctx: &mut Context, instructions: &str, on_edited: EditedCallback) -> Self {
-        let input = interactions::NumericalInput::new(ctx, on_edited, vec![
+    pub fn new(theme: &Theme, instructions: &str) -> Self {
+        let input = interactions::NumericalInput::new(theme, vec![
             SlotType::Ghost('d', 1),
             SlotType::Ghost('d', 1),
             SlotType::FixedChar('/'),
@@ -114,7 +115,7 @@ impl DateInput {
             SlotType::Ghost('y', 1),
         ]);
         
-        let text = Text::new(ctx, instructions, TextSize::Md, TextStyle::Secondary, Align::Left, None);
+        let text = Text::new(theme, instructions, TextSize::Md, TextStyle::Secondary, Align::Left, None);
         DateInput(Column::center(8.0), input, text)
     }
 }
@@ -124,8 +125,8 @@ pub struct TimeInput(Column, interactions::NumericalInput, pub Text);
 impl OnEvent for TimeInput {}
 
 impl TimeInput {
-    pub fn new(ctx: &mut Context, instructions: &str, on_edited: EditedCallback) -> Self {
-        let input = interactions::NumericalInput::new(ctx, on_edited, vec![
+    pub fn new(theme: &Theme, instructions: &str) -> Self {
+        let input = interactions::NumericalInput::new(theme, vec![
             SlotType::Ghost('0', 1),
             SlotType::Ghost('0', 1),
             SlotType::FixedChar(':'),
@@ -133,7 +134,7 @@ impl TimeInput {
             SlotType::Ghost('0', 1),
         ]);
 
-        let text = Text::new(ctx, instructions, TextSize::Md, TextStyle::Secondary, Align::Left, None);
+        let text = Text::new(theme, instructions, TextSize::Md, TextStyle::Secondary, Align::Left, None);
         TimeInput(Column::center(8.0), input, text)
     }
 }
