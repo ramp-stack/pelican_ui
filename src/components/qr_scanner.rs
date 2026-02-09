@@ -4,8 +4,10 @@ use prism::{Context, Request};
 use prism::drawable::{Component, SizedTree};
 use prism::layout::{Area, Column, Padding, Size, Offset, Stack};
 
-use crate::Theme;
-use crate::components::text::{TextStyle, Text, TextSize};
+use ptsd::theme::TextSize;
+
+use crate::theme::Theme;
+use crate::components::text::{TextStyle, Text};
 use crate::components::{Icon, Rectangle};
 
 use image::{DynamicImage, GrayImage, RgbaImage};
@@ -95,8 +97,8 @@ impl OnEvent for QRGuide {}
 
 impl QRGuide {
     pub fn new(theme: &Theme) -> Self {
-        let background = theme.colors.background.secondary;
-        let outline = theme.colors.outline.secondary;
+        let background = theme.colors().get(ptsd::Background::Secondary);
+        let outline = theme.colors().get(ptsd::Outline::Secondary); 
         QRGuide(
             Stack(Offset::Center, Offset::Center, Size::Static(308.0), Size::Static(308.0), Padding::default()), 
             Some(Rectangle::new(background, 8.0, None)), 
@@ -116,7 +118,7 @@ impl OnEvent for Message {}
 impl Message {
     pub fn new(theme: &Theme, icon: &'static str, msg: &str) -> Self {
         Message(Column::center(4.0), 
-            Icon::new(theme, icon, Some(theme.colors.text.heading), 48.0),
+            Icon::new(theme, icon, Some(theme.colors().get(ptsd::Text::Heading)), 48.0),
             Text::new(theme, msg, TextSize::Sm, TextStyle::Secondary, Align::Left, None)
         )
     }

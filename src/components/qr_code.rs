@@ -4,8 +4,7 @@ use prism::drawable::Component;
 use prism::layout::{Padding, Size, Offset, Stack};
 use prism::display::Bin;
 
-use crate::Theme;
-use crate::theme::Color;
+use crate::theme::{Theme, Color};
 use crate::components::{Rectangle, AspectRatioImage};
 
 use image::{Rgb, RgbImage, DynamicImage};
@@ -31,7 +30,7 @@ impl OnEvent for QRCode {}
 
 impl QRCode {
     pub fn new(theme: &Theme, data: &str) -> Self {
-        let app_icon = theme.brand.app_icon.clone();
+        let app_icon = theme.brand().app_icon.clone();
         let qr_size = 300.0;
         let logo_size = 64.0;
 

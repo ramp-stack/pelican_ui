@@ -3,8 +3,9 @@ use prism::Context;
 use prism::drawable::Component;
 use prism::layout::{Stack, Column};
 
-use crate::interactions;
-use crate::utils::Callback;
+use ptsd::interactions;
+use ptsd::utils::Callback;
+
 use crate::components::list_item::ListItem;
 use crate::components::list_item::ListItemInfoLeft;
 use crate::theme::Theme;

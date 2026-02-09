@@ -12,7 +12,6 @@ use pelican_ui::components::RadioSelector;
 use pelican_ui::components::avatar::Avatar;
 use pelican_ui::components::list_item::ListItem;
 use pelican_ui::components::button::SecondaryButton;
-use pelican_ui::components::interface::{AppPage, Interface, Page, Header, Bumper, Content, RootInfo, NavigationEvent};
 use pelican_ui::components::text::{ExpandableText, Text, TextSize, TextStyle, TextEditor};
 use pelican_ui::components::button::PrimaryButton;
 use pelican_ui::theme::Theme;
@@ -21,6 +20,10 @@ use crate::prism::display::{Enum, Opt, EitherOr};
 use image::RgbaImage;
 use std::sync::Arc;
 use pelican_ui::PelicanUI;
+
+use pelican_ui::interface::general::{Interface, Page, Header, Bumper, Content};
+use pelican_ui::interface::navigation::{RootInfo, NavigationEvent, AppPage};
+
 
 // #[derive(Debug, Component)]
 // pub struct DemoApp8(Stack, Page);
@@ -86,7 +89,7 @@ impl DemoApp2 {
         });
 
         let text = ExpandableText::default(theme, "flamingo.png");
-        let content = Content::new(Offset::Start, drawables![img, text]);
+        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| false));
         let header = Header::home(theme, "Demo App", None);
         let bumper = Bumper::home(theme, 
             ("Receive".to_string(), Box::new(|ctx: &mut Context| {
@@ -102,7 +105,6 @@ impl DemoApp2 {
                 // ctx.send(Request::event(NavigationEvent::push(demo)))
             })),
             None,
-            None
         );
         let page = Page::new(header, content, Some(bumper));
         Self(Stack::default(), page)
@@ -166,8 +168,9 @@ ramp::run!{|ctx: &mut Context, assets: Assets| {
     PelicanUI::new(|theme: &Theme| {
         let demo2 = RootInfo::icon("explore", "Demo App 2", Box::new(DemoApp2::new(ctx, theme)));
         Interface::new(theme, vec![demo2], Box::new(|page: &mut Box<dyn Drawable>, ctx: &mut Context, e: Box<dyn Event>| {
-            if e.downcast_ref::<TickEvent>().is_some() {println!("PAGE {:?}", page);}
+            // if e.downcast_ref::<TickEvent>().is_some() {println!("PAGE {:?}", page);}
             vec![e]
         }))
     })
+    // PrimaryButton::default(&Theme::default())
 }}

@@ -4,11 +4,14 @@ use prism::layout::{Column, Stack, Row, Padding, Offset, Size};
 use prism::drawable::Component;
 use prism::Context;
 
-use crate::{interactions, Theme, theme::Color};
+use ptsd::interactions;
+use ptsd::utils::TitleSubtitle;
+
+use crate::theme::{Theme, Color};
 use crate::components::text::{Text, TextSize, ExpandableText, TextStyle};
 use crate::components::Icon;
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
-use crate::utils::TitleSubtitle;
+
 
 /// ## List Item
 ///
@@ -69,7 +72,7 @@ impl ListItemContent {
         icon_l: Option<&'static str>,
         icon_r: Option<&'static str>,
     ) -> Self {
-        let c = theme.colors.text.primary; 
+        let c = theme.colors().get(ptsd::Text::Primary); 
         let avatar = avatar.map(|data| Avatar::new(theme, data, None, false, AvatarSize::Md, None));
         let content = ListItemData::new(theme, left, right);
         let icon_l = icon_l.map(|i| Icon::new(theme, i, Some(c), 24.0));

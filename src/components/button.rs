@@ -4,12 +4,13 @@ use prism::canvas::{Image, Align};
 use prism::drawable::{Drawable, Component};
 use prism::layout::{Wrap, Offset, Padding, Row, Size, Stack};
 
-use crate::{interactions, Theme, theme::Color};
-use crate::components::text::{Text, TextSize, TextStyle};
+use ptsd::interactions;
+use ptsd::theme::{Color, TextSize};
+use ptsd::utils::{Callback, ValidationFn};
+
+use crate::theme::{self, Variant, Theme, ButtonColorScheme};
+use crate::components::text::{Text, TextStyle};
 use crate::components::{Icon, Rectangle};
-use crate::theme::ButtonColorScheme;
-use crate::utils::Callback;
-use crate::utils::ValidationFn;
 
 pub type QuickAction = (String, Option<String>, Callback);
 
@@ -44,7 +45,7 @@ pub struct PrimaryButton(Stack, pub interactions::Button);
 impl OnEvent for PrimaryButton {}
 impl PrimaryButton {
     pub fn new(theme: &Theme, label: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = theme.colors.button.primary;
+        let colors = theme::Button::get(theme.colors(), Variant::Primary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             let font_size = ButtonSize::Large.font();
@@ -75,7 +76,7 @@ pub struct SecondaryButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryButton {}
 impl SecondaryButton {
     pub fn medium(theme: &Theme, icon: &str, label: &str, active_label: Option<&str>, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = theme.colors.button.secondary;
+        let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.disabled];
         let [default, hover, disabled] = buttons.map(|colors| Self::_medium(theme, icon, label, colors));
         let pressed = Self::_medium(theme, icon, active_label.unwrap_or(label), colors.pressed);
@@ -91,7 +92,7 @@ impl SecondaryButton {
     }
 
     pub fn large(theme: &Theme, label: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = theme.colors.button.secondary;
+        let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             let font_size = ButtonSize::Large.font();
@@ -121,7 +122,7 @@ pub struct SecondaryIconButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryIconButton {}
 impl SecondaryIconButton {
     pub fn large(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = theme.colors.button.secondary;
+        let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             IconButton::new(theme, icon, ButtonStyle::Secondary, ButtonSize::Large, colors.background, colors.outline, colors.label)
@@ -130,7 +131,7 @@ impl SecondaryIconButton {
     }
 
     pub fn medium(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = theme.colors.button.secondary;
+        let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             IconButton::new(theme, icon, ButtonStyle::Secondary, ButtonSize::Medium, colors.background, colors.outline, colors.label)
@@ -158,7 +159,7 @@ pub struct GhostIconButton(Stack, pub interactions::Button);
 impl OnEvent for GhostIconButton {}
 impl GhostIconButton {
     pub fn new(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = theme.colors.button.ghost;
+        let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)

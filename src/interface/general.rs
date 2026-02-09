@@ -2,17 +2,20 @@ use prism::{drawables, Context, IS_MOBILE, IS_WEB, Request};
 use prism::event::{self, Event, OnEvent, MouseEvent, MouseState, TickEvent};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
+use prism::display::Bin;
 use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
 
-use crate::Theme;
+use crate::theme::{self, Theme};
 use crate::components::{Rectangle};
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
-use crate::components::interface::navigation::{NavigationEvent, RootInfo};
-use crate::components::interface::interfaces;
 
-use crate::utils::ValidationFn;
-use crate::utils::Callback;
+use crate::interface::system::MobileKeyboard;
+use crate::interface::navigation::{RootInfo, Navigator};
+
+use ptsd::interfaces::{Body, Navigator as PTSDNavigator};
+use ptsd::navigation::{Pages, NavigationEvent};
+use ptsd::utils::{Callback, ValidationFn};
 
 type OnEventFn = Box<dyn FnMut(&mut Box<dyn Drawable>, &mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>>;
 
@@ -23,7 +26,7 @@ type OnEventFn = Box<dyn FnMut(&mut Box<dyn Drawable>, &mut Context, Box<dyn Eve
 pub struct Interface {
     layout: Stack,
     background: Rectangle,
-    inner: interfaces::Interface,
+    inner: ptsd::interfaces::Interface,
     #[skip] pub on_event: Option<OnEventFn>
 }
 
@@ -47,14 +50,24 @@ impl std::fmt::Debug for Interface {
 }
 
 impl Interface {
-    pub fn new(theme: &Theme, navigation: Vec<RootInfo>, on_event: OnEventFn) -> Self {
+    pub fn new(theme: &Theme, mut roots: Vec<RootInfo>, on_event: OnEventFn) -> Self {
+        let pages: Vec<(String, Box<dyn Drawable>)> = roots.iter_mut().map(|r| (r.label.to_string(), r.page.take().unwrap() as Box<dyn Drawable>)).collect();
         Interface {
             layout: Stack::default(),
-            background: Rectangle::new(theme.colors.background.primary, 0.0, None),
+            background: Rectangle::new(theme.colors().get(ptsd::Background::Primary), 0.0, None),
             inner: match IS_WEB {
-                true => interfaces::Interface::web(theme, navigation),
-                false if IS_MOBILE => interfaces::Interface::mobile(theme, navigation),
-                false => interfaces::Interface::desktop(theme, navigation),
+                true => { // web
+                    let navigator = (pages.len() > 1).then_some(Box::new(Navigator::web(theme, roots)) as Box<dyn PTSDNavigator>);
+                    ptsd::interfaces::Interface::web(navigator, Screen::web(Pages::new(pages)))
+                },
+                false if IS_MOBILE => { // mobile
+                    let navigator = (pages.len() > 1).then_some(Box::new(Navigator::mobile(theme, roots)) as Box<dyn PTSDNavigator>);
+                    ptsd::interfaces::Interface::mobile(navigator, Screen::mobile(Pages::new(pages)), MobileKeyboard::new(theme, false))
+                },
+                false => { // desktop
+                    let navigator = (pages.len() > 1).then_some(Box::new(Navigator::desktop(theme, roots)) as Box<dyn PTSDNavigator>);
+                    ptsd::interfaces::Interface::desktop(navigator, Screen::desktop(theme, Pages::new(pages)))
+                }
             },
             on_event: Some(on_event),
         }
@@ -319,7 +332,7 @@ impl Bumper {
     }
 
     fn layout(theme: &Theme) -> (Stack, Rectangle) {
-        let background = Rectangle::new(theme.colors.background.primary, 0.0, None);
+        let background = Rectangle::new(theme.colors().get(ptsd::Background::Primary), 0.0, None);
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
@@ -368,3 +381,42 @@ impl Event for InterfaceEvent {
         children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
     }
 }
+
+#[derive(Debug, Component)]
+pub struct Screen(Stack, _Screen);
+impl OnEvent for Screen {}
+impl Screen {
+    pub fn desktop(theme: &Theme, pages: Pages) -> Self {
+        let color = theme.colors().get(ptsd::Outline::Secondary);
+        let line_layout = Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default());
+        let border = Bin(line_layout, Rectangle::new(color, 0.0, None));
+
+        Screen(Stack::default(), _Screen::Desktop{_l: Stack::default(), pages, border})
+    }
+
+    pub fn mobile(pages: Pages) -> Self {
+        Screen(Stack::default(), _Screen::Mobile{_l: Stack::default(), pages})
+    }
+
+    pub fn web(pages: Pages) -> Self {
+        Screen(Stack::default(), _Screen::Web{_l: Stack::default(), pages})
+    }
+}
+
+impl Body for Screen {
+    fn pages(&mut self) -> &mut Pages {
+        match &mut self.1 {
+            _Screen::Mobile {pages, ..} |
+            _Screen::Desktop {pages, ..} |
+            _Screen::Web {pages, ..} => pages
+        }
+    }
+}
+
+#[derive(Debug, Component)]
+pub enum _Screen {
+    Mobile {_l: Stack, pages: Pages},
+    Desktop {_l: Stack, pages: Pages, border: Bin<Stack, Rectangle>},
+    Web {_l: Stack, pages: Pages},
+}
+impl OnEvent for _Screen {}

@@ -6,7 +6,10 @@ use prism::canvas::{self, Align, Span, Text as BasicText, Area as CanvasArea, It
 use prism::Context;
 
 use pelican_ui::components::Rectangle;
-use pelican_ui::{Theme, theme::Color};
+use pelican_ui::theme::{Theme, Color};
+
+use ptsd::{theme, FontStyle};
+pub use ptsd::TextSize;
 
 #[derive(Component, Debug, Clone)]
 pub struct Text {
@@ -42,7 +45,7 @@ impl OnEvent for Text {
 impl Text {
     pub fn new(theme: &Theme, text: &str, text_size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         let (color, font) = style.get(theme);
-        let size = text_size.get(theme);
+        let size = theme.fonts().get_size(text_size);
         let inner = BasicText::new(vec![Span::new(text.to_string(), size, Some(size*1.25), font.into(), color.into(), 0.0)], None, align, max_lines);
         Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size: text_size, style, align, max_lines, kerning: 0.0}
     }
@@ -67,37 +70,18 @@ pub enum TextStyle {
 
 impl TextStyle {
     pub fn get(&self, theme: &Theme) -> (Color, canvas::Font) {
-        let fonts = theme.fonts.fonts.clone();
-        let colors = theme.colors;
+        let heading = theme.fonts().get_font(FontStyle::Heading).unwrap();
+        let text = theme.fonts().get_font(FontStyle::Text).unwrap();
+        let label = theme.fonts().get_font(FontStyle::Label).unwrap();
+        let keyboard = theme.fonts().get_font(FontStyle::Text).unwrap(); // change to keybord (medium weight)
+        let colors = theme.colors();
         match self {
-            TextStyle::Heading => (colors.text.heading, fonts.heading.clone()),
-            TextStyle::Primary => (colors.text.primary, fonts.text.clone()),
-            TextStyle::Secondary => (colors.text.secondary, fonts.text.clone()),
-            TextStyle::Error => (colors.status.danger, fonts.text.clone()),
-            TextStyle::Keyboard => (colors.text.heading, fonts.keyboard.clone()),
-            TextStyle::Label(color) => (*color, fonts.label.clone()),
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Default)]
-pub enum TextSize { Title, H1, H2, H3, H4, H5, H6, Xl, #[default] Lg, Md, Sm, Xs }
-impl TextSize {
-    fn get(&self, theme: &Theme) -> f32 {
-        let font_size = theme.fonts.size;
-        match self {
-            TextSize::Title => font_size.title,
-            TextSize::H1 => font_size.h1,
-            TextSize::H2 => font_size.h2,
-            TextSize::H3 => font_size.h3,
-            TextSize::H4 => font_size.h4,
-            TextSize::H5 => font_size.h5,
-            TextSize::H6 => font_size.h6,
-            TextSize::Xl => font_size.xl,
-            TextSize::Lg => font_size.lg,
-            TextSize::Md => font_size.md,
-            TextSize::Sm => font_size.sm,
-            TextSize::Xs => font_size.xs,
+            TextStyle::Heading => (colors.get(theme::Text::Heading), heading.clone()),
+            TextStyle::Primary => (colors.get(theme::Text::Primary), text.clone()),
+            TextStyle::Secondary => (colors.get(theme::Text::Secondary), text.clone()),
+            TextStyle::Error => (colors.get(theme::Status::Danger), text.clone()),
+            TextStyle::Keyboard => (colors.get(theme::Text::Heading), keyboard.clone()),
+            TextStyle::Label(color) => (*color, label.clone()),
         }
     }
 }
@@ -214,7 +198,7 @@ impl OnEvent for TextCursor {}
 impl TextCursor {
     pub fn new(theme: &Theme, style: TextStyle, size: TextSize) -> Self {
         let (color, _) = style.get(theme);
-        let size = size.get(theme);
+        let size = theme.fonts().get_size(size);
         TextCursor(
             Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()), 
             Opt::new(Rectangle::new(color, 0.0, None), true)

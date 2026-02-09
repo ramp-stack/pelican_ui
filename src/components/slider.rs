@@ -4,7 +4,9 @@ use prism::Context;
 use prism::drawable::Component;
 use prism::layout::Column;
 
-use crate::{interactions, Theme};
+use ptsd::interactions;
+
+use crate::theme::Theme;
 use crate::components::text::{TextSize, TextStyle, ExpandableText, Text};
 use crate::components::{Circle, Rectangle};
 
@@ -39,9 +41,10 @@ impl Slider {
         description: Option<&str>,
         on_change: impl FnMut(&mut Context, f32) + 'static,
     ) -> Self {
-        let background = Rectangle::new(theme.colors.outline.primary, 3.0, None);
-        let foreground = Rectangle::new(theme.colors.brand, 3.0, None);
-        let handle = Circle::new(18.0, theme.colors.brand, false);
+        let colors = theme.colors();
+        let background = Rectangle::new(colors.get(ptsd::Outline::Primary), 3.0, None);
+        let foreground = Rectangle::new(colors.get(ptsd::Brand), 3.0, None);
+        let handle = Circle::new(18.0, colors.get(ptsd::Brand), false);
         Slider(Column::start(8.0),
             label.map(|l| Text::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None)),
             description.map(|t| ExpandableText::new(theme, t, TextSize::Md, TextStyle::Primary, Align::Left, None)),

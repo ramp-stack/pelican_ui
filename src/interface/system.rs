@@ -7,11 +7,12 @@ use prism::drawable::{Component, SizedTree};
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
 use prism::display::Bin;
 
-use crate::{Theme, theme::Color};
-use crate::components::interface::interfaces::ShowKeyboard;
+use ptsd::interfaces::ShowKeyboard;
+
+use crate::theme::{Theme, Color};
+
 use crate::components::text::{Text, TextStyle, TextSize};
 use crate::components::{Rectangle, Icon};
-// use crate::components::interactions::ButtonState;
 use crate::components::button::GhostIconButton;
 
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -26,7 +27,7 @@ impl OnEvent for MobileKeyboard {}
 impl MobileKeyboard {
     pub fn new(theme: &Theme, actions: bool) -> Self {
         let height = Size::custom(|heights: Vec<(f32, f32)>| heights[1]);
-        let color = theme.colors.background.secondary;
+        let color = theme.colors().get(ptsd::Background::Secondary);
         MobileKeyboard(
             Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default()), 
             Rectangle::new(color, 0.0, None),
@@ -44,7 +45,7 @@ impl KeyboardHeader {
         let layout = Stack(Offset::default(), Offset::default(), Size::Fit, Size::Static(1.0), Padding(0.0,0.0,0.0,2.0));
         KeyboardHeader(Column::start(0.0),
             KeyboardIcons::new(theme, actions),
-            Bin(layout, Rectangle::new(theme.colors.outline.secondary, 0.0, None))
+            Bin(layout, Rectangle::new(theme.colors().get(ptsd::Outline::Secondary), 0.0, None))
         )
     }
 }
@@ -398,7 +399,7 @@ impl KeyCharacter {
     }
 
     fn icon(theme: &Theme, i: &'static str) -> Self {
-        let c = theme.colors.text.heading;
+        let c = theme.colors().get(ptsd::Text::Heading);
         KeyCharacter(Row::center(0.0), Some(Icon::new(theme, i, Some(c), 36.0)), None, None, None)
     }
 

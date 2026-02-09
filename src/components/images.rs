@@ -24,7 +24,7 @@ pub struct Icon;
 impl Icon {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(theme: &Theme, name: &str, color: Option<Color>, size: f32) -> Image {
-        Image{shape: ShapeType::Rectangle(0.0, (size, size), 0.0), image: theme.icons.get(name), color: color.map(|c| c.into())}
+        Image{shape: ShapeType::Rectangle(0.0, (size, size), 0.0), image: theme.icons().get(name), color: color.map(|c| c.into())}
     }
 }
 

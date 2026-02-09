@@ -4,10 +4,12 @@ use prism::drawable::{Drawable, Component};
 use prism::canvas::Align;
 use prism::{Context, Request};
 
+use ptsd::interactions;
+
+use crate::theme::{self, Theme};
 use crate::components::Icon;
 use crate::components::text::{Text, TextStyle};
 use crate::components::button::{ButtonWidth, ButtonSize, Button};
-use crate::{interactions, Theme};
 
 #[derive(Debug, Component)]
 pub struct Keypad(Column, Vec<GhostButtonRow>);
@@ -57,7 +59,7 @@ struct GhostButton(Stack, pub interactions::Button);
 impl OnEvent for GhostButton {}
 impl GhostButton {
     fn new(theme: &Theme, label: Option<&str>, icon: Option<&str>, on_click: impl FnMut(&mut Context) + 'static) -> Self {
-        let colors = theme.colors.button.ghost;
+        let colors = theme::Button::get(theme.colors(), theme::Variant::Ghost);
         let default =  {
             let font_size = ButtonSize::Large.font();
             let icon_size = ButtonSize::Large.icon();

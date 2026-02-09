@@ -5,7 +5,10 @@ use prism::{Context, Request};
 use prism::layout::{Padding, Column, Offset, Size, Row, Stack, Area};
 use prism::display::{EitherOr, Opt, Bin};
 
-use crate::{interactions, Theme, theme::Color};
+use ptsd::interactions;
+
+use crate::theme::{Theme, Color};
+
 use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableText};
 use crate::components::Rectangle;
 use crate::components::button::SecondaryIconButton;
@@ -51,11 +54,12 @@ impl TextInput {
         // on_edit: impl FnMut(&mut Context, &mut String) + 'static,
     ) -> Self {
         let background = |bg: Color, o: Color| Rectangle::new(bg, 8.0, Some((1.0, o)));
+        let colors = theme.colors();
         let input_field = interactions::InputField::new(
-            background(Color::TRANSPARENT, theme.colors.outline.secondary),
-            background(Color::TRANSPARENT, theme.colors.outline.primary),
-            Some(background(theme.colors.background.secondary, theme.colors.outline.secondary)),
-            Some(background(Color::TRANSPARENT, theme.colors.status.danger)),
+            background(Color::TRANSPARENT, colors.get(ptsd::Outline::Secondary)),
+            background(Color::TRANSPARENT, colors.get(ptsd::Outline::Primary)),
+            Some(background(colors.get(ptsd::Outline::Primary), colors.get(ptsd::Outline::Secondary))),
+            Some(background(Color::TRANSPARENT, colors.get(ptsd::Status::Danger))),
             _InputContent::new(theme, value, placeholder, icon_button),
             48.0,
         );
@@ -76,7 +80,7 @@ impl TextInput {
         Self::new(theme, None, Some("First name"), None, None, None)
     }
 
-    pub fn value(&mut self) -> String {
+    pub fn value(&self) -> String {
         self.inner.2.as_any().downcast_ref::<_InputContent>().unwrap().value.to_string()
     }  
 }

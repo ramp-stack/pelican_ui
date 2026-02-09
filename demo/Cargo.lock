@@ -2599,6 +2599,7 @@ dependencies = [
  "include_dir",
  "nsvg",
  "prism2",
+ "ptsd",
  "qrcode",
  "quircs",
  "uuid",
@@ -2728,6 +2729,9 @@ version = "0.1.1"
 dependencies = [
  "anyanymap",
  "downcast-rs 2.0.2",
+ "image 0.25.9",
+ "include_dir",
+ "nsvg",
  "prism_proc",
  "uuid",
  "wgpu_canvas",
@@ -2786,6 +2790,22 @@ checksum = "52717f9a02b6965224f95ca2a81e2e0c5c43baacd28ca057577988930b6c3d5b"
 dependencies = [
  "quote 1.0.42",
  "syn 2.0.111",
+]
+
+[[package]]
+name = "ptsd"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "image 0.25.9",
+ "imageproc",
+ "include_dir",
+ "nsvg",
+ "prism2",
+ "qrcode",
+ "quircs",
+ "uuid",
 ]
 
 [[package]]

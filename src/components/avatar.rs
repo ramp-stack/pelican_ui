@@ -4,10 +4,11 @@ use prism::layout::{Stack, Offset, Size, Padding};
 use prism::{Context, Hardware, Request};
 use prism::drawable::{Component, SizedTree};
 
-use crate::Theme;
+use crate::theme::Theme;
 use crate::theme::Color;
 use crate::components::{Icon, Circle};
-use crate::utils::Callback;
+
+use ptsd::utils::Callback;
 
 use image::RgbaImage;
 use std::sync::Arc;
@@ -176,13 +177,14 @@ pub enum AvatarIconStyle {
 
 impl AvatarIconStyle {
     fn get(&self, theme: &Theme) -> (Color, Color) {
+        let colors = theme.colors();
         match self {
-            AvatarIconStyle::Primary => (theme.colors.background.primary, theme.colors.background.secondary),
-            AvatarIconStyle::Secondary => (theme.colors.background.secondary, theme.colors.text.secondary),
-            AvatarIconStyle::Brand => (theme.colors.brand, Color::WHITE),
-            AvatarIconStyle::Success => (theme.colors.status.success, Color::WHITE),
-            AvatarIconStyle::Warning => (theme.colors.status.warning, Color::WHITE),
-            AvatarIconStyle::Danger => (theme.colors.status.danger, Color::WHITE),
+            AvatarIconStyle::Primary => (colors.get(ptsd::Background::Primary), colors.get(ptsd::Background::Secondary)),
+            AvatarIconStyle::Secondary => (colors.get(ptsd::Background::Secondary), colors.get(ptsd::Text::Secondary)),
+            AvatarIconStyle::Brand => (colors.get(ptsd::Brand), Color::WHITE),
+            AvatarIconStyle::Success => (colors.get(ptsd::Status::Success), Color::WHITE),
+            AvatarIconStyle::Warning => (colors.get(ptsd::Status::Warning), Color::WHITE),
+            AvatarIconStyle::Danger => (colors.get(ptsd::Status::Danger), Color::WHITE),
         }
     }
 }

@@ -5,51 +5,16 @@ use prism::canvas::{Align, Image};
 use prism::display::Bin;
 use prism::layout::{Area, Row, Column, Size, Padding, Offset, Stack};
 
-use crate::{interactions, Theme, theme::Color};
+use ptsd::interactions;
+
+pub use ptsd::navigation::{NavigationEvent, AppPage};
+
+use crate::theme::{self, Theme, Color, Variant};
 use crate::components::{Icon, AspectRatioImage, Rectangle};
 use crate::components::text::{TextStyle, Text};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, IconButton};
 
-/// This trait is used to define pages in the application.
-/// 
-/// Every page must implement this trait. 
-///
-/// Every page must implement [`Debug`] and [`Component`].
-///
-///
-pub trait AppPage: Drawable + std::fmt::Debug + 'static {}
-/// Event used to navigate between pages of the app.
-
-#[derive(Debug)]
-pub enum NavigationEvent {
-    Pop,
-    Push(Option<Box<dyn AppPage>>),
-    Reset,
-    Root(String),
-    Error(String)
-}
-
-impl NavigationEvent {
-    pub fn push(page: impl AppPage + 'static) -> Self {
-        NavigationEvent::Push(Some(Box::new(page)))
-    }
-}
-
-impl Event for NavigationEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, _children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        vec![Some(Box::new(_NavEvent(self)))]
-    }
-}
-
-#[derive(Debug)]
-pub struct _NavEvent(Box<NavigationEvent>);
-
-impl Event for _NavEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, _children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        vec![None, Some(self.0)]
-    }
-}
 
 #[derive(Debug)]
 pub struct RootInfo {
@@ -85,7 +50,7 @@ pub struct NavigatorSelectable(Stack, interactions::Selectable);
 impl OnEvent for NavigatorSelectable {}
 impl NavigatorSelectable {
     pub fn desktop_icon(theme: &Theme, icon: &str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
-        let colors = theme.colors.button.ghost;
+        let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
             let icon_size = ButtonSize::Large.icon();
@@ -97,7 +62,7 @@ impl NavigatorSelectable {
     }
 
     pub fn desktop_avatar(theme: &Theme, avatar: AvatarContent, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
-        let colors = theme.colors.button.ghost;
+        let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
             let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
@@ -108,7 +73,7 @@ impl NavigatorSelectable {
     }
 
     pub fn mobile(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
-        let colors = theme.colors.button.ghost;
+        let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
             IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
@@ -151,6 +116,7 @@ pub(crate) enum Navigator {
 }
 
 impl OnEvent for Navigator {}
+impl ptsd::interfaces::Navigator for Navigator {}
 
 impl Navigator {
     pub(crate) fn desktop(theme: &Theme, navigation: Vec<RootInfo>) -> Self {
@@ -179,7 +145,7 @@ impl Navigator {
             Bin(spacer, Rectangle::new(Color::TRANSPARENT, 0.0, None))
         });
 
-        let wordmark = theme.brand.wordmark.clone();
+        let wordmark = theme.brand().wordmark.clone();
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 200.0));
 
         Navigator::Desktop {
@@ -193,7 +159,7 @@ impl Navigator {
 
     pub(crate) fn mobile(theme: &Theme, navigation: Vec<RootInfo>) -> Self {
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
-        let background = theme.colors.background.primary;
+        let background = theme.colors().get(ptsd::Background::Primary);
 
         let group_id = uuid::Uuid::new_v4();
         let mut tabs = Vec::new();
@@ -220,7 +186,7 @@ impl Navigator {
             buttons.push(NavigatorSelectable::desktop_icon(theme, &info.icon, &info.label, closure, 0 == index, group_id));
         }
 
-        let wordmark = theme.brand.wordmark.clone();
+        let wordmark = theme.brand().wordmark.clone();
 
         let bin_layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(5.0), Padding::default());
         Navigator::Web {

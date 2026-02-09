@@ -3,7 +3,9 @@ use prism::drawable::Component;
 use prism::canvas::Align;
 use prism::layout::{Column, Row, Padding, Offset, Size};
 
-use crate::components::text::{Text, ExpandableText, TextStyle, TextSize};
+use ptsd::theme::TextSize;
+
+use crate::components::text::{Text, ExpandableText, TextStyle};
 use crate::components::button::{QuickActions, QuickAction};
 use crate::theme::Theme;
 

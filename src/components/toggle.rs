@@ -5,11 +5,11 @@ use prism::layout::{Column, Stack, Size, Offset, Padding};
 use prism::display::Bin;
 use prism::Context;
 
-use crate::Theme;
+use crate::theme::Theme;
 use crate::components::text::{TextSize, TextStyle, ExpandableText};
 use crate::components::{Rectangle, Circle};
 
-use crate::interactions;
+use ptsd::interactions;
 
 /// Toggle
 #[derive(Debug, Component)]
@@ -37,10 +37,11 @@ impl _Toggle {
     pub fn new(theme: &Theme, is_selected: bool) -> Self {
         let height = 32.0;
         let offset = if is_selected {Offset::End} else {Offset::Start};
+        let colors = theme.colors();
 
         let (hc, bc) = match is_selected {
-            true => (theme.colors.text.heading, theme.colors.brand),
-            false => (theme.colors.background.primary, theme.colors.text.secondary)
+            true => (colors.get(ptsd::Text::Heading), colors.get(ptsd::Brand)),
+            false => (colors.get(ptsd::Background::Primary), colors.get(ptsd::Text::Secondary))
         };
 
         let background = Rectangle::new(bc, height / 2.0, None);
