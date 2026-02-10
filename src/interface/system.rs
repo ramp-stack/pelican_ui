@@ -63,7 +63,7 @@ impl KeyboardIcons {
         let actions = vec![
             // IconButton::keyboard(ctx, "emoji", |_ctx: &mut Context| ()),
             // IconButton::keyboard(ctx, "gif", |_ctx: &mut Context| ()),
-            GhostIconButton::new(theme, "photos", |_ctx: &mut Context| {}) //ctx.send(Request::Hardware(Hardware::PhotoPicker(sender.clone())))),
+            GhostIconButton::new(theme, "photos", |_ctx: &mut Context, _: &Theme| {}) //ctx.send(Request::Hardware(Hardware::PhotoPicker(sender.clone())))),
             // IconButton::keyboard(ctx, "camera", |_ctx: &mut Context| ()),
         ];
 
@@ -74,7 +74,7 @@ impl KeyboardIcons {
                 Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(1.0),  Padding::default()), 
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
-            GhostIconButton::new(theme, "down_arrow", |ctx: &mut Context| {
+            GhostIconButton::new(theme, "down_arrow", |ctx: &mut Context, _: &Theme| {
                 ctx.send(Request::Event(Box::new(ShowKeyboard(false))));
                 ctx.send(Request::Event(Box::new(event::TextInput::Focused(false))));
             }),

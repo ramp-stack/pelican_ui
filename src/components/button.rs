@@ -6,8 +6,9 @@ use prism::layout::{Wrap, Offset, Padding, Row, Size, Stack};
 
 use ptsd::interactions;
 use ptsd::theme::{Color, TextSize};
-use ptsd::utils::{Callback, ValidationFn};
+use ptsd::utils::ValidationFn;
 
+use crate::Callback;
 use crate::theme::{self, Variant, Theme, ButtonColorScheme};
 use crate::components::text::{Text, TextStyle};
 use crate::components::{Icon, Rectangle};
@@ -44,7 +45,7 @@ impl QuickActions {
 pub struct PrimaryButton(Stack, pub interactions::Button);
 impl OnEvent for PrimaryButton {}
 impl PrimaryButton {
-    pub fn new(theme: &Theme, label: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+    pub fn new(theme: &Theme, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Primary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -53,11 +54,13 @@ impl PrimaryButton {
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
         
-        PrimaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        PrimaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), callback))
     }
 
     pub fn default(theme: &Theme) -> Self { 
-        Self::new(theme, "Primary Button", |_: &mut Context| println!("Pressed...."))
+        Self::new(theme, "Primary Button", |_: &mut Context, _: &Theme| println!("Pressed...."))
     }
 }
 
@@ -75,12 +78,15 @@ impl PrimaryButton {
 pub struct SecondaryButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryButton {}
 impl SecondaryButton {
-    pub fn medium(theme: &Theme, icon: &str, label: &str, active_label: Option<&str>, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+    pub fn medium(theme: &Theme, icon: &str, label: &str, active_label: Option<&str>, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.disabled];
         let [default, hover, disabled] = buttons.map(|colors| Self::_medium(theme, icon, label, colors));
         let pressed = Self::_medium(theme, icon, active_label.unwrap_or(label), colors.pressed);
-        SecondaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
+
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        SecondaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), callback))
     }
 
     fn _medium(theme: &Theme, icon: &str, label: &str, colors: ButtonColorScheme) -> Button {
@@ -91,7 +97,7 @@ impl SecondaryButton {
         Button::new(drawables![icon, text], ButtonSize::Medium, ButtonWidth::Fit, Offset::Center, colors.background, colors.outline)
     }
 
-    pub fn large(theme: &Theme, label: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+    pub fn large(theme: &Theme, label: &str,  mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -99,11 +105,14 @@ impl SecondaryButton {
             let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             Button::new(drawables![text], ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.background, colors.outline)
         });
-        SecondaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
+
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        SecondaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), callback))
     }
 
     pub fn default(theme: &Theme) -> Self { 
-        Self::medium(theme, "edit", "Secondary", None, |_: &mut Context| println!("Pressed...."))
+        Self::medium(theme, "edit", "Secondary", None, |_: &mut Context, _: &Theme| println!("Pressed...."))
     }
 }
 
@@ -121,26 +130,32 @@ impl SecondaryButton {
 pub struct SecondaryIconButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryIconButton {}
 impl SecondaryIconButton {
-    pub fn large(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+    pub fn large(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             IconButton::new(theme, icon, ButtonStyle::Secondary, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
-        SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
+
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), callback))
     }
 
-    pub fn medium(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+    pub fn medium(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             IconButton::new(theme, icon, ButtonStyle::Secondary, ButtonSize::Medium, colors.background, colors.outline, colors.label)
         });
-        SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
+
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), callback))
     }
 
     pub fn default(theme: &Theme) -> Self { 
-        Self::medium(theme, "explore", |_: &mut Context| println!("Pressed...."))
+        Self::medium(theme, "explore", |_: &mut Context, _: &Theme| println!("Pressed...."))
     }
 }
 
@@ -158,17 +173,20 @@ impl SecondaryIconButton {
 pub struct GhostIconButton(Stack, pub interactions::Button);
 impl OnEvent for GhostIconButton {}
 impl GhostIconButton {
-    pub fn new(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+    pub fn new(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
         });
-        GhostIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), Box::new(on_click)))
+
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        GhostIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), callback))
     }
 
     pub fn default(theme: &Theme) -> Self { 
-        Self::new(theme, "left", |_: &mut Context| println!("Pressed...."))
+        Self::new(theme, "left", |_: &mut Context, _: &Theme| println!("Pressed...."))
     }
 }
 

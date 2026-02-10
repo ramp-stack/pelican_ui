@@ -5,6 +5,7 @@ use prism::canvas::Align;
 use prism::display::Bin;
 use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
 
+use crate::Callback;
 use crate::theme::{self, Theme};
 use crate::components::{Rectangle};
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
@@ -14,8 +15,9 @@ use crate::interface::system::MobileKeyboard;
 use crate::interface::navigation::{RootInfo, Navigator};
 
 use ptsd::interfaces::{Body, Navigator as PTSDNavigator};
-use ptsd::navigation::{Pages, NavigationEvent};
-use ptsd::utils::{Callback, ValidationFn};
+use ptsd::navigation::NavigationEvent;
+use ptsd::utils::ValidationFn;
+pub use ptsd::navigation::Pages;
 
 type OnEventFn = Box<dyn FnMut(&mut Box<dyn Drawable>, &mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>>;
 
@@ -235,13 +237,16 @@ impl Header {
 
     /// A `Header` preset used for in-flow pages.
     pub fn stack(theme: &Theme, title: &str, icon: Option<(String, Callback)>) -> Self {
-        let closure = |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Pop)));
+        let closure = |ctx: &mut Context, _: &Theme| {
+            println!("Attempting to return");
+            ctx.send(Request::event(NavigationEvent::Pop));
+        };
         Self::_new(theme, title, Some(("left".to_string(), Box::new(closure))), icon, TextSize::H4)
     }
 
     /// A `Header` preset used for end-of-flow pages.
     pub fn stack_end(theme: &Theme, title: &str) -> Self {
-        let closure = move |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Reset)));
+        let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Reset)));
         Self::_new(theme, title, Some(("close".to_string(), Box::new(closure))), None, TextSize::H4)
     }
 
@@ -282,7 +287,7 @@ impl OnEvent for HeaderIcon {}
 impl Default for HeaderIcon {fn default() -> Self {Self::none()}}
 
 impl HeaderIcon {
-    pub fn new(theme: &Theme, icon: &str, closure: impl FnMut(&mut Context) + 'static) -> Self {
+    pub fn new(theme: &Theme, icon: &str, closure: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(48.0), Size::Static(48.0), Padding::default());
         HeaderIcon{layout, icon: Some(GhostIconButton::new(theme, icon, closure))}
     }
@@ -310,7 +315,7 @@ impl Bumper {
     pub fn stack(
         theme: &Theme,
         label: Option<&str>, 
-        on_click: impl FnMut(&mut Context) + 'static, 
+        on_click: impl FnMut(&mut Context, &Theme) + 'static, 
         secondary: Option<(String, Callback)>, 
     ) -> Self {
         let mut content = drawables![PrimaryButton::new(theme, label.unwrap_or("Continue"), Box::new(on_click))];
@@ -321,7 +326,7 @@ impl Bumper {
 
     /// A `Bumper` preset used for end-of-flow pages.
     pub fn stack_end(theme: &Theme, exact_pages: Option<usize>) -> Self {
-        let closure = move |ctx: &mut Context| match exact_pages {
+        let closure = move |ctx: &mut Context, _: &Theme| match exact_pages {
             Some(num) => (0..num).for_each(|_| ctx.send(Request::Event(Box::new(NavigationEvent::Pop)))),
             None => ctx.send(Request::Event(Box::new(NavigationEvent::Reset)))
         };
@@ -342,8 +347,8 @@ impl Bumper {
 
     pub fn default(theme: &Theme) -> Self {
         Self::home(theme, 
-            ("Press me".to_string(), Box::new(|_: &mut Context| println!("Pressed...."))), 
-            Some(("No Press me".to_string(), Box::new(|_: &mut Context| println!("Pressed....")))), 
+            ("Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed...."))), 
+            Some(("No Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed....")))), 
         )
     }
 }

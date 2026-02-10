@@ -22,9 +22,9 @@ use std::sync::Arc;
 use pelican_ui::PelicanUI;
 
 use pelican_ui::interface::general::{Interface, Page, Header, Bumper, Content};
-use pelican_ui::interface::navigation::{RootInfo, NavigationEvent, AppPage};
+use pelican_ui::interface::navigation::{RootInfo, NavigationEvent, AppPage, Flow, FlowContainer};
 
-
+use pelican_ui::interface::general::Pages;
 // #[derive(Debug, Component)]
 // pub struct DemoApp8(Stack, Page);
 // impl OnEvent for DemoApp8 {}
@@ -75,6 +75,20 @@ use pelican_ui::interface::navigation::{RootInfo, NavigationEvent, AppPage};
 pub struct StateTest(String);
 
 #[derive(Debug, Component)]
+pub struct DemoFlow(Stack, Flow);
+impl OnEvent for DemoFlow {}
+impl FlowContainer for DemoFlow {
+    fn flow(&mut self) -> &mut Flow {&mut self.1}
+}
+impl DemoFlow {
+    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
+        let three = DemoApp3::new(ctx, theme);
+        let four = DemoApp4::new(ctx, theme);
+        DemoFlow(Stack::default(), Flow::new(vec![Box::new(three), Box::new(four)]))
+    }
+}
+
+#[derive(Debug, Component)]
 pub struct DemoApp2(Stack, Page);
 impl OnEvent for DemoApp2 {}
 impl AppPage for DemoApp2 {}
@@ -92,17 +106,10 @@ impl DemoApp2 {
         let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| false));
         let header = Header::home(theme, "Demo App", None);
         let bumper = Bumper::home(theme, 
-            ("Receive".to_string(), Box::new(|ctx: &mut Context| {
-                // if ctx.state.get::<StateTest>().unwrap().0 == "flamingo.png".to_string() {
-                //     ctx.state.get_mut_or_default::<StateTest>().0 = "seagull.png".to_string();
-                // } else if ctx.state.get::<StateTest>().unwrap().0 == "seagull.png".to_string() {
-                //     ctx.state.get_mut_or_default::<StateTest>().0 = "turtle.png".to_string();
-                // } else {
-                //     ctx.state.get_mut_or_default::<StateTest>().0 = "flamingo.png".to_string();
-                // }
-
-                // let demo = DemoApp8::new(ctx);
-                // ctx.send(Request::event(NavigationEvent::push(demo)))
+            ("Receive".to_string(), Box::new(|ctx: &mut Context, theme: &Theme| {
+                let flow = DemoFlow::new(ctx, theme);
+                println!("Attempting to navigate flowwwwmwwww");
+                ctx.send(Request::event(NavigationEvent::push(flow)));
             })),
             None,
         );
@@ -111,27 +118,57 @@ impl DemoApp2 {
     }
 }
 
+#[derive(Debug, Component)]
+pub struct DemoApp3(Stack, Page);
+impl OnEvent for DemoApp3 {}
+impl AppPage for DemoApp3 {}
+impl DemoApp3 {
+    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
+        let image: Arc<RgbaImage> = Arc::new(image::open(&format!("./seagull.png")).unwrap().into());
+        let img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
 
-// #[derive(Debug, Component)]
-// pub struct DemoApp3(Stack, Page);
-// impl OnEvent for DemoApp3 {}
-// impl AppPage for DemoApp3 {}
-// impl DemoApp3 {
-//     pub fn new(ctx: &mut Context) -> Self {
-//         let image: Arc<RgbaImage> = Arc::new(image::open("./seagull.png").unwrap().into());
-//         let img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
-//         let text = ExpandableText::default(ctx, "seagull.png");
+        let img = Listener::new(ctx, theme, img, |ctx: &mut Context, theme: &Theme, img: &mut Image, state: StateTest| {
+            let image: Arc<RgbaImage> = Arc::new(image::open(&format!("./{}", state.0.to_string())).unwrap().into());
+            *img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
+        });
 
-//         let content = Content::new(Offset::Start, drawables![img, text]);
-//         let header = Header::stack(ctx, "Seagull", None);
-//         let bumper = Bumper::stack(ctx, None, |ctx: &mut Context| {
-//             let page = DemoApp4::new(ctx);
-//             ctx.send(Request::event(NavigationEvent::push(page)))
-//         }, None, None);
-//         Self(Stack::default(), Page::new(header, content, Some(bumper)))
-//     }
-// }
+        let text = ExpandableText::default(theme, "seagull.png");
+        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| false));
+        let header = Header::stack(theme, "Seagull", None);
+        let bumper = Bumper::stack(theme, None, |ctx: &mut Context, theme: &Theme| {
+            println!("Pressed");
+            ctx.send(Request::event(NavigationEvent::Next));
+        }, None);
+        let page = Page::new(header, content, Some(bumper));
+        Self(Stack::default(), page)
+    }
+}
 
+
+#[derive(Debug, Component)]
+pub struct DemoApp4(Stack, Page);
+impl OnEvent for DemoApp4 {}
+impl AppPage for DemoApp4 {}
+impl DemoApp4 {
+    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
+        let image: Arc<RgbaImage> = Arc::new(image::open(&format!("./turtle.png")).unwrap().into());
+        let img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
+
+        let img = Listener::new(ctx, theme, img, |ctx: &mut Context, theme: &Theme, img: &mut Image, state: StateTest| {
+            let image: Arc<RgbaImage> = Arc::new(image::open(&format!("./{}", state.0.to_string())).unwrap().into());
+            *img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
+        });
+
+        let text = ExpandableText::default(theme, "turtle.png");
+        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| false));
+        let header = Header::stack(theme, "Turtle", None);
+        let bumper = Bumper::stack(theme, None, |ctx: &mut Context, theme: &Theme| {
+            ctx.send(Request::event(NavigationEvent::Next));
+        }, None);
+        let page = Page::new(header, content, Some(bumper));
+        Self(Stack::default(), page)
+    }
+}
 
 // #[derive(Debug, Component)]
 // pub struct DemoApp4(Stack, Page);
@@ -165,12 +202,18 @@ impl DemoApp2 {
 
 ramp::run!{|ctx: &mut Context, assets: Assets| {
     // ctx.state.insert(StateTest("flamingo.png".to_string()));
-    PelicanUI::new(|theme: &Theme| {
-        let demo2 = RootInfo::icon("explore", "Demo App 2", Box::new(DemoApp2::new(ctx, theme)));
-        Interface::new(theme, vec![demo2], Box::new(|page: &mut Box<dyn Drawable>, ctx: &mut Context, e: Box<dyn Event>| {
-            // if e.downcast_ref::<TickEvent>().is_some() {println!("PAGE {:?}", page);}
-            vec![e]
-        }))
-    })
+    // PelicanUI::new(|theme: &Theme| {
+    //     let demo2 = RootInfo::icon("explore", "Demo App 2", Box::new(DemoApp2::new(ctx, theme)));
+    //     Interface::new(theme, vec![demo2], Box::new(|page: &mut Box<dyn Drawable>, ctx: &mut Context, e: Box<dyn Event>| {
+    //         // if e.downcast_ref::<TickEvent>().is_some() {println!("PAGE {:?}", page);}
+    //         vec![e]
+    //     }))
+    // })
     // PrimaryButton::default(&Theme::default())
+    let theme = Theme::default();
+    let home = DemoApp2::new(ctx, &theme);
+    let three = DemoApp3::new(ctx, &theme);
+    let four = DemoApp4::new(ctx, &theme);
+    let flow = Flow::new(vec![Box::new(three), Box::new(four)]);
+    Pages::new(vec![("home".to_string(), Box::new(home))])
 }}

@@ -122,7 +122,7 @@ impl _InputContent {
         button: Option<(&str, InputCallback)>,
     ) -> Self {
         let (button, on_submit) = button.map(|(icon, cb)| {
-            let btn = SecondaryIconButton::medium(theme, icon, |ctx: &mut Context| ctx.send(Request::Event(Box::new(TextInputEvent::Submit))));
+            let btn = SecondaryIconButton::medium(theme, icon, |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(TextInputEvent::Submit))));
             (Some(btn), Some(cb))
         }).unwrap_or((None, None));
         

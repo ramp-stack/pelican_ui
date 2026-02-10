@@ -47,14 +47,17 @@ impl ListItem {
         right: Option<TitleSubtitle>,
         icon_l: Option<&'static str>,
         icon_r: Option<&'static str>,
-        on_click: impl FnMut(&mut Context) + 'static,
+        mut on_click: impl FnMut(&mut Context, &Theme) + 'static,
     ) -> Self {
         let list_item = ListItemContent::new(theme, avatar, left, right, icon_l, icon_r);
-        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, Box::new(on_click)))
+
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, callback))
     }
 
     pub fn default(theme: &Theme, ) -> Self {
-        Self::new(theme, None, ListItemInfoLeft::new("List Item", Some("Click me for details"), None, None), None, None, Some("forward"), |_: &mut Context| println!("Pressed..."))
+        Self::new(theme, None, ListItemInfoLeft::new("List Item", Some("Click me for details"), None, None), None, None, Some("forward"), |_: &mut Context, _: &Theme| println!("Pressed..."))
     }
 }
 

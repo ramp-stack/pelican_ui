@@ -39,20 +39,21 @@ impl Slider {
         start: f32,
         label: Option<&str>,
         description: Option<&str>,
-        on_change: impl FnMut(&mut Context, f32) + 'static,
+        mut on_change: impl FnMut(&mut Context, &Theme, f32) + 'static,
     ) -> Self {
         let colors = theme.colors();
         let background = Rectangle::new(colors.get(ptsd::Outline::Primary), 3.0, None);
         let foreground = Rectangle::new(colors.get(ptsd::Brand), 3.0, None);
         let handle = Circle::new(18.0, colors.get(ptsd::Brand), false);
-        Slider(Column::start(8.0),
-            label.map(|l| Text::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None)),
-            description.map(|t| ExpandableText::new(theme, t, TextSize::Md, TextStyle::Primary, Align::Left, None)),
-            interactions::Slider::new(start, background, foreground, handle, on_change),
-        )
+        let label = label.map(|l| Text::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None));
+        let description = description.map(|t| ExpandableText::new(theme, t, TextSize::Md, TextStyle::Primary, Align::Left, None));
+
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context, p: f32| (on_change)(ctx, &theme, p));
+        Slider(Column::start(8.0), label, description, interactions::Slider::new(start, background, foreground, handle, callback))
     }
 
     pub fn default(theme: &Theme) -> Self {
-        Self::new(theme, 0.5, Some("Slider"), None, |_: &mut Context, p: f32| println!("Slider moved... {p:?}"))
+        Self::new(theme, 0.5, Some("Slider"), None, |_: &mut Context, _: &Theme, p: f32| println!("Slider moved... {p:?}"))
     }
 }

@@ -16,17 +16,19 @@ use ptsd::interactions;
 pub struct Toggle(Column, ExpandableText, pub interactions::Toggle);
 impl OnEvent for Toggle {}
 impl Toggle {
-    pub fn new(theme: &Theme, label: &str, is_selected: bool, on_click: impl FnMut(&mut Context, bool) + 'static) -> Self {
+    pub fn new(theme: &Theme, label: &str, is_selected: bool, mut on_click: impl FnMut(&mut Context, &Theme, bool) + 'static) -> Self {
         let label = ExpandableText::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None);
 
         let on = _Toggle::new(theme, true);
         let off = _Toggle::new(theme, false); 
-
-        Toggle(Column::start(16.0), label, interactions::Toggle::new(on, off, is_selected, on_click))
+        
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context, is_on: bool| (on_click)(ctx, &theme, is_on));
+        Toggle(Column::start(16.0), label, interactions::Toggle::new(on, off, is_selected, callback))
     }
 
     pub fn default(theme: &Theme) -> Self {
-        Self::new(theme, "Toggle", true, |_: &mut Context, is_on: bool| println!("Toggle is now {is_on}"))
+        Self::new(theme, "Toggle", true, |_: &mut Context, _: &Theme, is_on: bool| println!("Toggle is now {is_on}"))
     }
 }
 

@@ -4,8 +4,8 @@ use prism::drawable::Component;
 use prism::layout::{Stack, Column};
 
 use ptsd::interactions;
-use ptsd::utils::Callback;
 
+use crate::Callback;
 use crate::components::list_item::ListItem;
 use crate::components::list_item::ListItemInfoLeft;
 use crate::theme::Theme;
@@ -24,7 +24,7 @@ impl Checkbox {
     }
 
     pub fn default(theme: &Theme) -> Self {
-        Self::new(theme, "Checkbox", None, false, Box::new(|_| println!("Checked")), Box::new(|_| println!("Un-checked")))
+        Self::new(theme, "Checkbox", None, false, Box::new(|_, _| println!("Checked")), Box::new(|_, _| println!("Un-checked")))
     }
 }
 

@@ -38,3 +38,6 @@ impl<D: Drawable, T: Hash + Debug + Clone + 'static> Listener<D, T> {
         Listener(Stack::default(), prism::Listener::new(ctx, inner, updated_on))
     }
 }
+
+
+pub type Callback = Box<dyn FnMut(&mut Context, &Theme)>;

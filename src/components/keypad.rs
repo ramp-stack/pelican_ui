@@ -47,7 +47,7 @@ impl GhostButtonRow {
     pub fn new(theme: &Theme, data: Vec<(Option<char>, Option<String>, Key)>) -> Self {
         GhostButtonRow(Row::center(16.0), data.into_iter().map(|(c, i, key)| {
             let label = c.map(|character| character.to_string());
-            GhostButton::new(theme, label.as_deref(), i.as_deref(), move |ctx: &mut Context| {
+            GhostButton::new(theme, label.as_deref(), i.as_deref(), move |ctx: &mut Context, _: &Theme| {
                 ctx.send(Request::Event(Box::new(KeyboardEvent{state: KeyboardState::Pressed, key: key.clone()})));
             })
         }).collect::<Vec<GhostButton>>())
@@ -58,7 +58,7 @@ impl GhostButtonRow {
 struct GhostButton(Stack, pub interactions::Button);
 impl OnEvent for GhostButton {}
 impl GhostButton {
-    fn new(theme: &Theme, label: Option<&str>, icon: Option<&str>, on_click: impl FnMut(&mut Context) + 'static) -> Self {
+    fn new(theme: &Theme, label: Option<&str>, icon: Option<&str>, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), theme::Variant::Ghost);
         let default =  {
             let font_size = ButtonSize::Large.font();
@@ -69,6 +69,8 @@ impl GhostButton {
             Button::new(drawables, ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.default.background, colors.default.outline)
         };
         
-        GhostButton(Stack::default(), interactions::Button::new(default, None::<Button>, None::<Button>, None::<Button>, Box::new(on_click)))
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        GhostButton(Stack::default(), interactions::Button::new(default, None::<Button>, None::<Button>, None::<Button>, callback))
     }
 }

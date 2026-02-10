@@ -7,7 +7,7 @@ use prism::layout::{Area, Row, Column, Size, Padding, Offset, Stack};
 
 use ptsd::interactions;
 
-pub use ptsd::navigation::{NavigationEvent, AppPage};
+pub use ptsd::navigation::{NavigationEvent, AppPage, Flow, FlowContainer};
 
 use crate::theme::{self, Theme, Color, Variant};
 use crate::components::{Icon, AspectRatioImage, Rectangle};
@@ -49,7 +49,7 @@ impl RootInfo {
 pub struct NavigatorSelectable(Stack, interactions::Selectable);
 impl OnEvent for NavigatorSelectable {}
 impl NavigatorSelectable {
-    pub fn desktop_icon(theme: &Theme, icon: &str, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
+    pub fn desktop_icon(theme: &Theme, icon: &str, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
@@ -58,10 +58,13 @@ impl NavigatorSelectable {
             let icon = Icon::new(theme, icon, Some(colors.label), icon_size);
             Button::new(drawables![icon, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
-        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, on_click, group_id))
+
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, callback, group_id))
     }
 
-    pub fn desktop_avatar(theme: &Theme, avatar: AvatarContent, label: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
+    pub fn desktop_avatar(theme: &Theme, avatar: AvatarContent, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
@@ -69,15 +72,20 @@ impl NavigatorSelectable {
             let avatar = Avatar::new(theme, avatar.clone(), None, false, AvatarSize::Xs, None);
             Button::new(drawables![avatar, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
-        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, on_click, group_id))
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, callback, group_id))
     }
 
-    pub fn mobile(theme: &Theme, icon: &str, on_click: impl FnMut(&mut Context) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
+    pub fn mobile(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
             IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
         });
-        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, on_click, group_id))
+
+        let theme = theme.clone();
+        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, callback, group_id))
     }
 }
 
@@ -127,7 +135,7 @@ impl Navigator {
 
         navigation.into_iter().for_each(|info| {
             let root = info.label.to_string();
-            let closure = move |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Root(root.clone()))));
+            let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Root(root.clone()))));
 
             match info.avatar {
                 Some(a) => {
@@ -164,7 +172,7 @@ impl Navigator {
         let group_id = uuid::Uuid::new_v4();
         let mut tabs = Vec::new();
         for (i, info) in navigation.into_iter().enumerate() {
-            let closure = move |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Root(info.label.to_string()))));
+            let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Root(info.label.to_string()))));
             tabs.push(NavigatorSelectable::mobile(theme, &info.icon, closure, 0 == i, group_id));
         }
 
@@ -182,7 +190,7 @@ impl Navigator {
 
         for (index, info) in navigation.into_iter().enumerate() {
             let root = info.label.to_string();
-            let closure = move |ctx: &mut Context| ctx.send(Request::Event(Box::new(NavigationEvent::Root(root.clone()))));
+            let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Root(root.clone()))));
             buttons.push(NavigatorSelectable::desktop_icon(theme, &info.icon, &info.label, closure, 0 == index, group_id));
         }
 

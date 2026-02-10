@@ -7,8 +7,7 @@ use prism::drawable::{Component, SizedTree};
 use crate::theme::Theme;
 use crate::theme::Color;
 use crate::components::{Icon, Circle};
-
-use ptsd::utils::Callback;
+use crate::Callback;
 
 use image::RgbaImage;
 use std::sync::Arc;
@@ -78,12 +77,13 @@ impl Avatar {
 
 impl OnEvent for Avatar {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.as_any_mut().downcast_mut::<MouseEvent>() {
-            if let Some(on_click) = &mut self.on_click {
-                ctx.send(Request::Hardware(Hardware::Haptic));
-                (on_click)(ctx)
-            }
-        } else if event.as_any().downcast_ref::<TickEvent>().is_some() {
+        // TODO: should be ina interactions button instead
+        // if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.as_any_mut().downcast_mut::<MouseEvent>() {
+        //     if let Some(on_click) = &mut self.on_click {
+        //         ctx.send(Request::Hardware(Hardware::Haptic));
+        //         (on_click)(ctx, )
+        //     }
+        if event.as_any().downcast_ref::<TickEvent>().is_some() {
             // TODO: allow this
             // let (circle_icon, image) = match &self.content {
             //     AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (self._size.get(), self._size.get()), 0.0), image: image.clone(), color: None})),
