@@ -24,12 +24,12 @@ type OnEventFn = Box<dyn FnMut(&mut Box<dyn Drawable>, &mut Context, Box<dyn Eve
 /// The top-level interface of an app built with Pelican.
 ///
 /// This interface automatically adapts to the platform.
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Interface {
     layout: Stack,
     background: Rectangle,
     inner: ptsd::interfaces::Interface,
-    #[skip] pub on_event: Option<OnEventFn>
+    // #[skip] pub on_event: Option<OnEventFn>
 }
 
 impl OnEvent for Interface {
@@ -38,10 +38,12 @@ impl OnEvent for Interface {
             ctx.send(Request::event(event::Button::Disable(*disable)));
         }
 
-        let mut closure = self.on_event.take().expect("on_event missing");
-        let result = (closure)(self.inner(), ctx, event);
-        self.on_event = Some(closure);
-        result
+        // let mut closure = self.on_event.take().expect("on_event missing");
+        // let result = (closure)(self.inner(), ctx, event);
+        // self.on_event = Some(closure);
+        // result
+
+        vec![event]
     }
 }
 
@@ -71,7 +73,7 @@ impl Interface {
                     ptsd::interfaces::Interface::desktop(navigator, Screen::desktop(theme, Pages::new(pages)))
                 }
             },
-            on_event: Some(on_event),
+            // on_event: Some(on_event),
         }
     }
 
@@ -87,7 +89,7 @@ impl Interface {
 /// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/page.png"
 ///      alt="Page Example"
 ///      width="250">
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct Page {
     layout: Column,
     pub header: Header,
@@ -124,7 +126,7 @@ impl Page {
 /// let text = Text::new(ctx, "Set up a name, description, and team before starting your project.", TextStyle::Primary, text_size, Align::Center);
 /// let content = Content::new(ctx, Offset::Center, vec![Box::new(text)]);
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct Content {
     layout: Column,
     pub children: Vec<Box<dyn Drawable>>,
@@ -219,7 +221,7 @@ impl OnEvent for Content {
 ///      width="250">
 ///
 /// Header components can only be used inside [`Page`] components.
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct Header {
     layout: Row,
     pub left: HeaderIcon,
@@ -231,12 +233,12 @@ impl OnEvent for Header {}
 
 impl Header {
     /// A `Header` preset used for home pages.
-    pub fn home(theme: &Theme, title: &str, icon: Option<(String, Callback)>) -> Self {
+    pub fn home(theme: &Theme, title: &str, icon: Option<(String, Box<dyn Callback>)>) -> Self {
         Self::_new(theme, title, None, icon, TextSize::H3)
     }
 
     /// A `Header` preset used for in-flow pages.
-    pub fn stack(theme: &Theme, title: &str, icon: Option<(String, Callback)>) -> Self {
+    pub fn stack(theme: &Theme, title: &str, icon: Option<(String, Box<dyn Callback>)>) -> Self {
         let closure = |ctx: &mut Context, _: &Theme| {
             println!("Attempting to return");
             ctx.send(Request::event(NavigationEvent::Pop));
@@ -253,8 +255,8 @@ impl Header {
     fn _new(
         theme: &Theme,
         title: &str,
-        l_icon: Option<(String, Callback)>,
-        r_icon: Option<(String, Callback)>,
+        l_icon: Option<(String, Box<dyn Callback>)>,
+        r_icon: Option<(String, Box<dyn Callback>)>,
         size: TextSize,
     ) -> Self {
         let clean: String = title.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
@@ -278,7 +280,7 @@ impl Header {
 /// 
 /// Optionally contains an icon, otherwise just reserves the space.
 /// These are only to be used in [`Header`] components.
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct HeaderIcon {
     layout: Stack,
     pub icon: Option<GhostIconButton>
@@ -287,7 +289,7 @@ impl OnEvent for HeaderIcon {}
 impl Default for HeaderIcon {fn default() -> Self {Self::none()}}
 
 impl HeaderIcon {
-    pub fn new(theme: &Theme, icon: &str, closure: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
+    pub fn new(theme: &Theme, icon: &str, closure: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(48.0), Size::Static(48.0), Padding::default());
         HeaderIcon{layout, icon: Some(GhostIconButton::new(theme, icon, closure))}
     }
@@ -298,13 +300,13 @@ impl HeaderIcon {
     }
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 pub struct Bumper {layout: Stack, background: Rectangle, content: BumperContent}
 impl OnEvent for Bumper {}
 
 impl Bumper {
     /// A `Bumper` preset used for home pages.
-    pub fn home(theme: &Theme, first: (String, Callback), second: Option<(String, Callback)>) -> Self {
+    pub fn home(theme: &Theme, first: (String, Box<dyn Callback>), second: Option<(String, Box<dyn Callback>)>) -> Self {
         let mut content = drawables![PrimaryButton::new(theme, &first.0, Box::new(first.1))];
         if let Some((l, c)) = second { content.push(Box::new(PrimaryButton::new(theme, &l, c))); }
         let (layout, background) = Self::layout(theme);
@@ -315,8 +317,8 @@ impl Bumper {
     pub fn stack(
         theme: &Theme,
         label: Option<&str>, 
-        on_click: impl FnMut(&mut Context, &Theme) + 'static, 
-        secondary: Option<(String, Callback)>, 
+        on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, 
+        secondary: Option<(String, Box<dyn Callback>)>, 
     ) -> Self {
         let mut content = drawables![PrimaryButton::new(theme, label.unwrap_or("Continue"), Box::new(on_click))];
         if let Some((l, c)) = secondary { content.push(Box::new(SecondaryButton::large(theme, &l, c))); }
@@ -353,7 +355,7 @@ impl Bumper {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct BumperContent { layout: Row, children: Vec<Box<dyn Drawable>> }
 impl OnEvent for BumperContent {}
 impl BumperContent {
@@ -387,9 +389,17 @@ impl Event for InterfaceEvent {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct Screen(Stack, _Screen);
-impl OnEvent for Screen {}
+impl OnEvent for Screen {
+    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if let Some(event) = event.downcast_ref::<NavigationEvent>() {
+            println!("Screen:: EVENT {:?}", event);
+        }
+
+        vec![event]
+    }
+}
 impl Screen {
     pub fn desktop(theme: &Theme, pages: Pages) -> Self {
         let color = theme.colors().get(ptsd::Outline::Secondary);
@@ -418,7 +428,7 @@ impl Body for Screen {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub enum _Screen {
     Mobile {_l: Stack, pages: Pages},
     Desktop {_l: Stack, pages: Pages, border: Bin<Stack, Rectangle>},

@@ -20,7 +20,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum ButtonState {Default, Pressed}
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 pub struct MobileKeyboard(Stack, Rectangle, KeyboardContent);
 impl OnEvent for MobileKeyboard {}
 
@@ -36,7 +36,7 @@ impl MobileKeyboard {
     }
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 struct KeyboardHeader(Column, KeyboardIcons, Bin<Stack, Rectangle>);
 impl OnEvent for KeyboardHeader {}
 
@@ -50,11 +50,11 @@ impl KeyboardHeader {
     }
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 pub struct KeyboardActions(Stack, Vec<GhostIconButton>);
 impl OnEvent for KeyboardActions {}
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 struct KeyboardIcons(Row, Option<KeyboardActions>, Bin<Stack, Rectangle>, GhostIconButton);
 
 impl KeyboardIcons {
@@ -95,8 +95,8 @@ impl OnEvent for KeyboardIcons {
 
 
 // TODO: remove receiver use event instead, default impl for PartialEq
-#[derive(Component, Debug)]
-struct KeyboardContent(Column, KeyboardHeader, KeyboardRow, KeyboardRow, KeyboardRow, KeyboardRow, #[skip] Receiver<u8>);
+#[derive(Component, Debug, Clone)]
+struct KeyboardContent(Column, KeyboardHeader, KeyboardRow, KeyboardRow, KeyboardRow, KeyboardRow);
 
 impl KeyboardContent {
     fn new(theme: &Theme, actions: bool) -> Self {
@@ -108,7 +108,6 @@ impl KeyboardContent {
             KeyboardRow::middle(theme),
             KeyboardRow::bottom(theme, sender.clone()),
             KeyboardRow::modifier(theme, sender),
-            receiver
         )
     }
 
@@ -124,19 +123,19 @@ impl KeyboardContent {
 
 impl OnEvent for KeyboardContent {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
-            match self.6.try_recv() {
-                Ok(0) => {println!("CAPSLOCK"); self.update();},
-                Ok(1) => {println!("PAGINATOR"); self.update();},
-                _ => {}
-            }
-        }
+        // if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
+        //     match self.6.try_recv() {
+        //         Ok(0) => {println!("CAPSLOCK"); self.update();},
+        //         Ok(1) => {println!("PAGINATOR"); self.update();},
+        //         _ => {}
+        //     }
+        // }
 
         vec![event]
     }
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 struct KeyRow(Row, Vec<Key>);
 impl OnEvent for KeyRow {}
 
@@ -149,7 +148,7 @@ impl KeyRow {
     fn keys(&mut self) -> &mut Vec<Key> {&mut self.1}
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 struct KeyboardRow(Row, Option<Capslock>, Option<Paginator>, Option<KeyRow>, Option<Key>, Option<Key>);
 // Capslock, Paginator, Character Row, Spacebar, Return
 impl OnEvent for KeyboardRow {}
@@ -210,7 +209,7 @@ impl KeyboardRow {
     fn paginator(&mut self) -> &mut Option<Paginator> {&mut self.2}
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 struct Key(Stack, KeyContent, #[skip] ButtonState, #[skip] WinitKey);
 
 impl Key {
@@ -260,7 +259,7 @@ impl OnEvent for Key {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 struct Capslock(Stack, KeyContent, #[skip] ButtonState, #[skip] bool, #[skip] Sender<u8>);
 
 impl Capslock {
@@ -305,7 +304,7 @@ impl OnEvent for Capslock {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 struct Paginator(Stack, KeyContent, #[skip] ButtonState, #[skip] u32, #[skip] Sender<u8>);
 
 impl Paginator {
@@ -362,7 +361,7 @@ impl OnEvent for Paginator {
     }
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 struct KeyContent(Stack, Rectangle, KeyCharacter);
 impl OnEvent for KeyContent {}
 
@@ -380,7 +379,7 @@ impl KeyContent {
     fn character(&mut self) -> &mut KeyCharacter {&mut self.2}
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 struct KeyCharacter(Row, Option<Image>, Option<Text>, Option<Text>, Option<Text>);
 impl OnEvent for KeyCharacter {}
 

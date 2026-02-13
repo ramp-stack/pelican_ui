@@ -35,7 +35,7 @@ use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 ///     |ctx: &mut Context| println!("Clicked Wi-Fi")
 /// );
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct ListItem(Stack, interactions::Button);
 impl OnEvent for ListItem {}
 
@@ -47,7 +47,7 @@ impl ListItem {
         right: Option<TitleSubtitle>,
         icon_l: Option<&'static str>,
         icon_r: Option<&'static str>,
-        mut on_click: impl FnMut(&mut Context, &Theme) + 'static,
+        mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static,
     ) -> Self {
         let list_item = ListItemContent::new(theme, avatar, left, right, icon_l, icon_r);
 
@@ -61,7 +61,7 @@ impl ListItem {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct ListItemContent(Row, Option<Image>, Option<Avatar>, ListItemData, Option<Image>);
 impl OnEvent for ListItemContent {}
 
@@ -85,7 +85,7 @@ impl ListItemContent {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct ListItemData(Row, LeftData, Option<RightData>);
 impl OnEvent for ListItemData {}
 
@@ -95,7 +95,7 @@ impl ListItemData {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct LeftData(Column, TitleRow, Option<ExpandableText>, Option<ExpandableText>);
 impl OnEvent for LeftData {}
 
@@ -108,7 +108,7 @@ impl LeftData {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct TitleRow(Row, ExpandableText, Option<Image>);
 impl OnEvent for TitleRow {}
 
@@ -121,7 +121,7 @@ impl TitleRow {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct RightData(Column, Text, Option<Text>);
 impl OnEvent for RightData {}
 
@@ -133,6 +133,7 @@ impl RightData {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct ListItemInfoLeft {
     title: TitleSubtitle,
     flair: Option<(&'static str, Color)>,
@@ -149,7 +150,7 @@ impl ListItemInfoLeft {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct ListItemGroup(Column, Vec<ListItem>);
 impl OnEvent for ListItemGroup {}
 
@@ -160,7 +161,7 @@ impl ListItemGroup {
 }
 
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct ListItemSection(Column, Option<ExpandableText>, ListItemGroup);
 impl OnEvent for ListItemSection {}
 impl ListItemSection {

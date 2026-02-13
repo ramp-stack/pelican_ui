@@ -25,7 +25,7 @@ use quircs::Quirc;
 /// ```rust
 /// let scanner = QRCodeScanner::new(&mut ctx);
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct QRCodeScanner(
     Stack, 
     Option<Image>, 
@@ -91,7 +91,7 @@ impl OnEvent for QRCodeScanner {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct QRGuide(Stack, Option<Rectangle>, Rectangle, Option<Message>);
 impl OnEvent for QRGuide {}
 
@@ -111,7 +111,7 @@ impl QRGuide {
     pub fn background(&mut self) -> &mut Option<Rectangle> {&mut self.1}
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct Message(Column, Image, Text);
 impl OnEvent for Message {}
 

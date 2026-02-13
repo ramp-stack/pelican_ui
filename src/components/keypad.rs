@@ -11,7 +11,7 @@ use crate::components::Icon;
 use crate::components::text::{Text, TextStyle};
 use crate::components::button::{ButtonWidth, ButtonSize, Button};
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct Keypad(Column, Vec<GhostButtonRow>);
 impl OnEvent for Keypad {}
 
@@ -39,7 +39,7 @@ impl KeypadButton {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct GhostButtonRow(Row, Vec<GhostButton>);
 impl OnEvent for GhostButtonRow {}
 
@@ -54,11 +54,11 @@ impl GhostButtonRow {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct GhostButton(Stack, pub interactions::Button);
 impl OnEvent for GhostButton {}
 impl GhostButton {
-    fn new(theme: &Theme, label: Option<&str>, icon: Option<&str>, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
+    fn new(theme: &Theme, label: Option<&str>, icon: Option<&str>, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), theme::Variant::Ghost);
         let default =  {
             let font_size = ButtonSize::Large.font();

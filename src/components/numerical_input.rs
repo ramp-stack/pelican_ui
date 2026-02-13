@@ -10,7 +10,7 @@ use crate::components::Keypad;
 use crate::components::text::{Text, TextStyle, TextSize};
 use crate::interactions::{SlotType, self};
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct NumericalInput(Column, Bin<Stack, _NumericalInput>, Option<Keypad>, #[skip] bool);
 impl OnEvent for NumericalInput { 
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
@@ -60,7 +60,7 @@ impl NumericalInput {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub enum _NumericalInput {
     Currency{layout: Stack, input: CurrencyInput},
     Date{layout: Stack, input: DateInput},
@@ -76,7 +76,7 @@ impl _NumericalInput {
 }
 
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct CurrencyInput(Column, interactions::NumericalInput, pub Text);
 impl OnEvent for CurrencyInput { }
 
@@ -96,7 +96,7 @@ impl CurrencyInput {
 }
 
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct DateInput(Column, interactions::NumericalInput, pub Text);
 impl OnEvent for DateInput {}
 
@@ -120,7 +120,7 @@ impl DateInput {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct TimeInput(Column, interactions::NumericalInput, pub Text);
 impl OnEvent for TimeInput {}
 

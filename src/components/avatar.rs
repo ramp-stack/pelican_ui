@@ -4,10 +4,11 @@ use prism::layout::{Stack, Offset, Size, Padding};
 use prism::{Context, Hardware, Request};
 use prism::drawable::{Component, SizedTree};
 
+use ptsd::utils::Callback;
+
 use crate::theme::Theme;
 use crate::theme::Color;
 use crate::components::{Icon, Circle};
-use crate::Callback;
 
 use image::RgbaImage;
 use std::sync::Arc;
@@ -31,13 +32,13 @@ use std::sync::Arc;
 ///     None
 /// );
 /// ```
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct Avatar {
     _layout: Stack,
     _avatar: PrimaryAvatar,
     _flair: Option<Flair>,
     #[skip] _size: AvatarSize,
-    #[skip] on_click: Option<Callback>,
+    #[skip] on_click: Option<Box<dyn Callback>>,
     #[skip] pub content: AvatarContent,
     #[skip] pub flair: Option<(String, AvatarIconStyle)>,
     #[skip] pub outline: bool,
@@ -56,7 +57,7 @@ impl Avatar {
         flair: Option<(String, AvatarIconStyle)>, 
         outline: bool, 
         size: AvatarSize,
-        on_click: Option<Callback>
+        on_click: Option<Box<dyn Callback>>
     ) -> Self {
         Avatar {
             _layout: Stack(Offset::End, Offset::End, Size::Fit, Size::Fit, Padding::default()),
@@ -99,7 +100,7 @@ impl OnEvent for Avatar {
     }
 }
 
-#[derive(Component, Debug, PartialEq)]
+#[derive(Clone, Component, Debug, PartialEq)]
 struct PrimaryAvatar(Stack, Option<AvatarIcon>, Option<Image>, Option<Shape>);
 impl OnEvent for PrimaryAvatar {}
 
@@ -117,7 +118,7 @@ impl PrimaryAvatar {
     }
 }
 
-#[derive(Debug, Component, PartialEq)]
+#[derive(Clone, Debug, Component, PartialEq)]
 struct AvatarIcon(Stack, Shape, Image);
 impl OnEvent for AvatarIcon {}
 impl AvatarIcon {
@@ -132,7 +133,7 @@ impl AvatarIcon {
     }
 }
 
-#[derive(Debug, Component, PartialEq)]
+#[derive(Debug, Component, PartialEq, Clone)]
 struct Flair(Stack, AvatarIcon, Shape);
 impl OnEvent for Flair {}
 impl Flair {

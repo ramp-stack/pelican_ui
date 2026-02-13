@@ -24,7 +24,7 @@ use qrcode::{QrCode, EcLevel};
 /// ```rust
 /// let qr = QRCode::new(ctx, "https://ramp-stack.com/pelican_ui");
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct QRCode(Stack, Rectangle, Image, Bin<Stack, Image>);
 impl OnEvent for QRCode {}
 

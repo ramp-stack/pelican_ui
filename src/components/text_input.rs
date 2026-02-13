@@ -7,6 +7,8 @@ use prism::display::{EitherOr, Opt, Bin};
 
 use ptsd::interactions;
 
+use std::sync::{Arc, Mutex};
+
 use crate::theme::{Theme, Color};
 
 use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableText};
@@ -32,7 +34,7 @@ use crate::components::button::SecondaryIconButton;
 ///     None,
 /// );
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct TextInput {
     layout: Column,
     label: Option<Text>,
@@ -41,7 +43,7 @@ pub struct TextInput {
     #[skip] pub error: Option<String>,
 }
 
-type InputCallback = Box<dyn FnMut(&mut Context, &mut String)>;
+type InputCallback = Arc<Mutex<dyn FnMut(&mut Context, &mut String) + 'static>>;
 
 impl TextInput {
     pub fn new(
@@ -97,7 +99,7 @@ impl OnEvent for TextInput {
     } 
 }
 
-#[derive(Component)]
+#[derive(Component, Clone)]
 struct _InputContent {
     layout: Row,
     default: Opt<Bin<Stack, TextEditor>>,
@@ -126,7 +128,7 @@ impl _InputContent {
             (Some(btn), Some(cb))
         }).unwrap_or((None, None));
         
-        let default = TextEditor::new(theme, value.unwrap_or_default(), TextSize::Md, TextStyle::Primary, Align::Left, Box::new(|_, _| {})); 
+        let default = TextEditor::new(theme, value.unwrap_or_default(), TextSize::Md, TextStyle::Primary, Align::Left); 
         let empty = ExpandableText::new(theme, placeholder.unwrap_or("Enter text..."), TextSize::Md, TextStyle::Secondary, Align::Left, None);
         _InputContent { 
             layout: Row::new(0.0, Offset::End, Size::Fit, Padding(16.0, 8.0, 8.0, 8.0)), 
@@ -163,7 +165,7 @@ impl OnEvent for _InputContent {
                 self.empty.display(self.value.is_empty());
             }
         } else if let Some(TextInputEvent::Submit) = event.downcast_ref::<TextInputEvent>() && let Some(on_submit) = &mut self.on_submit {
-            (on_submit)(ctx, &mut self.value);
+            if let Ok(mut cb) = on_submit.lock() { (cb)(ctx, &mut self.value); }
         }
         vec![event]
     }

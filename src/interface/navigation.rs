@@ -16,7 +16,7 @@ use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, IconButton};
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RootInfo {
     pub(crate) icon: String,
     pub(crate) label: String,
@@ -45,11 +45,11 @@ impl RootInfo {
 }
 
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct NavigatorSelectable(Stack, interactions::Selectable);
 impl OnEvent for NavigatorSelectable {}
 impl NavigatorSelectable {
-    pub fn desktop_icon(theme: &Theme, icon: &str, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
+    pub fn desktop_icon(theme: &Theme, icon: &str, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
@@ -60,11 +60,11 @@ impl NavigatorSelectable {
         });
 
         let theme = theme.clone();
-        let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+        let callback = move |ctx: &mut Context| (on_click)(ctx, &theme);
         NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, callback, group_id))
     }
 
-    pub fn desktop_avatar(theme: &Theme, avatar: AvatarContent, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
+    pub fn desktop_avatar(theme: &Theme, avatar: AvatarContent, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
@@ -77,7 +77,7 @@ impl NavigatorSelectable {
         NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, callback, group_id))
     }
 
-    pub fn mobile(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
+    pub fn mobile(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
             IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
@@ -99,7 +99,7 @@ impl NavigatorSelectable {
 //     }
 // }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub(crate) enum Navigator {
     Desktop {
         layout: Column, 
@@ -207,7 +207,7 @@ impl Navigator {
 }
 
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct MobileNavigatorContent(Row, Vec<NavigatorSelectable>);
 impl OnEvent for MobileNavigatorContent {}
 
@@ -218,7 +218,7 @@ impl MobileNavigatorContent {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct ButtonColumn(Column, Vec<NavigatorSelectable>);
 impl OnEvent for ButtonColumn {}
 
@@ -228,7 +228,7 @@ impl ButtonColumn {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct ButtonRow(Row, Vec<NavigatorSelectable>);
 impl OnEvent for ButtonRow {}
 

@@ -25,11 +25,11 @@ use crate::components::list_item::ListItemInfoLeft;
 ///     ("System Default", "Match the system appearance setting", |_| println!("Selected System Default")),
 /// ]);
 /// ```
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 pub struct RadioSelector(Column, pub Vec<interactions::Selectable>);
 impl OnEvent for RadioSelector {}
 impl RadioSelector {
-    pub fn new(theme: &Theme, index: usize, items: Vec<(&str, &str, Callback)>) -> Self {
+    pub fn new(theme: &Theme, index: usize, items: Vec<(&str, &str, Box<dyn Callback>)>) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let selectables = items.into_iter().enumerate().map(|(i, (t, s, mut c))| {
             let title = t.to_string();
@@ -47,9 +47,10 @@ impl RadioSelector {
 
     pub fn default(theme: &Theme) -> Self {
         Self::new(theme, 0, vec![
-            ("Option A", "Press this to select option A", Box::new(|_: &mut Context, _: &Theme| println!("Option A Selected")) as Callback),
-            ("Option B", "Press this to select option B", Box::new(|_: &mut Context, _: &Theme| println!("Option B Selected")) as Callback),
-            ("Option C", "Press this to select option C", Box::new(|_: &mut Context, _: &Theme| println!("Option C Selected")) as Callback)
+            ("Option A", "Press this to select option A", Box::new(|_: &mut Context, _: &Theme| println!("Option A Selected")) as Box<dyn Callback>),
+            ("Option B", "Press this to select option B", Box::new(|_: &mut Context, _: &Theme| println!("Option B Selected")) as Box<dyn Callback>),
+            ("Option C", "Press this to select option C", Box::new(|_: &mut Context, _: &Theme| println!("Option C Selected")) as Box<dyn Callback>)
         ])
     }
 }
+

@@ -2,11 +2,12 @@ use prism::event::OnEvent;
 use prism::drawable::Component;
 use prism::canvas::Align;
 use prism::layout::{Column, Row, Padding, Offset, Size};
+use prism::Context;
 
 use ptsd::theme::TextSize;
 
 use crate::components::text::{Text, ExpandableText, TextStyle};
-use crate::components::button::{QuickActions, QuickAction};
+use crate::components::button::{QuickActions};
 use crate::theme::Theme;
 
 /// ## Data Item
@@ -39,12 +40,12 @@ use crate::theme::Theme;
 ///     ]),
 /// );
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct DataItem(Column, Text, Option<ExpandableText>, Option<ExpandableText>, Option<Table>, Option<QuickActions>);
 impl OnEvent for DataItem {}
 
 impl DataItem {
-    pub fn text(theme: &Theme, label: &str, secondary: &str, description: &str, quick_actions: Option<Vec<QuickAction>>) -> Self {
+    pub fn text(theme: &Theme, label: &str, secondary: &str, description: &str, quick_actions: Option<Vec<(String, Option<String>, impl FnMut(&mut Context, &Theme) + Clone + 'static)>>) -> Self {
         DataItem(
             Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
             Text::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
@@ -54,7 +55,7 @@ impl DataItem {
         )
     }
 
-    pub fn table(theme: &Theme, label: &str, table: Vec<(String, String)>, quick_actions: Option<Vec<QuickAction>>) -> Self {
+    pub fn table(theme: &Theme, label: &str, table: Vec<(String, String)>, quick_actions: Option<Vec<(String, Option<String>, impl FnMut(&mut Context, &Theme) + Clone + 'static)>>) -> Self {
         DataItem(
             Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
             Text::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
@@ -64,7 +65,7 @@ impl DataItem {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct Table(pub Column, pub Vec<Tabular>);
 impl OnEvent for Table {}
 
@@ -74,7 +75,7 @@ impl Table {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct Tabular(Row, ExpandableText, Text);
 impl OnEvent for Tabular {}
 

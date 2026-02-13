@@ -25,7 +25,7 @@ use pelican_ui::interface::general::{Interface, Page, Header, Bumper, Content};
 use pelican_ui::interface::navigation::{RootInfo, NavigationEvent, AppPage, Flow, FlowContainer};
 
 use pelican_ui::interface::general::Pages;
-// #[derive(Debug, Component)]
+// #[derive(Debug, Component, Clone)]
 // pub struct DemoApp8(Stack, Page);
 // impl OnEvent for DemoApp8 {}
 // impl AppPage for DemoApp8 {}
@@ -39,7 +39,7 @@ use pelican_ui::interface::general::Pages;
 //     }
 // }
 
-// #[derive(Debug, Component)]
+// #[derive(Debug, Component, Clone)]
 // pub struct DemoApp(Stack, Page);
 // impl OnEvent for DemoApp {}
 // impl AppPage for DemoApp {}
@@ -74,7 +74,7 @@ use pelican_ui::interface::general::Pages;
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct StateTest(String);
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct DemoFlow(Stack, Flow);
 impl OnEvent for DemoFlow {}
 impl FlowContainer for DemoFlow {
@@ -88,7 +88,7 @@ impl DemoFlow {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct DemoApp2(Stack, Page);
 impl OnEvent for DemoApp2 {}
 impl AppPage for DemoApp2 {}
@@ -118,7 +118,7 @@ impl DemoApp2 {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct DemoApp3(Stack, Page);
 impl OnEvent for DemoApp3 {}
 impl AppPage for DemoApp3 {}
@@ -145,7 +145,7 @@ impl DemoApp3 {
 }
 
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct DemoApp4(Stack, Page);
 impl OnEvent for DemoApp4 {}
 impl AppPage for DemoApp4 {}
@@ -170,7 +170,7 @@ impl DemoApp4 {
     }
 }
 
-// #[derive(Debug, Component)]
+// #[derive(Debug, Component, Clone)]
 // pub struct DemoApp4(Stack, Page);
 // impl OnEvent for DemoApp4 {}
 // impl AppPage for DemoApp4 {}
@@ -187,7 +187,7 @@ impl DemoApp4 {
 //     }
 // }
 
-// #[derive(Debug, Component)]
+// #[derive(Debug, Component, Clone)]
 // pub struct Test(Stack, Enum);
 // impl OnEvent for Test {}
 // impl Test {
@@ -202,18 +202,18 @@ impl DemoApp4 {
 
 ramp::run!{|ctx: &mut Context, assets: Assets| {
     // ctx.state.insert(StateTest("flamingo.png".to_string()));
-    // PelicanUI::new(|theme: &Theme| {
-    //     let demo2 = RootInfo::icon("explore", "Demo App 2", Box::new(DemoApp2::new(ctx, theme)));
-    //     Interface::new(theme, vec![demo2], Box::new(|page: &mut Box<dyn Drawable>, ctx: &mut Context, e: Box<dyn Event>| {
-    //         // if e.downcast_ref::<TickEvent>().is_some() {println!("PAGE {:?}", page);}
-    //         vec![e]
-    //     }))
-    // })
+    PelicanUI::new(|theme: &Theme| {
+        let demo2 = RootInfo::icon("explore", "Demo App 2", Box::new(DemoApp2::new(ctx, theme)));
+        Interface::new(theme, vec![demo2], Box::new(|page: &mut Box<dyn Drawable>, ctx: &mut Context, e: Box<dyn Event>| {
+            // if e.downcast_ref::<TickEvent>().is_some() {println!("PAGE {:?}", page);}
+            vec![e]
+        }))
+    })
     // PrimaryButton::default(&Theme::default())
-    let theme = Theme::default();
-    let home = DemoApp2::new(ctx, &theme);
-    let three = DemoApp3::new(ctx, &theme);
-    let four = DemoApp4::new(ctx, &theme);
-    let flow = Flow::new(vec![Box::new(three), Box::new(four)]);
-    Pages::new(vec![("home".to_string(), Box::new(home))])
+    // let theme = Theme::default();
+    // let home = DemoApp2::new(ctx, &theme);
+    // let three = DemoApp3::new(ctx, &theme);
+    // let four = DemoApp4::new(ctx, &theme);
+    // let flow = Flow::new(vec![Box::new(three), Box::new(four)]);
+    // let pages = Pages::new(vec![("home".to_string(), Box::new(home))]);
 }}

@@ -30,7 +30,7 @@ use crate::components::{Circle, Rectangle};
 ///     }
 /// );
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct Slider(Column, Option<Text>, Option<ExpandableText>, interactions::Slider); // last f32 = value 0.0..1.0
 impl OnEvent for Slider {}
 impl Slider {
@@ -39,7 +39,7 @@ impl Slider {
         start: f32,
         label: Option<&str>,
         description: Option<&str>,
-        mut on_change: impl FnMut(&mut Context, &Theme, f32) + 'static,
+        mut on_change: impl FnMut(&mut Context, &Theme, f32) + Clone + Send + Sync + 'static,
     ) -> Self {
         let colors = theme.colors();
         let background = Rectangle::new(colors.get(ptsd::Outline::Primary), 3.0, None);

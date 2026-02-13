@@ -114,9 +114,8 @@ impl Drawable for ExpandableText {
     }
 }
 
-#[derive(Component)]
-pub struct TextEditor(Stack, pub ExpandableText, TextCursor, #[skip] EditorCallback);
-type EditorCallback = Box<dyn FnMut(&mut Context, &mut String)>;
+#[derive(Component, Clone)]
+pub struct TextEditor(Stack, pub ExpandableText, TextCursor);
 
 impl std::fmt::Debug for TextEditor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -125,14 +124,14 @@ impl std::fmt::Debug for TextEditor {
 }
 
 impl TextEditor {
-    pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align, on_edit: EditorCallback) -> Self {
+    pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
         let mut built = ExpandableText::new(theme, text, size, style, align, None);
         built.0.inner.cursor = Some(text.len());
-        TextEditor(Stack::start(), built, TextCursor::new(theme, style, size), on_edit)
+        TextEditor(Stack::start(), built, TextCursor::new(theme, style, size))
     }
 
     pub fn default(theme: &Theme) -> Self {
-        Self::new(theme, "", TextSize::Md, TextStyle::Primary, Align::Left, Box::new(|_, _| println!("TextEditor Edited")))
+        Self::new(theme, "", TextSize::Md, TextStyle::Primary, Align::Left)
     }
 
     pub fn display_cursor(&mut self, display: bool) {
@@ -183,14 +182,14 @@ impl OnEvent for TextEditor {
                 }
             }
 
-            (self.3)(ctx, &mut self.1.0.spans[0])
+            // (self.3)(ctx, &mut self.1.0.spans[0])
         }
         
         vec![event]
     }
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 pub struct TextCursor(Stack, Opt<Rectangle>);
 
 impl OnEvent for TextCursor {}

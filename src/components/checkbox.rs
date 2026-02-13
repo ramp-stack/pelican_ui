@@ -10,11 +10,11 @@ use crate::components::list_item::ListItem;
 use crate::components::list_item::ListItemInfoLeft;
 use crate::theme::Theme;
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct Checkbox(Stack, pub interactions::Selectable);
 impl OnEvent for Checkbox {}
 impl Checkbox {
-    pub fn new(theme: &Theme, title: &str, subtitle: Option<String>, is_selected: bool, on_check: Callback, on_uncheck: Callback) -> Self {
+    pub fn new(theme: &Theme, title: &str, subtitle: Option<String>, is_selected: bool, on_check: Box<dyn Callback>, on_uncheck: Box<dyn Callback>) -> Self {
         let selected = ListItem::new(theme, None, ListItemInfoLeft::new(title, subtitle.as_deref(), None, None), None, Some("check"), None, on_uncheck);
         let default = ListItem::new(theme, None, ListItemInfoLeft::new(title, subtitle.as_deref(), None, None), None, Some("unchecked"), None, on_check);
 
@@ -28,7 +28,7 @@ impl Checkbox {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct CheckboxList(Column, Vec<Checkbox>);
 impl OnEvent for CheckboxList {}
 impl CheckboxList {

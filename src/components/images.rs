@@ -151,7 +151,7 @@ impl Drawable for ExpandableImage {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ImageOrientation {
     Up,
     Down,

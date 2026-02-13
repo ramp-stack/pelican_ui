@@ -6,16 +6,15 @@ use prism::layout::{Wrap, Offset, Padding, Row, Size, Stack};
 
 use ptsd::interactions;
 use ptsd::theme::{Color, TextSize};
-use ptsd::utils::ValidationFn;
+use ptsd::utils::{ValidationFn};
 
 use crate::Callback;
+
 use crate::theme::{self, Variant, Theme, ButtonColorScheme};
 use crate::components::text::{Text, TextStyle};
 use crate::components::{Icon, Rectangle};
 
-pub type QuickAction = (String, Option<String>, Callback);
-
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct QuickActions{
     layout: Wrap, 
     buttons: Vec<SecondaryButton>
@@ -23,7 +22,7 @@ pub struct QuickActions{
 
 impl OnEvent for QuickActions {}
 impl QuickActions {
-    pub fn new(theme: &Theme, actions: Vec<QuickAction>) -> Self {
+    pub fn new(theme: &Theme, actions: Vec<(String, Option<String>, impl FnMut(&mut Context, &Theme) + Clone + 'static)>) -> Self {
         let buttons = actions.into_iter().map(|(l, o, a)| {
             SecondaryButton::medium(theme, "edit", &l, o.as_deref(), a)
         }).collect();
@@ -41,11 +40,11 @@ impl QuickActions {
 /// ```rust
 /// let button = PrimaryButton::new(ctx, "Label", |ctx: &mut Context| println!("This button has been clicked!"), false);
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct PrimaryButton(Stack, pub interactions::Button);
 impl OnEvent for PrimaryButton {}
 impl PrimaryButton {
-    pub fn new(theme: &Theme, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
+    pub fn new(theme: &Theme, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Primary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -74,11 +73,11 @@ impl PrimaryButton {
 /// ```rust
 /// let button = SecondaryButton::medium(ctx, "edit", "Copy", Some("Copied"), |ctx: &mut Context| println!("This button has been clicked!"));
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct SecondaryButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryButton {}
 impl SecondaryButton {
-    pub fn medium(theme: &Theme, icon: &str, label: &str, active_label: Option<&str>, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
+    pub fn medium(theme: &Theme, icon: &str, label: &str, active_label: Option<&str>, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.disabled];
         let [default, hover, disabled] = buttons.map(|colors| Self::_medium(theme, icon, label, colors));
@@ -97,7 +96,7 @@ impl SecondaryButton {
         Button::new(drawables![icon, text], ButtonSize::Medium, ButtonWidth::Fit, Offset::Center, colors.background, colors.outline)
     }
 
-    pub fn large(theme: &Theme, label: &str,  mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
+    pub fn large(theme: &Theme, label: &str,  mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -126,11 +125,11 @@ impl SecondaryButton {
 /// ```rust
 /// let button = SecondaryIconButton::new(ctx, "info", |ctx: &mut Context| println!("This button has been clicked!"));
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct SecondaryIconButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryIconButton {}
 impl SecondaryIconButton {
-    pub fn large(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
+    pub fn large(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -142,7 +141,7 @@ impl SecondaryIconButton {
         SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), callback))
     }
 
-    pub fn medium(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
+    pub fn medium(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -169,11 +168,11 @@ impl SecondaryIconButton {
 /// ```rust
 /// let button = GhostIconButton::new(ctx, "explore", |ctx: &mut Context| println!("This button has been clicked!"));
 /// ```
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub struct GhostIconButton(Stack, pub interactions::Button);
 impl OnEvent for GhostIconButton {}
 impl GhostIconButton {
-    pub fn new(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + 'static) -> Self {
+    pub fn new(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -190,7 +189,7 @@ impl GhostIconButton {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub(crate) struct IconButton(Stack, Rectangle, Image);
 impl OnEvent for IconButton {}
 
@@ -212,7 +211,7 @@ impl IconButton {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 pub(crate) struct Button(Stack, Rectangle, ButtonContent);
 impl OnEvent for Button {}
 
@@ -233,7 +232,7 @@ impl Button {
     }
 }
 
-#[derive(Debug, Component)]
+#[derive(Debug, Component, Clone)]
 struct ButtonContent(Row, Vec<Box<dyn Drawable>>);
 impl OnEvent for ButtonContent {}
 impl ButtonContent {
