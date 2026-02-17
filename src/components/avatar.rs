@@ -4,8 +4,7 @@ use prism::layout::{Stack, Offset, Size, Padding};
 use prism::{Context, Hardware, Request};
 use prism::drawable::{Component, SizedTree};
 
-use ptsd::utils::Callback;
-
+use crate::Callback;
 use crate::theme::Theme;
 use crate::theme::Color;
 use crate::components::{Icon, Circle};

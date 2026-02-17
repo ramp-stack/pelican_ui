@@ -15,7 +15,7 @@ use crate::interface::system::MobileKeyboard;
 use crate::interface::navigation::{RootInfo, Navigator};
 
 use ptsd::interfaces::{Body, Navigator as PTSDNavigator};
-use ptsd::navigation::NavigationEvent;
+use ptsd::navigation::{NavigationEvent, AppPage};
 use ptsd::utils::ValidationFn;
 pub use ptsd::navigation::Pages;
 
@@ -55,7 +55,7 @@ impl std::fmt::Debug for Interface {
 
 impl Interface {
     pub fn new(theme: &Theme, mut roots: Vec<RootInfo>, on_event: OnEventFn) -> Self {
-        let pages: Vec<(String, Box<dyn Drawable>)> = roots.iter_mut().map(|r| (r.label.to_string(), r.page.take().unwrap() as Box<dyn Drawable>)).collect();
+        let pages: Vec<(String, Box<dyn AppPage>)> = roots.iter_mut().map(|r| (r.label.to_string(), r.page.take().unwrap() as Box<dyn AppPage>)).collect();
         Interface {
             layout: Stack::default(),
             background: Rectangle::new(theme.colors().get(ptsd::Background::Primary), 0.0, None),
@@ -77,7 +77,7 @@ impl Interface {
         }
     }
 
-    fn inner(&mut self) -> &mut Box<dyn Drawable> {
+    fn inner(&mut self) -> &mut Box<dyn AppPage> {
         self.inner.pages().current()
     }
 }
@@ -182,7 +182,7 @@ impl Content {
 impl OnEvent for Content {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            ctx.send(Request::event(InterfaceEvent::Disable((self.validation)(&self.children))));
+            ctx.send(Request::event(InterfaceEvent::Disable(!(self.validation)(&self.children))));
         } else if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.layout.adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
@@ -390,48 +390,38 @@ impl Event for InterfaceEvent {
 }
 
 #[derive(Debug, Component, Clone)]
-pub struct Screen(Stack, _Screen);
-impl OnEvent for Screen {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(event) = event.downcast_ref::<NavigationEvent>() {
-            println!("Screen:: EVENT {:?}", event);
-        }
-
-        vec![event]
-    }
+pub enum Screen {
+    Mobile {_l: Stack, pages: Pages},
+    Desktop {_l: Stack, pages: Pages, border: Bin<Stack, Rectangle>},
+    Web {_l: Stack, pages: Pages},
 }
+
+impl OnEvent for Screen {}
+
 impl Screen {
     pub fn desktop(theme: &Theme, pages: Pages) -> Self {
         let color = theme.colors().get(ptsd::Outline::Secondary);
         let line_layout = Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default());
         let border = Bin(line_layout, Rectangle::new(color, 0.0, None));
 
-        Screen(Stack::default(), _Screen::Desktop{_l: Stack::default(), pages, border})
+        Screen::Desktop{_l: Stack::default(), pages, border}
     }
 
     pub fn mobile(pages: Pages) -> Self {
-        Screen(Stack::default(), _Screen::Mobile{_l: Stack::default(), pages})
+        Screen::Mobile{_l: Stack::default(), pages}
     }
 
     pub fn web(pages: Pages) -> Self {
-        Screen(Stack::default(), _Screen::Web{_l: Stack::default(), pages})
+        Screen::Web{_l: Stack::default(), pages}
     }
 }
 
 impl Body for Screen {
     fn pages(&mut self) -> &mut Pages {
-        match &mut self.1 {
-            _Screen::Mobile {pages, ..} |
-            _Screen::Desktop {pages, ..} |
-            _Screen::Web {pages, ..} => pages
+        match self {
+            Screen::Mobile {pages, ..} |
+            Screen::Desktop {pages, ..} |
+            Screen::Web {pages, ..} => pages
         }
     }
 }
-
-#[derive(Debug, Component, Clone)]
-pub enum _Screen {
-    Mobile {_l: Stack, pages: Pages},
-    Desktop {_l: Stack, pages: Pages, border: Bin<Stack, Rectangle>},
-    Web {_l: Stack, pages: Pages},
-}
-impl OnEvent for _Screen {}

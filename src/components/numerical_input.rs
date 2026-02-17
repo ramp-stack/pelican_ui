@@ -1,140 +1,283 @@
-use prism::{Context, IS_MOBILE};
-use prism::event::{OnEvent, Event};
-use prism::drawable::{Component, SizedTree};
-use prism::canvas::Align;
-use prism::display::Bin;
-use prism::layout::{Stack, Column, Offset, Size, Padding};
-
+use prism::{event, event::{Event, OnEvent, Key, NamedKey}, display::{Opt, EitherOr}, Context, canvas::Align, layout::{Stack, Row, Padding, Size, Offset, Column}, drawable::{Component, SizedTree}, emitters};
+use crate::components::text::{Text, ExpandableText, TextStyle};
 use crate::theme::Theme;
-use crate::components::Keypad;
-use crate::components::text::{Text, TextStyle, TextSize};
-use crate::interactions::{SlotType, self};
+use ptsd::{colors, TextSize};
 
-#[derive(Debug, Component, Clone)]
-pub struct NumericalInput(Column, Bin<Stack, _NumericalInput>, Option<Keypad>, #[skip] bool);
-impl OnEvent for NumericalInput { 
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
-        // if let Some(tag) = &self.3 {
-        //     if event.as_any().downcast_ref::<TickEvent>().is_some() { 
-        //         ctx.state.insert::<(String, String)>((tag.to_string(), self.value()));
-        //     }
-        // }
-
-        self.3.then_some(vec![event]).unwrap_or_default()
-    }
-}
-
-type EditedCallback = Box<dyn FnMut(&mut Context, &mut String)>;
-
+#[derive(Clone, Debug, Component)]
+pub struct NumericalInput(Column, emitters::TextInput<_NumericalInput>, ExpandableText);
+impl OnEvent for NumericalInput {}
 impl NumericalInput {
-    pub fn display(theme: &Theme, _amount: f32, instructions: &str) -> Self {
-        let keypad = IS_MOBILE.then_some(Keypad::new(theme, '.'));
-        let layout = Stack::new(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::currency(CurrencyInput::new(theme, '$', instructions))), keypad, false)
-    }
-
-    pub fn currency(theme: &Theme, instructions: &str) -> Self {
-        let keypad = IS_MOBILE.then_some(Keypad::new(theme, '.'));
-        let layout = Stack::new(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::currency(CurrencyInput::new(theme, '$', instructions))), keypad, true)
+    pub fn numerical(theme: &Theme, instructions: &str) -> Self {
+        NumericalInput::new(theme, instructions, _NumericalInput::numerical(theme, true))
     }
 
     pub fn date(theme: &Theme, instructions: &str) -> Self {
-        let keypad = IS_MOBILE.then_some(Keypad::new(theme, '/'));
-        let layout = Stack::new(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::date(DateInput::new(theme, instructions))), keypad, true)
+        NumericalInput::new(theme, instructions, _NumericalInput::date(theme))
     }
 
     pub fn time(theme: &Theme, instructions: &str) -> Self {
-        let keypad = IS_MOBILE.then_some(Keypad::new(theme, ':'));
-        let layout = Stack::new(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding(0.0, 64.0, 0.0, 64.0));
-        NumericalInput(Column::center(0.0), Bin(layout, _NumericalInput::time(TimeInput::new(theme, instructions))), keypad, true)
+        NumericalInput::new(theme, instructions, _NumericalInput::time(theme))
     }
 
-    pub fn value(&mut self) -> String {
-        match &mut self.1.inner() {
-            _NumericalInput::Currency {input, ..} => input.1.value(),
-            _NumericalInput::Date {input, ..} => input.1.value(),
-            _NumericalInput::Time {input, ..} => input.1.value(),
+    pub fn display(theme: &Theme, instructions: &str) -> Self {
+        NumericalInput::new(theme, instructions, _NumericalInput::numerical(theme, false))
+    }
+
+    fn new(theme: &Theme, instructions: &str, input: _NumericalInput) -> Self {
+        let layout = Column::new(24.0, Offset::Center, Size::Fill, Padding::new(64.0), None);
+        let text = ExpandableText::new(theme, &instructions, TextSize::Lg, TextStyle::Secondary, Align::Center, None);
+        NumericalInput(layout, emitters::TextInput::new(input, false), text)
+    }
+}
+
+#[derive(Clone, Debug, Component)]
+pub struct _NumericalInput(Row, Vec<Slot>, #[skip] bool);
+impl _NumericalInput {
+    pub fn numerical(theme: &Theme, edit: bool) -> Self {
+        let slots = vec![
+            Slot::new(theme, SlotType::Fixed('$')),
+            Slot::new(theme, SlotType::InputWithDefault(String::new(), 6, '0', InputFormat::Numerical)), 
+            Slot::new(theme, SlotType::TriggersGhost('.', false)), 
+            Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
+            Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
+        ];
+
+        _NumericalInput(Row::center(0.0), slots, edit)
+    }
+
+    pub fn date(theme: &Theme) -> Self {
+        let slots = vec![
+            Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, 'D')),
+            Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, 'D')),
+            Slot::new(theme, SlotType::Fixed('-')),
+            Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, 'M')),
+            Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, 'M')),
+        ];
+
+        _NumericalInput(Row::center(0.0), slots, true)
+    }
+
+    pub fn time(theme: &Theme) -> Self {
+        let slots = vec![
+            Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, '0')),
+            Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, '0')),
+            Slot::new(theme, SlotType::Fixed(':')),
+            Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, '0')),
+            Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, '0')),
+        ];
+
+        _NumericalInput(Row::center(0.0), slots, true)
+    }
+}
+
+impl OnEvent for _NumericalInput { 
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
+        if let Some(e) = event.downcast_ref::<event::TextInput>() {
+            if let event::TextInput::Edited(key) = e {
+                let mut reversed = false;
+                let mut slots: Vec<Slot> = vec![];
+                let mut start = 0;
+ 
+                match key {
+                    Key::Named(NamedKey::Delete) => {
+                        reversed = true;
+                        slots = self.1.clone().into_iter().rev().collect::<Vec<_>>();
+                    },
+                    _ => {
+                        slots = self.1.clone();
+                        for (i, slot) in slots.iter_mut().enumerate() {
+                            if let SlotType::TriggersGhost(_, is_on) = slot.2 && is_on {
+                                start = i;
+                            }
+                        }
+                    }
+                }
+
+                for (i, slot) in slots.iter_mut().enumerate() {
+                    if start != 0 && i < start {continue;}
+                    let mut edited = false;
+                    match key {
+                        Key::Named(NamedKey::Delete) => {
+                            match &mut slot.2 {
+                                SlotType::TriggersGhost(_, is_on) if *is_on => {
+                                    *is_on = false;
+                                    edited = true;
+                                },
+                                SlotType::InputWithDefault(inputs, _, _, _) => {if inputs.pop().is_some() { edited = true; }},
+                                SlotType::GhostInputWithDefault(inputs, _, _) => {if inputs.pop().is_some() { edited = true; }},
+                                SlotType::TriggeredGhostInputWithDefault(inputs, _, _, _) => {if inputs.pop().is_some() { edited = true; }}
+                                _ => {} // later...
+                            }
+                        },
+                        Key::Character(character) => {
+                            let character = character.chars().next().unwrap();
+                            if matches!(character, '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9') {
+                                match &mut slot.2 {
+                                    SlotType::InputWithDefault(inputs, limit, default, _) => {
+                                        if inputs.len() < *limit && (!inputs.is_empty() || *default != character) {
+                                            inputs.push(character);
+                                            edited = true;
+                                        }
+                                    },
+                                    SlotType::GhostInputWithDefault(inputs, limit, default) => {
+                                        if inputs.len() < *limit {
+                                            inputs.push(character);
+                                            edited = true;
+                                        }
+                                    },
+                                    SlotType::TriggeredGhostInputWithDefault(inputs, limit, default, is_on) if *is_on => {
+                                        if inputs.len() < *limit && (!inputs.is_empty() || *default != character) {
+                                            inputs.push(character);
+                                            edited = true;
+                                        }
+                                    },
+                                    _ => {} // later...
+                                }
+                            } else if let SlotType::TriggersGhost(trigger, is_on) = &mut slot.2 && *trigger == character {
+                                *is_on = true;
+                                edited = true;
+                            }
+                        },
+                        _ => {} // don't care
+                    }
+
+                    if edited {
+                        match slot.2.get_visual() {
+                            SlotVisual::Primary(v) => {
+                                slot.1.inner().left().spans[0] = v;
+                                slot.1.inner().display_left(true);
+                                slot.1.display(true);
+                            },
+                            SlotVisual::Ghost(v) => {
+                                slot.1.inner().right().spans[0] = v;
+                                slot.1.inner().display_left(false);
+                                slot.1.display(true);
+                            },
+                            SlotVisual::None => slot.1.display(false),
+                        }
+                    }
+
+                    if edited {break;}
+                }
+
+                if reversed {slots = slots.into_iter().rev().collect::<Vec<_>>();}
+                self.1 = slots;
+
+                let mut triggered = false;
+                for slot in &mut self.1 {
+                    if let SlotType::TriggersGhost(_, is_on) = slot.2 {
+                        triggered = is_on;
+                    } else if let SlotType::TriggeredGhostInputWithDefault(_, _, _, is_on) = &mut slot.2 {
+                        *is_on = triggered;
+                        match slot.2.get_visual() {
+                            SlotVisual::Primary(v) => {
+                                slot.1.inner().left().spans[0] = v;
+                                slot.1.inner().display_left(true);
+                                slot.1.display(true);
+                            },
+                            SlotVisual::Ghost(v) => {
+                                slot.1.inner().right().spans[0] = v;
+                                slot.1.inner().display_left(false);
+                                slot.1.display(true);
+                            },
+                            SlotVisual::None => {
+                                slot.1.display(false);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        vec![event]
+    }
+}
+
+#[derive(Clone, Debug, Component)]
+pub struct Slot(Stack, Opt<EitherOr<Text, Text>>, #[skip] SlotType); // text<primary, ghost>
+impl OnEvent for Slot {}
+impl Slot {
+    pub fn new(theme: &Theme, ty: SlotType) -> Self {
+        let ghost = theme.colors().get(colors::Text::Secondary);
+        let (display_left, show_opt, text) = match ty.get_visual() {
+            SlotVisual::Primary(s) => (true, true, s.to_string()),
+            SlotVisual::Ghost(s) => (false, true, s.to_string()),
+            SlotVisual::None => (true, false, String::new()),
+        };
+
+        let mut eo = EitherOr::new(
+            Text::new(theme, &text, TextSize::H1, TextStyle::Heading, Align::Left, None),
+            Text::new(theme, &text, TextSize::H1, TextStyle::Label(ghost), Align::Left, None),
+        );
+
+        eo.display_left(display_left);
+        Slot(Stack::default(), Opt::new(eo, show_opt), ty)
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum SlotType {
+    Fixed(char), // $ (cannot be deleted)
+    TriggersGhost(char, bool), // .
+    GhostInputWithDefault(String, usize, char), // 0
+    TriggeredGhostInputWithDefault(String, usize, char, bool), // 0
+    ConditionalVisual(char), // , / - (add conditional callback here)
+    InputWithDefault(String, usize, char, InputFormat), // 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+    ConditionalInput(Option<char>), // (add contditianal callback here)
+}
+
+impl SlotType {
+    pub fn get_visual(&self) -> SlotVisual {
+        match self {
+            SlotType::Fixed(c) => SlotVisual::Primary(c.to_string()),
+            SlotType::TriggersGhost(c, i) => match i {
+                true => SlotVisual::Primary(c.to_string()),
+                false => SlotVisual::None,
+            },
+            SlotType::TriggeredGhostInputWithDefault(chars, limit, default, is_on) => {
+                match is_on {
+                    true => match chars.to_string().is_empty() {
+                        true => SlotVisual::Ghost(default.to_string()),
+                        false => SlotVisual::Primary(chars.to_string()),
+                    },
+                    false => SlotVisual::None,
+                }
+            },
+            SlotType::GhostInputWithDefault(chars, limit, default) => {
+                match chars.to_string().is_empty() {
+                    true => SlotVisual::Ghost(default.to_string()),
+                    false => SlotVisual::Primary(chars.to_string()),
+                }
+            },
+            SlotType::ConditionalVisual(c) => SlotVisual::Primary(c.to_string()), // check cond
+            SlotType::InputWithDefault(chars, limit, default, format) => {
+                SlotVisual::Primary(match chars.to_string().is_empty() {
+                    true => default.to_string(),
+                    false => {
+                        match format {
+                            InputFormat::Numerical => chars.chars().rev().collect::<Vec<char>>().chunks(3).map(|c| c.iter().collect::<String>()).collect::<Vec<_>>().join(",").chars().rev().collect::<String>(),
+                            InputFormat::Date => chars.chars().rev().collect::<Vec<char>>().chunks(2).map(|c| c.iter().collect::<String>()).collect::<Vec<_>>().join("/").chars().rev().collect::<String>(),
+                            _ => chars.to_string()
+                        }
+                    }
+                })
+            },
+            SlotType::ConditionalInput(c) => match c {
+                Some(character) => SlotVisual::Primary(character.to_string()),
+                None => SlotVisual::None,
+            },
         }
     }
 }
 
-#[derive(Debug, Component, Clone)]
-pub enum _NumericalInput {
-    Currency{layout: Stack, input: CurrencyInput},
-    Date{layout: Stack, input: DateInput},
-    Time{layout: Stack, input: TimeInput},
+pub enum SlotVisual {
+    Ghost(String),
+    Primary(String),
+    None,
 }
 
-impl OnEvent for _NumericalInput {}
-
-impl _NumericalInput {
-    fn currency(input: CurrencyInput) -> Self {_NumericalInput::Currency{layout: Stack::default(), input}}
-    fn date(input: DateInput) -> Self {_NumericalInput::Date{layout: Stack::default(), input}}
-    fn time(input: TimeInput) -> Self {_NumericalInput::Time{layout: Stack::default(), input}}
-}
-
-
-#[derive(Debug, Component, Clone)]
-pub struct CurrencyInput(Column, interactions::NumericalInput, pub Text);
-impl OnEvent for CurrencyInput { }
-
-impl CurrencyInput {
-    pub fn new(theme: &Theme, currency: char, instructions: &str) -> Self {
-        let input = interactions::NumericalInput::new(theme, vec![
-            SlotType::FixedChar(currency), // This always shows and cannot be delted
-            SlotType::Primary('0', 6), // this always shows, but can be replaced by another digit, when deleted on, it goes back to the char
-            SlotType::Triggered('.'), // This shows up as primary only when the user types the decimal
-            SlotType::GhostInput('0'), // this only shows up when it is 'next' and is replaced by primary texto n input 
-            SlotType::GhostInput('0'), 
-        ]);
-
-        let text = Text::new(theme, instructions, TextSize::Md, TextStyle::Secondary, Align::Left, None);
-        CurrencyInput(Column::center(8.0), input, text)
-    }
-}
-
-
-#[derive(Debug, Component, Clone)]
-pub struct DateInput(Column, interactions::NumericalInput, pub Text);
-impl OnEvent for DateInput {}
-
-impl DateInput {
-    pub fn new(theme: &Theme, instructions: &str) -> Self {
-        let input = interactions::NumericalInput::new(theme, vec![
-            SlotType::Ghost('d', 1),
-            SlotType::Ghost('d', 1),
-            SlotType::FixedChar('/'),
-            SlotType::Ghost('m', 1),
-            SlotType::Ghost('m', 1),
-            SlotType::FixedChar('/'),
-            SlotType::Ghost('y', 1),
-            SlotType::Ghost('y', 1),
-            SlotType::Ghost('y', 1),
-            SlotType::Ghost('y', 1),
-        ]);
-        
-        let text = Text::new(theme, instructions, TextSize::Md, TextStyle::Secondary, Align::Left, None);
-        DateInput(Column::center(8.0), input, text)
-    }
-}
-
-#[derive(Debug, Component, Clone)]
-pub struct TimeInput(Column, interactions::NumericalInput, pub Text);
-impl OnEvent for TimeInput {}
-
-impl TimeInput {
-    pub fn new(theme: &Theme, instructions: &str) -> Self {
-        let input = interactions::NumericalInput::new(theme, vec![
-            SlotType::Ghost('0', 1),
-            SlotType::Ghost('0', 1),
-            SlotType::FixedChar(':'),
-            SlotType::Ghost('0', 1),
-            SlotType::Ghost('0', 1),
-        ]);
-
-        let text = Text::new(theme, instructions, TextSize::Md, TextStyle::Secondary, Align::Left, None);
-        TimeInput(Column::center(8.0), input, text)
-    }
+#[derive(Eq, Clone, Debug, PartialEq)]
+pub enum InputFormat {
+    Numerical,
+    Date,
+    Time,
 }

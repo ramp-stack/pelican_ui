@@ -2804,6 +2804,7 @@ name = "ptsd"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "downcast-rs 2.0.2",
  "hex",
  "image 0.25.9",
  "imageproc",

@@ -9,6 +9,7 @@ use pelican_ui::components::QRCode;
 use pelican_ui::components::Checkbox;
 use pelican_ui::components::TextInput;
 use pelican_ui::components::RadioSelector;
+use pelican_ui::components::NumericalInput;
 use pelican_ui::components::avatar::Avatar;
 use pelican_ui::components::list_item::ListItem;
 use pelican_ui::components::button::SecondaryButton;
@@ -25,25 +26,7 @@ use pelican_ui::interface::general::{Interface, Page, Header, Bumper, Content};
 use pelican_ui::interface::navigation::{RootInfo, NavigationEvent, AppPage, Flow, FlowContainer};
 
 use pelican_ui::interface::general::Pages;
-// #[derive(Debug, Component, Clone)]
-// pub struct DemoApp8(Stack, Page);
-// impl OnEvent for DemoApp8 {}
-// impl AppPage for DemoApp8 {}
-// impl DemoApp8 {
-//     pub fn new(ctx: &mut Context) -> Self {
-//         let toggle = Toggle::default(ctx);
-//         let circle = Circle::default();
-//         let content = Content::new(Offset::Start, drawables![toggle]);
-//         let header = Header::stack(ctx, "Demo App 8", None);
-//         Self(Stack::default(), Page::new(header, content, Some(Bumper::default(ctx))))
-//     }
-// }
 
-// #[derive(Debug, Component, Clone)]
-// pub struct DemoApp(Stack, Page);
-// impl OnEvent for DemoApp {}
-// impl AppPage for DemoApp {}
-// impl DemoApp {
 //     pub fn new(ctx: &mut Context) -> Self {
 //         let image: Arc<RgbaImage> = Arc::new(image::open("./seagull.png").unwrap().into());
 //         let img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
@@ -62,14 +45,7 @@ use pelican_ui::interface::general::Pages;
 //         let slider = Slider::default(ctx);
 //         let input = TextInput::default(ctx);
 //         let toggle = Toggle::default(ctx);
-
 //         let circle = Circle::default();
-
-//         let content = Content::new(Offset::Start, drawables![circle.clone(), circle.clone(), img2, text2, qrcode, radio, slider, input, listitem, toggle, checkbox, button, avatar, img, text]);
-//         let header = Header::home(ctx, "Demo App", None);
-//         Self(Stack::default(), Page::new(header, content, Some(Bumper::default(ctx))))
-//     }
-// }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct StateTest(String);
@@ -103,7 +79,7 @@ impl DemoApp2 {
         });
 
         let text = ExpandableText::default(theme, "flamingo.png");
-        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| false));
+        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| true));
         let header = Header::home(theme, "Demo App", None);
         let bumper = Bumper::home(theme, 
             ("Receive".to_string(), Box::new(|ctx: &mut Context, theme: &Theme| {
@@ -133,7 +109,7 @@ impl DemoApp3 {
         });
 
         let text = ExpandableText::default(theme, "seagull.png");
-        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| false));
+        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| true));
         let header = Header::stack(theme, "Seagull", None);
         let bumper = Bumper::stack(theme, None, |ctx: &mut Context, theme: &Theme| {
             println!("Pressed");
@@ -160,7 +136,7 @@ impl DemoApp4 {
         });
 
         let text = ExpandableText::default(theme, "turtle.png");
-        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| false));
+        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| true));
         let header = Header::stack(theme, "Turtle", None);
         let bumper = Bumper::stack(theme, None, |ctx: &mut Context, theme: &Theme| {
             ctx.send(Request::event(NavigationEvent::Next));
@@ -170,50 +146,11 @@ impl DemoApp4 {
     }
 }
 
-// #[derive(Debug, Component, Clone)]
-// pub struct DemoApp4(Stack, Page);
-// impl OnEvent for DemoApp4 {}
-// impl AppPage for DemoApp4 {}
-// impl DemoApp4 {
-//     pub fn new(ctx: &mut Context) -> Self {
-//         let image: Arc<RgbaImage> = Arc::new(image::open("./seagull.png").unwrap().into());
-//         let img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
-//         let text = ExpandableText::default(ctx, "seagull.png");
-
-//         let content = Content::new(Offset::Start, drawables![img, text]);
-//         let header = Header::stack_end(ctx, "Seagull received");
-//         let bumper = Bumper::stack_end(ctx, None);
-//         Self(Stack::default(), Page::new(header, content, Some(bumper)))
-//     }
-// }
-
-// #[derive(Debug, Component, Clone)]
-// pub struct Test(Stack, Enum);
-// impl OnEvent for Test {}
-// impl Test {
-//     pub fn new(ctx: &mut Context) -> Self {
-//         Test(Stack::default(), Enum::new(vec![
-//             ("circle".to_string(), Box::new(Circle::default())),
-//             ("text".to_string(), Box::new(Text::default(ctx, "Text Text Text"))),
-//         ], "text".to_string()))
-//     }
-// }
-
-
 ramp::run!{|ctx: &mut Context, assets: Assets| {
-    // ctx.state.insert(StateTest("flamingo.png".to_string()));
     PelicanUI::new(|theme: &Theme| {
         let demo2 = RootInfo::icon("explore", "Demo App 2", Box::new(DemoApp2::new(ctx, theme)));
         Interface::new(theme, vec![demo2], Box::new(|page: &mut Box<dyn Drawable>, ctx: &mut Context, e: Box<dyn Event>| {
-            // if e.downcast_ref::<TickEvent>().is_some() {println!("PAGE {:?}", page);}
             vec![e]
         }))
     })
-    // PrimaryButton::default(&Theme::default())
-    // let theme = Theme::default();
-    // let home = DemoApp2::new(ctx, &theme);
-    // let three = DemoApp3::new(ctx, &theme);
-    // let four = DemoApp4::new(ctx, &theme);
-    // let flow = Flow::new(vec![Box::new(three), Box::new(four)]);
-    // let pages = Pages::new(vec![("home".to_string(), Box::new(home))]);
 }}

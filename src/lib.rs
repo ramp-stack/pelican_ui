@@ -16,6 +16,7 @@ pub mod theme;
 use theme::Theme;
 
 pub use prism::*;
+pub use ptsd::{colors, utils, navigation};
 
 extern crate self as pelican_ui;
 
