@@ -3,36 +3,67 @@ use crate::components::text::{Text, ExpandableText, TextStyle};
 use crate::theme::Theme;
 use ptsd::{colors, TextSize};
 
-#[derive(Clone, Debug, Component)]
-pub struct NumericalInput(Column, emitters::TextInput<_NumericalInput>, ExpandableText);
+#[derive(Debug, Clone, Component)]
+pub struct NumericalInput(Stack, _NumericalInput);
 impl OnEvent for NumericalInput {}
 impl NumericalInput {
     pub fn numerical(theme: &Theme, instructions: &str) -> Self {
-        NumericalInput::new(theme, instructions, _NumericalInput::numerical(theme, true))
+        NumericalInput::new(theme, instructions, SlotDisplay::numerical(theme, true))
     }
 
     pub fn date(theme: &Theme, instructions: &str) -> Self {
-        NumericalInput::new(theme, instructions, _NumericalInput::date(theme))
+        NumericalInput::new(theme, instructions, SlotDisplay::date(theme))
     }
 
     pub fn time(theme: &Theme, instructions: &str) -> Self {
-        NumericalInput::new(theme, instructions, _NumericalInput::time(theme))
+        NumericalInput::new(theme, instructions, SlotDisplay::time(theme))
     }
 
     pub fn display(theme: &Theme, instructions: &str) -> Self {
-        NumericalInput::new(theme, instructions, _NumericalInput::numerical(theme, false))
+        NumericalInput::new(theme, instructions, SlotDisplay::numerical(theme, false))
     }
 
-    fn new(theme: &Theme, instructions: &str, input: _NumericalInput) -> Self {
-        let layout = Column::new(24.0, Offset::Center, Size::Fill, Padding::new(64.0), None);
-        let text = ExpandableText::new(theme, &instructions, TextSize::Lg, TextStyle::Secondary, Align::Center, None);
-        NumericalInput(layout, emitters::TextInput::new(input, false), text)
+    pub fn value(&self) -> String {
+        let mut out = String::new();
+
+        for slot in &self.1.1.1.1 {
+            let s = match slot.2.get_visual() {
+                SlotVisual::Primary(s) | SlotVisual::Ghost(s) => s,
+                SlotVisual::None => continue,
+            };
+
+            for ch in s.chars() {
+                match ch.is_ascii_digit() || matches!(ch, '$' | '.' | ',' | '-' | ':' | '/') {
+                    true => out.push(ch),
+                    false => out.push('0'),
+                }
+            }
+        }
+
+        out
+    }
+
+    fn new(theme: &Theme, instructions: &str, input: SlotDisplay) -> Self {
+        let input = _NumericalInput::new(theme, instructions, input);
+        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default());
+        NumericalInput(layout, input)
     }
 }
 
 #[derive(Clone, Debug, Component)]
-pub struct _NumericalInput(Row, Vec<Slot>, #[skip] bool);
+pub struct _NumericalInput(Column, emitters::TextInput<SlotDisplay>, ExpandableText);
+impl OnEvent for _NumericalInput {}
 impl _NumericalInput {
+    fn new(theme: &Theme, instructions: &str, input: SlotDisplay) -> Self {
+        let layout = Column::new(24.0, Offset::Center, Size::Fit, Padding::new(64.0), None);
+        let text = ExpandableText::new(theme, instructions, TextSize::Lg, TextStyle::Secondary, Align::Center, None);
+        _NumericalInput(layout, emitters::TextInput::new(input, false), text)
+    }
+}
+
+#[derive(Clone, Debug, Component)]
+pub struct SlotDisplay(Row, Vec<Slot>, #[skip] bool);
+impl SlotDisplay {
     pub fn numerical(theme: &Theme, edit: bool) -> Self {
         let slots = vec![
             Slot::new(theme, SlotType::Fixed('$')),
@@ -42,7 +73,7 @@ impl _NumericalInput {
             Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
         ];
 
-        _NumericalInput(Row::center(0.0), slots, edit)
+        SlotDisplay(Row::center(0.0), slots, edit)
     }
 
     pub fn date(theme: &Theme) -> Self {
@@ -54,7 +85,7 @@ impl _NumericalInput {
             Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, 'M')),
         ];
 
-        _NumericalInput(Row::center(0.0), slots, true)
+        SlotDisplay(Row::center(0.0), slots, true)
     }
 
     pub fn time(theme: &Theme) -> Self {
@@ -66,123 +97,121 @@ impl _NumericalInput {
             Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, '0')),
         ];
 
-        _NumericalInput(Row::center(0.0), slots, true)
+        SlotDisplay(Row::center(0.0), slots, true)
     }
 }
 
-impl OnEvent for _NumericalInput { 
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
-        if let Some(e) = event.downcast_ref::<event::TextInput>() {
-            if let event::TextInput::Edited(key) = e {
-                let mut reversed = false;
-                let mut slots: Vec<Slot> = vec![];
-                let mut start = 0;
- 
+impl OnEvent for SlotDisplay { 
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
+        if let Some(e) = event.downcast_ref::<event::TextInput>() && self.2 && let event::TextInput::Edited(key) = e {
+            let mut reversed = false;
+            let mut slots: Vec<Slot> = vec![];
+            let mut start = 0;
+
+            match key {
+                Key::Named(NamedKey::Delete) => {
+                    reversed = true;
+                    slots = self.1.clone().into_iter().rev().collect::<Vec<_>>();
+                },
+                _ => {
+                    slots = self.1.clone();
+                    for (i, slot) in slots.iter_mut().enumerate() {
+                        if let SlotType::TriggersGhost(_, is_on) = slot.2 && is_on {
+                            start = i;
+                        }
+                    }
+                }
+            }
+
+            for (i, slot) in slots.iter_mut().enumerate() {
+                if start != 0 && i < start {continue;}
+                let mut edited = false;
                 match key {
                     Key::Named(NamedKey::Delete) => {
-                        reversed = true;
-                        slots = self.1.clone().into_iter().rev().collect::<Vec<_>>();
-                    },
-                    _ => {
-                        slots = self.1.clone();
-                        for (i, slot) in slots.iter_mut().enumerate() {
-                            if let SlotType::TriggersGhost(_, is_on) = slot.2 && is_on {
-                                start = i;
-                            }
+                        match &mut slot.2 {
+                            SlotType::TriggersGhost(_, is_on) if *is_on => {
+                                *is_on = false;
+                                edited = true;
+                            },
+                            SlotType::InputWithDefault(inputs, _, _, _) => {if inputs.pop().is_some() { edited = true; }},
+                            SlotType::GhostInputWithDefault(inputs, _, _) => {if inputs.pop().is_some() { edited = true; }},
+                            SlotType::TriggeredGhostInputWithDefault(inputs, _, _, _) => {if inputs.pop().is_some() { edited = true; }}
+                            _ => {} // later...
                         }
-                    }
-                }
-
-                for (i, slot) in slots.iter_mut().enumerate() {
-                    if start != 0 && i < start {continue;}
-                    let mut edited = false;
-                    match key {
-                        Key::Named(NamedKey::Delete) => {
+                    },
+                    Key::Character(character) => {
+                        let character = character.chars().next().unwrap();
+                        if matches!(character, '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9') {
                             match &mut slot.2 {
-                                SlotType::TriggersGhost(_, is_on) if *is_on => {
-                                    *is_on = false;
-                                    edited = true;
+                                SlotType::InputWithDefault(inputs, limit, default, _) => {
+                                    if inputs.len() < *limit && (!inputs.is_empty() || *default != character) {
+                                        inputs.push(character);
+                                        edited = true;
+                                    }
                                 },
-                                SlotType::InputWithDefault(inputs, _, _, _) => {if inputs.pop().is_some() { edited = true; }},
-                                SlotType::GhostInputWithDefault(inputs, _, _) => {if inputs.pop().is_some() { edited = true; }},
-                                SlotType::TriggeredGhostInputWithDefault(inputs, _, _, _) => {if inputs.pop().is_some() { edited = true; }}
+                                SlotType::GhostInputWithDefault(inputs, limit, _) => {
+                                    if inputs.len() < *limit {
+                                        inputs.push(character);
+                                        edited = true;
+                                    }
+                                },
+                                SlotType::TriggeredGhostInputWithDefault(inputs, limit, default, is_on) if *is_on => {
+                                    if inputs.len() < *limit && (!inputs.is_empty() || *default != character) {
+                                        inputs.push(character);
+                                        edited = true;
+                                    }
+                                },
                                 _ => {} // later...
                             }
-                        },
-                        Key::Character(character) => {
-                            let character = character.chars().next().unwrap();
-                            if matches!(character, '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9') {
-                                match &mut slot.2 {
-                                    SlotType::InputWithDefault(inputs, limit, default, _) => {
-                                        if inputs.len() < *limit && (!inputs.is_empty() || *default != character) {
-                                            inputs.push(character);
-                                            edited = true;
-                                        }
-                                    },
-                                    SlotType::GhostInputWithDefault(inputs, limit, default) => {
-                                        if inputs.len() < *limit {
-                                            inputs.push(character);
-                                            edited = true;
-                                        }
-                                    },
-                                    SlotType::TriggeredGhostInputWithDefault(inputs, limit, default, is_on) if *is_on => {
-                                        if inputs.len() < *limit && (!inputs.is_empty() || *default != character) {
-                                            inputs.push(character);
-                                            edited = true;
-                                        }
-                                    },
-                                    _ => {} // later...
-                                }
-                            } else if let SlotType::TriggersGhost(trigger, is_on) = &mut slot.2 && *trigger == character {
-                                *is_on = true;
-                                edited = true;
-                            }
-                        },
-                        _ => {} // don't care
-                    }
-
-                    if edited {
-                        match slot.2.get_visual() {
-                            SlotVisual::Primary(v) => {
-                                slot.1.inner().left().spans[0] = v;
-                                slot.1.inner().display_left(true);
-                                slot.1.display(true);
-                            },
-                            SlotVisual::Ghost(v) => {
-                                slot.1.inner().right().spans[0] = v;
-                                slot.1.inner().display_left(false);
-                                slot.1.display(true);
-                            },
-                            SlotVisual::None => slot.1.display(false),
+                        } else if let SlotType::TriggersGhost(trigger, is_on) = &mut slot.2 && *trigger == character {
+                            *is_on = true;
+                            edited = true;
                         }
-                    }
-
-                    if edited {break;}
+                    },
+                    _ => {} // don't care
                 }
 
-                if reversed {slots = slots.into_iter().rev().collect::<Vec<_>>();}
-                self.1 = slots;
+                if edited {
+                    match slot.2.get_visual() {
+                        SlotVisual::Primary(v) => {
+                            slot.1.inner().left().spans[0] = v;
+                            slot.1.inner().display_left(true);
+                            slot.1.display(true);
+                        },
+                        SlotVisual::Ghost(v) => {
+                            slot.1.inner().right().spans[0] = v;
+                            slot.1.inner().display_left(false);
+                            slot.1.display(true);
+                        },
+                        SlotVisual::None => slot.1.display(false),
+                    }
+                }
 
-                let mut triggered = false;
-                for slot in &mut self.1 {
-                    if let SlotType::TriggersGhost(_, is_on) = slot.2 {
-                        triggered = is_on;
-                    } else if let SlotType::TriggeredGhostInputWithDefault(_, _, _, is_on) = &mut slot.2 {
-                        *is_on = triggered;
-                        match slot.2.get_visual() {
-                            SlotVisual::Primary(v) => {
-                                slot.1.inner().left().spans[0] = v;
-                                slot.1.inner().display_left(true);
-                                slot.1.display(true);
-                            },
-                            SlotVisual::Ghost(v) => {
-                                slot.1.inner().right().spans[0] = v;
-                                slot.1.inner().display_left(false);
-                                slot.1.display(true);
-                            },
-                            SlotVisual::None => {
-                                slot.1.display(false);
-                            }
+                if edited {break;}
+            }
+
+            if reversed {slots = slots.into_iter().rev().collect::<Vec<_>>();}
+            self.1 = slots;
+
+            let mut triggered = false;
+            for slot in &mut self.1 {
+                if let SlotType::TriggersGhost(_, is_on) = slot.2 {
+                    triggered = is_on;
+                } else if let SlotType::TriggeredGhostInputWithDefault(_, _, _, is_on) = &mut slot.2 {
+                    *is_on = triggered;
+                    match slot.2.get_visual() {
+                        SlotVisual::Primary(v) => {
+                            slot.1.inner().left().spans[0] = v;
+                            slot.1.inner().display_left(true);
+                            slot.1.display(true);
+                        },
+                        SlotVisual::Ghost(v) => {
+                            slot.1.inner().right().spans[0] = v;
+                            slot.1.inner().display_left(false);
+                            slot.1.display(true);
+                        },
+                        SlotVisual::None => {
+                            slot.1.display(false);
                         }
                     }
                 }
@@ -233,7 +262,7 @@ impl SlotType {
                 true => SlotVisual::Primary(c.to_string()),
                 false => SlotVisual::None,
             },
-            SlotType::TriggeredGhostInputWithDefault(chars, limit, default, is_on) => {
+            SlotType::TriggeredGhostInputWithDefault(chars, _, default, is_on) => {
                 match is_on {
                     true => match chars.to_string().is_empty() {
                         true => SlotVisual::Ghost(default.to_string()),
@@ -242,14 +271,14 @@ impl SlotType {
                     false => SlotVisual::None,
                 }
             },
-            SlotType::GhostInputWithDefault(chars, limit, default) => {
+            SlotType::GhostInputWithDefault(chars, _, default) => {
                 match chars.to_string().is_empty() {
                     true => SlotVisual::Ghost(default.to_string()),
                     false => SlotVisual::Primary(chars.to_string()),
                 }
             },
             SlotType::ConditionalVisual(c) => SlotVisual::Primary(c.to_string()), // check cond
-            SlotType::InputWithDefault(chars, limit, default, format) => {
+            SlotType::InputWithDefault(chars, _, default, format) => {
                 SlotVisual::Primary(match chars.to_string().is_empty() {
                     true => default.to_string(),
                     false => {

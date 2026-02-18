@@ -1,6 +1,9 @@
+#![allow(unused)]
+
+
 use prism::event::Key as WinitKey;
 // use roost_ui::maverick_os::hardware::ImageOrientation;
-use prism::event::{self, MouseState, TickEvent, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey};
+use prism::event::{self, MouseState, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey};
 use prism::canvas::{self, Align, Image};
 use prism::{Context, Request, Hardware};
 use prism::drawable::{Component, SizedTree};
@@ -15,7 +18,7 @@ use crate::components::text::{Text, TextStyle, TextSize};
 use crate::components::{Rectangle, Icon};
 use crate::components::button::GhostIconButton;
 
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{self, Sender};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum ButtonState {Default, Pressed}
@@ -100,7 +103,7 @@ struct KeyboardContent(Column, KeyboardHeader, KeyboardRow, KeyboardRow, Keyboar
 
 impl KeyboardContent {
     fn new(theme: &Theme, actions: bool) -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, _receiver) = mpsc::channel();
         KeyboardContent(
             Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
             KeyboardHeader::new(theme, actions),
@@ -111,7 +114,7 @@ impl KeyboardContent {
         )
     }
 
-    fn update(&mut self) {
+    fn _update(&mut self) {
         let caps = *self.4.capslock().as_mut().unwrap().status();
         let page = *self.5.paginator().as_mut().unwrap().status();
         self.2.update(top_keys(&page), caps);
@@ -145,7 +148,7 @@ impl KeyRow {
         KeyRow(Row::center(0.0), keys)
     }
 
-    fn keys(&mut self) -> &mut Vec<Key> {&mut self.1}
+     fn keys(&mut self) -> &mut Vec<Key> {&mut self.1}
 }
 
 #[derive(Component, Debug, Clone)]

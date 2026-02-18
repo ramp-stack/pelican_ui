@@ -1,7 +1,7 @@
-use prism::event::{TickEvent, OnEvent, MouseState, Event, MouseEvent};
+use prism::event::{OnEvent, Event};
 use prism::canvas::{Image, Shape, ShapeType};
 use prism::layout::{Stack, Offset, Size, Padding};
-use prism::{Context, Hardware, Request};
+use prism::Context;
 use prism::drawable::{Component, SizedTree};
 
 use crate::Callback;
@@ -37,7 +37,7 @@ pub struct Avatar {
     _avatar: PrimaryAvatar,
     _flair: Option<Flair>,
     #[skip] _size: AvatarSize,
-    #[skip] on_click: Option<Box<dyn Callback>>,
+    #[skip] _on_click: Option<Box<dyn Callback>>,
     #[skip] pub content: AvatarContent,
     #[skip] pub flair: Option<(String, AvatarIconStyle)>,
     #[skip] pub outline: bool,
@@ -63,7 +63,7 @@ impl Avatar {
             _avatar: PrimaryAvatar::new(theme, content.clone(), outline, size),
             _flair: flair.clone().map(|(name, style)| Flair::new(theme, &name, style, size)),
             _size: size,
-            on_click,
+            _on_click: on_click,
             content,
             flair,
             outline,
@@ -76,25 +76,25 @@ impl Avatar {
 }
 
 impl OnEvent for Avatar {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         // TODO: should be ina interactions button instead
         // if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.as_any_mut().downcast_mut::<MouseEvent>() {
         //     if let Some(on_click) = &mut self.on_click {
         //         ctx.send(Request::Hardware(Hardware::Haptic));
         //         (on_click)(ctx, )
         //     }
-        if event.as_any().downcast_ref::<TickEvent>().is_some() {
-            // TODO: allow this
-            // let (circle_icon, image) = match &self.content {
-            //     AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (self._size.get(), self._size.get()), 0.0), image: image.clone(), color: None})),
-            //     AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(theme, name, *style, self._size.get())), None)
-            // };
+        // if event.as_any().downcast_ref::<TickEvent>().is_some() {
+        //     // TODO: allow this
+        //     // let (circle_icon, image) = match &self.content {
+        //     //     AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (self._size.get(), self._size.get()), 0.0), image: image.clone(), color: None})),
+        //     //     AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(theme, name, *style, self._size.get())), None)
+        //     // };
             
-            // self._avatar.1 = circle_icon;
-            // self._avatar.2 = image;
-            // self._avatar.3 = self.outline.then(|| Circle::new(self._size.get(), Color::BLACK, true));
-            // self._flair = self.flair.clone().map(|(name, style)| Flair::new(theme, &name, style, self._size));
-        }
+        //     // self._avatar.1 = circle_icon;
+        //     // self._avatar.2 = image;
+        //     // self._avatar.3 = self.outline.then(|| Circle::new(self._size.get(), Color::BLACK, true));
+        //     // self._flair = self.flair.clone().map(|(name, style)| Flair::new(theme, &name, style, self._size));
+        // }
         vec![event]
     }
 }

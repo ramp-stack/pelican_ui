@@ -1,9 +1,9 @@
 use prism::{Context, drawables, Request};
-use prism::event::{Event, OnEvent};
-use prism::drawable::{Component, Drawable};
+use prism::event::OnEvent;
+use prism::drawable::Component;
 use prism::canvas::{Align, Image};
 use prism::display::Bin;
-use prism::layout::{Area, Row, Column, Size, Padding, Offset, Stack};
+use prism::layout::{Row, Column, Size, Padding, Offset, Stack};
 
 use ptsd::interactions;
 

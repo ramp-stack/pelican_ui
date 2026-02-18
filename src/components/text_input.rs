@@ -164,8 +164,10 @@ impl OnEvent for _InputContent {
                 self.default.display(!self.value.is_empty());
                 self.empty.display(self.value.is_empty());
             }
-        } else if let Some(TextInputEvent::Submit) = event.downcast_ref::<TextInputEvent>() && let Some(on_submit) = &mut self.on_submit {
-            if let Ok(mut cb) = on_submit.lock() { (cb)(ctx, &mut self.value); }
+        } else if let Some(TextInputEvent::Submit) = event.downcast_ref::<TextInputEvent>() 
+        && let Some(on_submit) = &mut self.on_submit 
+        && let Ok(mut cb) = on_submit.lock() {
+            (cb)(ctx, &mut self.value);
         }
         vec![event]
     }

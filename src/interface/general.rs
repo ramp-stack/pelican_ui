@@ -6,7 +6,7 @@ use prism::display::Bin;
 use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
 
 use crate::Callback;
-use crate::theme::{self, Theme};
+use crate::theme::Theme;
 use crate::components::{Rectangle};
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
@@ -54,7 +54,7 @@ impl std::fmt::Debug for Interface {
 }
 
 impl Interface {
-    pub fn new(theme: &Theme, mut roots: Vec<RootInfo>, on_event: OnEventFn) -> Self {
+    pub fn new(theme: &Theme, mut roots: Vec<RootInfo>, _on_event: OnEventFn) -> Self {
         let pages: Vec<(String, Box<dyn AppPage>)> = roots.iter_mut().map(|r| (r.label.to_string(), r.page.take().unwrap() as Box<dyn AppPage>)).collect();
         Interface {
             layout: Stack::default(),
@@ -77,7 +77,7 @@ impl Interface {
         }
     }
 
-    fn inner(&mut self) -> &mut Box<dyn AppPage> {
+    fn _inner(&mut self) -> &mut Box<dyn AppPage> {
         self.inner.pages().current()
     }
 }
@@ -390,11 +390,7 @@ impl Event for InterfaceEvent {
 }
 
 #[derive(Debug, Component, Clone)]
-pub enum Screen {
-    Mobile {_l: Stack, pages: Pages},
-    Desktop {_l: Stack, pages: Pages, border: Bin<Stack, Rectangle>},
-    Web {_l: Stack, pages: Pages},
-}
+pub struct Screen(Stack, Pages, Option<Bin<Stack, Rectangle>>);
 
 impl OnEvent for Screen {}
 
@@ -404,24 +400,20 @@ impl Screen {
         let line_layout = Stack(Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default());
         let border = Bin(line_layout, Rectangle::new(color, 0.0, None));
 
-        Screen::Desktop{_l: Stack::default(), pages, border}
+        Screen(Stack::default(), pages, Some(border))
     }
 
     pub fn mobile(pages: Pages) -> Self {
-        Screen::Mobile{_l: Stack::default(), pages}
+        Screen(Stack::default(), pages, None)
     }
 
     pub fn web(pages: Pages) -> Self {
-        Screen::Web{_l: Stack::default(), pages}
+        Screen(Stack::default(), pages, None)
     }
 }
 
 impl Body for Screen {
     fn pages(&mut self) -> &mut Pages {
-        match self {
-            Screen::Mobile {pages, ..} |
-            Screen::Desktop {pages, ..} |
-            Screen::Web {pages, ..} => pages
-        }
+        &mut self.1
     }
 }

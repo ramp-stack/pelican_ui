@@ -52,5 +52,15 @@ impl RadioSelector {
             ("Option C", "Press this to select option C", Box::new(|_: &mut Context, _: &Theme| println!("Option C Selected")) as Box<dyn Callback>)
         ])
     }
+
+    pub fn value(&self) -> usize {
+        for (index, selectable) in self.1.iter().enumerate() {
+            if selectable.is_selected() {
+                return index
+            }
+        }
+
+        0
+    }
 }
 
