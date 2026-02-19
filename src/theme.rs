@@ -199,7 +199,7 @@ impl Button {
                 resources.insert(Button(Ghost, Hover, Label), Color::WHITE);
                 resources.insert(Button(Ghost, Hover, Outline), Color::TRANSPARENT);
                 resources.insert(Button(Ghost, Pressed, Background), Color::from_hex("#262322", 255));
-                resources.insert(Button(Ghost, Pressed, Label), Color::BLACK);
+                resources.insert(Button(Ghost, Pressed, Label), Color::WHITE);
                 resources.insert(Button(Ghost, Pressed, Outline), Color::TRANSPARENT);
                 resources.insert(Button(Ghost, Disabled, Background), Color::from_hex("#443f3f", 255));
                 resources.insert(Button(Ghost, Disabled, Label), Color::BLACK);

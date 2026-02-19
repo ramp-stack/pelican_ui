@@ -14,7 +14,7 @@ use pelican_ui::components::avatar::Avatar;
 use pelican_ui::components::list_item::ListItem;
 use pelican_ui::components::button::SecondaryButton;
 use pelican_ui::components::text::{ExpandableText, Text, TextSize, TextStyle, TextEditor};
-use pelican_ui::components::button::PrimaryButton;
+use pelican_ui::components::button::{PrimaryButton, SecondaryIconButton, GhostIconButton};
 use pelican_ui::theme::Theme;
 use crate::prism::display::{Enum, Opt, EitherOr};
 
@@ -141,6 +141,7 @@ impl DemoApp4 {
         let bumper = Bumper::stack(theme, None, |ctx: &mut Context, theme: &Theme| {
             ctx.send(Request::event(NavigationEvent::Next));
         }, None);
+        
         let page = Page::new(header, content, Some(bumper));
         Self(Stack::default(), page)
     }
@@ -148,7 +149,7 @@ impl DemoApp4 {
 
 ramp::run!{|ctx: &mut Context, assets: Assets| {
     PelicanUI::new(|theme: &Theme| {
-        let demo2 = RootInfo::icon("explore", "Demo App 2", Box::new(DemoApp2::new(ctx, theme)));
+        let demo2 = RootInfo::icon("explore", "Demo App 2", Box::new(DemoApp3::new(ctx, theme)));
         Interface::new(theme, vec![demo2], Box::new(|page: &mut Box<dyn Drawable>, ctx: &mut Context, e: Box<dyn Event>| {
             vec![e]
         }))

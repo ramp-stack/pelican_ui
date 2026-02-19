@@ -8,7 +8,7 @@ pub struct NumericalInput(Stack, _NumericalInput);
 impl OnEvent for NumericalInput {}
 impl NumericalInput {
     pub fn numerical(theme: &Theme, instructions: &str) -> Self {
-        NumericalInput::new(theme, instructions, SlotDisplay::numerical(theme, true))
+        NumericalInput::new(theme, instructions, SlotDisplay::numerical(theme))
     }
 
     pub fn date(theme: &Theme, instructions: &str) -> Self {
@@ -19,8 +19,8 @@ impl NumericalInput {
         NumericalInput::new(theme, instructions, SlotDisplay::time(theme))
     }
 
-    pub fn display(theme: &Theme, instructions: &str) -> Self {
-        NumericalInput::new(theme, instructions, SlotDisplay::numerical(theme, false))
+    pub fn display(theme: &Theme, amount: f32, instructions: &str) -> Self {
+        NumericalInput::new(theme, instructions, SlotDisplay::display(theme, amount))
     }
 
     pub fn value(&self) -> String {
@@ -64,7 +64,7 @@ impl _NumericalInput {
 #[derive(Clone, Debug, Component)]
 pub struct SlotDisplay(Row, Vec<Slot>, #[skip] bool);
 impl SlotDisplay {
-    pub fn numerical(theme: &Theme, edit: bool) -> Self {
+    pub fn numerical(theme: &Theme) -> Self {
         let slots = vec![
             Slot::new(theme, SlotType::Fixed('$')),
             Slot::new(theme, SlotType::InputWithDefault(String::new(), 6, '0', InputFormat::Numerical)), 
@@ -73,7 +73,14 @@ impl SlotDisplay {
             Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
         ];
 
-        SlotDisplay(Row::center(0.0), slots, edit)
+        SlotDisplay(Row::center(0.0), slots, true)
+    }
+
+    pub fn display(theme: &Theme, amount: f32) -> Self {
+        let chars = format!("{:.2}", amount).chars().collect::<Vec<char>>();
+        let mut slots = vec![Slot::new(theme, SlotType::Fixed('$'))];
+        chars.into_iter().for_each(|c| slots.push(Slot::new(theme, SlotType::Fixed(c))));
+        SlotDisplay(Row::center(0.0), slots, false)
     }
 
     pub fn date(theme: &Theme) -> Self {
