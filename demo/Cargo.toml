@@ -5,5 +5,5 @@ edition = "2024"
 
 [dependencies]
 image = "0.25.9"
-ramp = {package="ramp2", path="../../ramp"}
-pelican_ui = {package="pelican_ui", path="../"}
+ramp = {package="ramp2", version="0.1.3"}
+pelican_ui = {package="pelican_ui", version="2.1.1"}
