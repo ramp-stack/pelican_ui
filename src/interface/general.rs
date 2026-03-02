@@ -7,7 +7,7 @@ use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnch
 
 use crate::Callback;
 use crate::theme::Theme;
-use crate::components::{Rectangle};
+use crate::components::{Rectangle, TextInput};
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
 
@@ -33,10 +33,12 @@ pub struct Interface {
 }
 
 impl OnEvent for Interface {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(InterfaceEvent::Disable(disable)) = event.downcast_ref::<InterfaceEvent>() {
             ctx.send(Request::event(event::Button::Disable(*disable)));
         }
+
+        if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![0];}
 
         // let mut closure = self.on_event.take().expect("on_event missing");
         // let result = (closure)(self.inner(), ctx, event);
@@ -259,7 +261,7 @@ impl Header {
         r_icon: Option<(String, Box<dyn Callback>)>,
         size: TextSize,
     ) -> Self {
-        let clean: String = title.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
+        let clean: String = title.chars().collect();
         let title = clean[..1].to_uppercase() + &clean[1..].to_lowercase();
         let text = ExpandableText::new(theme, &title, size, TextStyle::Heading, Align::Center, Some(1));
 
@@ -338,6 +340,12 @@ impl Bumper {
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }
 
+    pub fn input(theme: &Theme) -> Self {
+        let content = TextInput::new(theme, None, None, None, None, None);
+        let (layout, background) = Self::layout(theme);
+        Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
+    }
+
     fn layout(theme: &Theme) -> (Stack, Rectangle) {
         let background = Rectangle::new(theme.colors().get(ptsd::Background::Primary), 0.0, None);
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
@@ -392,7 +400,12 @@ impl Event for InterfaceEvent {
 #[derive(Debug, Component, Clone)]
 pub struct Screen(Stack, Pages, Option<Bin<Stack, Rectangle>>);
 
-impl OnEvent for Screen {}
+impl OnEvent for Screen {
+    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![1];}
+        vec![event]
+    }
+}
 
 impl Screen {
     pub fn desktop(theme: &Theme, pages: Pages) -> Self {

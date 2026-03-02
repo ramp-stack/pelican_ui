@@ -19,14 +19,14 @@ pub use image;
 
 extern crate self as pelican_ui;
 
-pub struct PelicanUI;
+// pub struct PelicanUI;
 
-impl PelicanUI {
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(interface: impl FnOnce(&Theme) -> Interface) -> Interface {
-        (interface)(&Theme::default())
-    }
-}
+// impl PelicanUI {
+//     #[allow(clippy::new_ret_no_self)]
+//     pub fn new(interface: impl FnOnce(&Theme) -> Interface, theme) -> Interface {
+//         (interface)(&Theme::default())
+//     }
+// }
 
 #[derive(Debug, Component, Clone)]
 pub struct Listener<D: Drawable + Clone, T: Hash + Debug + Clone + 'static>(Stack, prism::Listener<D, T>);

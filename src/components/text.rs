@@ -87,10 +87,10 @@ impl TextStyle {
 }
 
 #[derive(Debug, Clone)]
-pub struct ExpandableText(pub Text);
+pub struct ExpandableText(pub Text, f32);
 impl ExpandableText {
     pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
-        ExpandableText(Text::new(theme, text, size, style, align, max_lines))
+        ExpandableText(Text::new(theme, text, size, style, align, max_lines), 0.0)
     }
 
     pub fn default(theme: &Theme, text: &str) -> Self {
@@ -99,9 +99,14 @@ impl ExpandableText {
 }
 
 impl Drawable for ExpandableText {
-    fn request_size(&self) -> RequestTree { 
+    fn request_size(&self) -> RequestTree {
         let size = self.0.inner.size();
-        RequestTree(SizeRequest::new(size.0, size.1, f32::MAX, size.1), vec![])
+
+        // println!("LINES {:?}, size: {:?}", self.0.inner.len(), size);
+        // request needs to be max so that larger texts can know when to wrap
+        // but the max should also just be the width of the text itself so that there's not a bunch of extra length
+        
+        RequestTree(SizeRequest::new(0.0, size.1, f32::MAX, size.1), vec![])
     }
 
     fn draw(&self, sized: &SizedTree, offset: (f32, f32), bound: Rect) -> Vec<(CanvasArea, CanvasItem)> {
@@ -110,13 +115,13 @@ impl Drawable for ExpandableText {
     }
 
     fn event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) {
+        self.0.inner.width = Some(sized.0.0);
         self.0.event(ctx, sized, event)
     }
 }
 
 #[derive(Component, Clone)]
 pub struct TextEditor(Stack, pub ExpandableText, TextCursor);
-
 impl std::fmt::Debug for TextEditor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("TextEditor").field(&self.0).field(&self.1).field(&self.2).finish()

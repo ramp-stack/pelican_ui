@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use image::RgbaImage;
-use include_dir::include_dir;
+use include_dir::{include_dir, Dir, DirEntry};
 use prism::Assets;
 
 use std::fmt;
@@ -13,30 +13,36 @@ pub use ptsd::Color;
 #[derive(Debug, Clone)]
 pub struct Theme(ptsd::Theme, BrandResources);
 impl Theme {
-    pub fn from(color: Color) -> Self { 
-        let (theme, is_dark) = ptsd::Theme::from(color);
-        Theme::new(theme, is_dark, color) 
+    pub fn from(assets: &Dir<'static>, color: Color) -> Self { 
+        let (theme, is_dark) = ptsd::Theme::from(assets, color);
+        Theme::new(assets, theme, is_dark, color) 
     }
 
-    pub fn dark(color: Color) -> Self { Theme::new(ptsd::Theme::dark(color), true, color) }
-    pub fn light(color: Color) -> Self { Theme::new(ptsd::Theme::light(color), false, color) }
+    pub fn dark(assets: &Dir<'static>, color: Color) -> Self { Theme::new(assets, ptsd::Theme::dark(assets, color), true, color) }
+    pub fn light(assets: &Dir<'static>, color: Color) -> Self { Theme::new(assets, ptsd::Theme::light(assets, color), false, color) }
 
-    fn new(mut inner: ptsd::Theme, is_dark: bool, color: Color) -> Self {
+    fn new(assets: &Dir<'static>, mut inner: ptsd::Theme, is_dark: bool, color: Color) -> Self {
         Button::map(&mut inner.colors, is_dark, color);
-        Theme(inner, BrandResources::default())
+        Theme(inner, BrandResources::new(assets))
     }
 
     pub fn colors(&self) -> &ColorResources {&self.0.colors}
     pub fn icons(&self) -> &IconResources {&self.0.icons}
     pub fn fonts(&self) -> &FontResources {&self.0.fonts}
     pub fn brand(&self) -> &BrandResources {&self.1}
+
+    pub fn colors_mut(&mut self) -> &mut ColorResources {&mut self.0.colors}
+    pub fn icons_mut(&mut self) -> &mut IconResources {&mut self.0.icons}
+    pub fn fonts_mut(&mut self) -> &mut FontResources {&mut self.0.fonts}
+    pub fn brand_mut(&mut self) -> &mut BrandResources {&mut self.1}
 }
 
 impl Default for Theme {
     fn default() -> Theme {
+        let assets = include_dir!("resources");
         let color = Color::from_hex("#00a2ff", 255);
-        let inner = ptsd::Theme::dark(color);
-        Theme::new(inner, true, color)
+        let inner = ptsd::Theme::dark(&assets, color);
+        Theme::new(&assets, inner, true, color)
     }
 }
 
@@ -56,6 +62,28 @@ impl Default for BrandResources {
             wordmark: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "wordmark.svg").unwrap())),
             app_icon: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "app_icon.svg").unwrap())),
             error: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "error.svg").unwrap())),
+        }
+    }
+}
+
+impl BrandResources {
+    fn new(dir: &Dir<'static>) -> Self {
+        println!("Retreived brand resources from {:?}", dir);
+        let defaults = BrandResources::default();
+        let dir = dir.entries().iter().find_map(|entry| {
+            match entry {
+                DirEntry::Dir(d) if d.path().file_name().and_then(|n| n.to_str()) == Some("brand") => {
+                    Some(d.clone())
+                }
+                _ => None,
+            }
+        }).unwrap_or(include_dir!("resources"));
+
+        BrandResources {
+            logo: Assets::load_file(&dir, "brand/logo.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.logo.clone()),
+            wordmark: Assets::load_file(&dir, "brand/wordmark.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.wordmark.clone()),
+            app_icon: Assets::load_file(&dir, "brand/app_icon.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.app_icon.clone()),
+            error: Assets::load_file(&dir, "brand/error.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.error.clone()),
         }
     }
 }

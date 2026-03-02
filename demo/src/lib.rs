@@ -1,7 +1,8 @@
-use prism::canvas::{Shape, ShapeType, Color, Align};
+use prism::canvas::{Shape, ShapeType, Align};
 use ramp::prism::{self, canvas::{Image, Text as CanvasText}, Context, layout::{Offset, Row, Stack, Column, Size, Padding}, event::{OnEvent, Event, TickEvent}, drawable::{Component, SizedTree}, drawables};
 
-use pelican_ui::{Request, Listener};
+use pelican_ui::{colors, Request, Listener};
+use pelican_ui::components::MessageGroup;
 use pelican_ui::components::Circle;
 use pelican_ui::components::Toggle;
 use pelican_ui::components::Slider;
@@ -9,149 +10,248 @@ use pelican_ui::components::QRCode;
 use pelican_ui::components::Checkbox;
 use pelican_ui::components::TextInput;
 use pelican_ui::components::RadioSelector;
-use pelican_ui::components::NumericalInput;
+use pelican_ui::components::{NumericalInput, Icon};
 use pelican_ui::components::avatar::Avatar;
-use pelican_ui::components::list_item::ListItem;
+use pelican_ui::components::list_item::{ListItem, ListItemInfoLeft};
 use pelican_ui::components::button::SecondaryButton;
 use pelican_ui::components::text::{ExpandableText, Text, TextSize, TextStyle, TextEditor};
 use pelican_ui::components::button::{PrimaryButton, SecondaryIconButton, GhostIconButton};
-use pelican_ui::theme::Theme;
+use pelican_ui::theme::{Theme, Color};
+use pelican_ui::utils::{Timestamp, TitleSubtitle};
 use crate::prism::display::{Enum, Opt, EitherOr};
+use pelican_ui::components::{Profile, Room, Direction};
+use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
 
 use image::RgbaImage;
 use std::sync::Arc;
-use pelican_ui::PelicanUI;
 
 use pelican_ui::interface::general::{Interface, Page, Header, Bumper, Content};
 use pelican_ui::interface::navigation::{RootInfo, NavigationEvent, AppPage, Flow, FlowContainer};
 
 use pelican_ui::interface::general::Pages;
-
-//     pub fn new(ctx: &mut Context) -> Self {
-//         let image: Arc<RgbaImage> = Arc::new(image::open("./seagull.png").unwrap().into());
-//         let img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
-//         let text = ExpandableText::default(ctx, "seagull.png");
-
-//         let image: Arc<RgbaImage> = Arc::new(image::open("./flamingo.png").unwrap().into());
-//         let img2 = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 2050.0/6.0), 0.0), image: image.clone(), color: None};
-//         let text2 = ExpandableText::default(ctx, "flamingo.png");
-
-//         let avatar = Avatar::default(ctx);
-//         let button = SecondaryButton::default(ctx);
-//         let checkbox = Checkbox::default(ctx);
-//         let listitem = ListItem::default(ctx);
-//         let qrcode = QRCode::default(ctx);
-//         let radio = RadioSelector::default(ctx);
-//         let slider = Slider::default(ctx);
-//         let input = TextInput::default(ctx);
-//         let toggle = Toggle::default(ctx);
-//         let circle = Circle::default();
-
-#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
-pub struct StateTest(String);
+use pelican_ui::components::list_item::ListItemGroup;
 
 #[derive(Debug, Component, Clone)]
-pub struct DemoFlow(Stack, Flow);
-impl OnEvent for DemoFlow {}
-impl FlowContainer for DemoFlow {
-    fn flow(&mut self) -> &mut Flow {&mut self.1}
-}
-impl DemoFlow {
+pub struct Home(Stack, Page);
+impl OnEvent for Home {}
+impl AppPage for Home {}
+impl Home {
     pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
-        let three = DemoApp3::new(ctx, theme);
-        let four = DemoApp4::new(ctx, theme);
-        DemoFlow(Stack::default(), Flow::new(vec![Box::new(three), Box::new(four)]))
-    }
-}
+        let tickets = vec![
+            Ticket::new("Daniel Vermeer", AgeGroup::Adult, Length::Season),
+            Ticket::new("Amanda Vermeer", AgeGroup::Adult, Length::Season),
+            Ticket::new("Jimmy Vermeer", AgeGroup::Youth, Length::Season),
+            Ticket::new("Annie Vermeer", AgeGroup::Youth, Length::Season),
+        ];
 
-#[derive(Debug, Component, Clone)]
-pub struct DemoApp2(Stack, Page);
-impl OnEvent for DemoApp2 {}
-impl AppPage for DemoApp2 {}
-impl DemoApp2 {
-    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
-        let image: Arc<RgbaImage> = Arc::new(image::open(&format!("./flamingo.png")).unwrap().into());
-        let img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
+        let list = ListItemGroup::new(tickets.into_iter().map(|ticket| 
+            ListItem::new(theme, 
+                Some(AvatarContent::icon(&ticket.age.get().to_lowercase(), AvatarIconStyle::Brand)), 
+                ListItemInfoLeft::new(&ticket.name, None, None, None), 
+                Some(TitleSubtitle::new(&ticket.age.get(), Some(&ticket.length.get()))),
+                None,
+                Some("forward"),
+                move |ctx: &mut Context, theme: &Theme| {
+                    let flow = ViewTicketFlow::new(ctx, theme, ticket.clone());
+                    ctx.send(Request::event(NavigationEvent::push(flow)));
+                }
+            ),
+        ).collect::<Vec<_>>());
 
-        let img = Listener::new(ctx, theme, img, |ctx: &mut Context, theme: &Theme, img: &mut Image, state: StateTest| {
-            let image: Arc<RgbaImage> = Arc::new(image::open(&format!("./{}", state.0.to_string())).unwrap().into());
-            *img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
-        });
-
-        let text = ExpandableText::default(theme, "flamingo.png");
-        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| true));
-        let header = Header::home(theme, "Demo App", None);
+        let content = Content::new(Offset::Start, drawables![list], Box::new(|_| true));
+        let header = Header::home(theme, "My Tickets", None);
         let bumper = Bumper::home(theme, 
-            ("Receive".to_string(), Box::new(|ctx: &mut Context, theme: &Theme| {
-                let flow = DemoFlow::new(ctx, theme);
-                println!("Attempting to navigate flowwwwmwwww");
+            ("Buy Ticket".to_string(), Box::new(|ctx: &mut Context, theme: &Theme| {
+                let flow = BuyTicketFlow::new(ctx, theme);
                 ctx.send(Request::event(NavigationEvent::push(flow)));
             })),
             None,
         );
+
+        let page = Page::new(header, content, Some(bumper));
+        Self(Stack::default(), page)
+    }
+}
+
+#[derive(Debug, Clone, Component)]
+pub struct BuyTicketFlow(Stack, Flow);
+impl OnEvent for BuyTicketFlow {}
+impl FlowContainer for BuyTicketFlow {fn flow(&mut self) -> &mut Flow {&mut self.1}}
+impl BuyTicketFlow {
+    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
+        BuyTicketFlow(Stack::default(), Flow::new(vec![
+            Box::new(NameOnTicket::new(ctx, theme)),
+            Box::new(AgeOnTicket::new(ctx, theme)),
+            Box::new(ExpirationOnTicket::new(ctx, theme)),
+            Box::new(PurchasedTicket::new(ctx, theme))
+        ]))
+    }
+}
+
+#[derive(Debug, Component, Clone)]
+pub struct NameOnTicket(Stack, Page);
+impl OnEvent for NameOnTicket {}
+impl AppPage for NameOnTicket {}
+impl NameOnTicket {
+    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
+        let input = TextInput::new(theme, None, Some("Ticket holder"), Some("Ticket holder's name..."), None, None);
+        let content = Content::new(Offset::Start, drawables![input], Box::new(|_| true));
+        let header = Header::stack(theme, "Ticket holder", None);
+        let bumper = Bumper::stack(theme, None, Box::new(|ctx: &mut Context, theme: &Theme| {
+            ctx.send(Request::event(NavigationEvent::Next));
+        }), None);
+
+        let page = Page::new(header, content, Some(bumper));
+        Self(Stack::default(), page)
+    }
+}
+
+
+#[derive(Debug, Component, Clone)]
+pub struct AgeOnTicket(Stack, Page);
+impl OnEvent for AgeOnTicket {}
+impl AppPage for AgeOnTicket {}
+impl AgeOnTicket {
+    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
+        let input = RadioSelector::new(theme, 0, vec![
+            ("Youth", "Persons aged 0y - 16y", Box::new(|ctx: &mut Context, theme: &Theme| {})),
+            ("Adult", "Persons aged 17y - 65y", Box::new(|ctx: &mut Context, theme: &Theme| {})),
+            ("Senior", "Persons 65+", Box::new(|ctx: &mut Context, theme: &Theme| {}))
+        ]);
+        let content = Content::new(Offset::Start, drawables![input], Box::new(|_| true));
+        let header = Header::stack(theme, "Holder's age", None);
+        let bumper = Bumper::stack(theme, None, Box::new(|ctx: &mut Context, theme: &Theme| {
+            ctx.send(Request::event(NavigationEvent::Next));
+        }), None);
+
+        let page = Page::new(header, content, Some(bumper));
+        Self(Stack::default(), page)
+    }
+}
+
+
+#[derive(Debug, Component, Clone)]
+pub struct ExpirationOnTicket(Stack, Page);
+impl OnEvent for ExpirationOnTicket {}
+impl AppPage for ExpirationOnTicket {}
+impl ExpirationOnTicket {
+    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
+        let input = RadioSelector::new(theme, 0, vec![
+            ("Day (~04/03/2026)", "Pass valid for the day", Box::new(|ctx: &mut Context, theme: &Theme| {})),
+            ("Season (~01/09/2026)", "Pass valid for the entire summer", Box::new(|ctx: &mut Context, theme: &Theme| {})),
+            ("Year (~04/03/2027)", "Pass valid for the whole year", Box::new(|ctx: &mut Context, theme: &Theme| {}))
+        ]);
+        let content = Content::new(Offset::Start, drawables![input], Box::new(|_| true));
+        let header = Header::stack(theme, "Ticket expiration", None);
+        let bumper = Bumper::stack(theme, Some("Complete Purchase"), Box::new(|ctx: &mut Context, theme: &Theme| {
+            ctx.send(Request::event(NavigationEvent::Next));
+        }), None);
+
         let page = Page::new(header, content, Some(bumper));
         Self(Stack::default(), page)
     }
 }
 
 #[derive(Debug, Component, Clone)]
-pub struct DemoApp3(Stack, Page);
-impl OnEvent for DemoApp3 {}
-impl AppPage for DemoApp3 {}
-impl DemoApp3 {
+pub struct PurchasedTicket(Stack, Page);
+impl OnEvent for PurchasedTicket {}
+impl AppPage for PurchasedTicket {}
+impl PurchasedTicket {
     pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
-        let image: Arc<RgbaImage> = Arc::new(image::open(&format!("./seagull.png")).unwrap().into());
-        let img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
+        let header = Header::stack_end(&theme, "Ticket purchased");
+        let bumper = Bumper::stack_end(&theme, None);
+        let content = Content::new(Offset::Center, drawables![
+            Icon::new(&theme, "checkmark", Some(theme.colors().get(colors::Brand)), 128.0),
+            ExpandableText::new(&theme, "You purchased a ticket", TextSize::H4, TextStyle::Heading, Align::Center, None)
+        ], Box::new(|children| true));
 
-        let img = Listener::new(ctx, theme, img, |ctx: &mut Context, theme: &Theme, img: &mut Image, state: StateTest| {
-            let image: Arc<RgbaImage> = Arc::new(image::open(&format!("./{}", state.0.to_string())).unwrap().into());
-            *img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
-        });
-
-        let text = ExpandableText::default(theme, "seagull.png");
-        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| true));
-        let header = Header::stack(theme, "Seagull", None);
-        let bumper = Bumper::stack(theme, None, |ctx: &mut Context, theme: &Theme| {
-            println!("Pressed");
-            ctx.send(Request::event(NavigationEvent::Next));
-        }, None);
         let page = Page::new(header, content, Some(bumper));
-        Self(Stack::default(), page)
+        PurchasedTicket(Stack::default(), page)
     }
 }
 
 
+#[derive(Debug, Clone, Component)]
+pub struct ViewTicketFlow(Stack, Flow);
+impl OnEvent for ViewTicketFlow {}
+impl FlowContainer for ViewTicketFlow {fn flow(&mut self) -> &mut Flow {&mut self.1}}
+impl ViewTicketFlow {
+    pub fn new(ctx: &mut Context, theme: &Theme, ticket: Ticket) -> Self {
+        ViewTicketFlow(Stack::default(), Flow::new(vec![
+            Box::new(ViewTicket::new(ctx, theme, ticket)),
+        ]))
+    }
+}
+
 #[derive(Debug, Component, Clone)]
-pub struct DemoApp4(Stack, Page);
-impl OnEvent for DemoApp4 {}
-impl AppPage for DemoApp4 {}
-impl DemoApp4 {
-    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
-        let image: Arc<RgbaImage> = Arc::new(image::open(&format!("./turtle.png")).unwrap().into());
-        let img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
+pub struct ViewTicket(Stack, Page);
+impl OnEvent for ViewTicket {}
+impl AppPage for ViewTicket {}
+impl ViewTicket {
+    pub fn new(ctx: &mut Context, theme: &Theme, ticket: Ticket) -> Self {
+        let header = Header::stack(&theme, "View ticket", None);
+        let bumper = Bumper::stack(&theme, Some("Share"), Box::new(|ctx: &mut Context, theme: &Theme| {}), None);
+        let content = Content::new(Offset::Center, drawables![
+            QRCode::default(&theme),
+            ExpandableText::new(&theme, &format!("Scan {}'s ticket at entry.", ticket.name), TextSize::Sm, TextStyle::Primary, Align::Center, None)
+        ], Box::new(|children| true));
 
-        let img = Listener::new(ctx, theme, img, |ctx: &mut Context, theme: &Theme, img: &mut Image, state: StateTest| {
-            let image: Arc<RgbaImage> = Arc::new(image::open(&format!("./{}", state.0.to_string())).unwrap().into());
-            *img = Image{shape: ShapeType::Rectangle(0.0, (1448.0/6.0, 1904.0/6.0), 0.0), image: image.clone(), color: None};
-        });
-
-        let text = ExpandableText::default(theme, "turtle.png");
-        let content = Content::new(Offset::Start, drawables![img, text], Box::new(|_| true));
-        let header = Header::stack(theme, "Turtle", None);
-        let bumper = Bumper::stack(theme, None, |ctx: &mut Context, theme: &Theme| {
-            ctx.send(Request::event(NavigationEvent::Next));
-        }, None);
-        
         let page = Page::new(header, content, Some(bumper));
-        Self(Stack::default(), page)
+        ViewTicket(Stack::default(), page)
     }
 }
 
 ramp::run!{|ctx: &mut Context, assets: Assets| {
-    PelicanUI::new(|theme: &Theme| {
-        let demo2 = RootInfo::icon("explore", "Demo App 2", Box::new(DemoApp3::new(ctx, theme)));
-        Interface::new(theme, vec![demo2], Box::new(|page: &mut Box<dyn Drawable>, ctx: &mut Context, e: Box<dyn Event>| {
-            vec![e]
-        }))
-    })
+    let mut theme = Theme::dark(assets.all(), Color::from_hex("#8efe33", 255));
+    let home = RootInfo::icon("explore", "My Tickets", Box::new(Home::new(ctx, &theme)));
+    Interface::new(&theme, vec![home], Box::new(|page: &mut Box<dyn Drawable>, ctx: &mut Context, e: Box<dyn Event>| {
+        vec![e]
+    }))
 }}
+
+#[derive(Debug, Clone)]
+pub struct Ticket {
+    name: String,
+    age: AgeGroup,
+    length: Length,
+}
+
+impl Ticket {
+    pub fn new(name: &str, age: AgeGroup, length: Length) -> Self {
+        Ticket {name: name.to_string(), age, length}
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum AgeGroup {
+    Youth,
+    Adult,
+    Senior
+}
+
+impl AgeGroup {
+    pub fn get(&self) -> String {
+        match self {
+            AgeGroup::Youth => "Youth".to_string(),
+            AgeGroup::Adult => "Adult".to_string(),
+            AgeGroup::Senior => "Senior".to_string()
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Length {
+    Day,
+    Season,
+    Year,
+}
+
+impl Length {
+    pub fn get(&self) -> String {
+        match self {
+            Length::Day => "Day".to_string(),
+            Length::Season => "Season".to_string(),
+            Length::Year => "Year".to_string()
+        }
+    }
+}

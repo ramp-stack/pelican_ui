@@ -1599,8 +1599,6 @@ dependencies = [
 [[package]]
 name = "maverick_os"
 version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22a8f8da660f1e87f825cb3359e6d9985624225b57efc63c312bc70b4b2b9ae7"
 dependencies = [
  "android-activity",
  "android_logger",
@@ -1621,6 +1619,7 @@ dependencies = [
  "libc",
  "log",
  "ndk-context",
+ "nsvg",
  "objc2 0.6.3",
  "objc2-app-kit 0.3.2",
  "objc2-av-foundation",
@@ -2734,8 +2733,6 @@ checksum = "e8cf8e6a8aa66ce33f63993ffc4ea4271eb5b0530a9002db8455ea6050c77bfa"
 [[package]]
 name = "prism2"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "296e04b3e0f9a5dace824490f802d3e31c75613265a2e1a5f6dc3088a6554920"
 dependencies = [
  "anyanymap",
  "downcast-rs 2.0.2",
@@ -4152,8 +4149,6 @@ dependencies = [
 [[package]]
 name = "wgpu_canvas"
 version = "5.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "062a3d4773cfdc3be8026668616c58ae1dfb37e44083fa524256ede19bb76bf8"
 dependencies = [
  "bytemuck",
  "fontdue",

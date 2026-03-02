@@ -179,9 +179,9 @@ impl AvatarIconStyle {
     fn get(&self, theme: &Theme) -> (Color, Color) {
         let colors = theme.colors();
         match self {
-            AvatarIconStyle::Primary => (colors.get(ptsd::Background::Primary), colors.get(ptsd::Background::Secondary)),
+            AvatarIconStyle::Primary => (colors.get(ptsd::Outline::Primary), colors.get(ptsd::Background::Secondary)),
             AvatarIconStyle::Secondary => (colors.get(ptsd::Background::Secondary), colors.get(ptsd::Text::Secondary)),
-            AvatarIconStyle::Brand => (colors.get(ptsd::Brand), Color::WHITE),
+            AvatarIconStyle::Brand => (colors.get(ptsd::Brand), colors.get(ptsd::Background::Primary)),
             AvatarIconStyle::Success => (colors.get(ptsd::Status::Success), Color::WHITE),
             AvatarIconStyle::Warning => (colors.get(ptsd::Status::Warning), Color::WHITE),
             AvatarIconStyle::Danger => (colors.get(ptsd::Status::Danger), Color::WHITE),

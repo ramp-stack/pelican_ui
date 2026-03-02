@@ -36,5 +36,5 @@ pub use numerical_input::*;
 mod keypad;
 pub use keypad::Keypad;
 
-// mod messages;
-// pub use messages::MessageBubble;
+mod messages;
+pub use messages::*;
