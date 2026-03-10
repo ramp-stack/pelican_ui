@@ -7,7 +7,6 @@ use std::fmt::Debug;
 
 pub mod components;
 pub mod interface;
-use interface::general::Interface;
 
 pub mod theme;
 use theme::Theme;

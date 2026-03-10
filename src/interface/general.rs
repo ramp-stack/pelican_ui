@@ -7,17 +7,20 @@ use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnch
 
 use crate::Callback;
 use crate::theme::Theme;
-use crate::components::{Rectangle, TextInput};
+use crate::components::{Rectangle, TextInput, Profile};
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
-
+use crate::components::avatar::AvatarGroup;
 use crate::interface::system::MobileKeyboard;
 use crate::interface::navigation::{RootInfo, Navigator};
+use crate::interface::navigation::FlowContainer;
 
 use ptsd::interfaces::{Body, Navigator as PTSDNavigator};
 use ptsd::navigation::{NavigationEvent, AppPage};
 use ptsd::utils::ValidationFn;
 pub use ptsd::navigation::Pages;
+
+use std::sync::{Arc, Mutex};
 
 type OnEventFn = Box<dyn FnMut(&mut Box<dyn Drawable>, &mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>>;
 
@@ -130,8 +133,8 @@ impl Page {
 /// ```
 #[derive(Debug, Component, Clone)]
 pub struct Content {
-    layout: Column,
-    pub children: Vec<Box<dyn Drawable>>,
+    layout: Stack,
+    pub children: ContentChildren,
     #[skip] validation: Box<dyn ValidationFn>
 }
 
@@ -140,10 +143,9 @@ impl Content {
     pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>, validation: Box<dyn ValidationFn>) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
-        // if offset == Offset::End { layout.set_scroll(f32::MAX); }
         Content {
-            layout: Column::new(24.0, offset, width, Padding::new(16.0), Some(anchor)),
-            children,
+            layout: Stack::new(Offset::Center, offset, width, Size::Fill, Padding::default()),
+            children: ContentChildren::new(children, anchor),
             validation,
         }
     }
@@ -154,7 +156,7 @@ impl Content {
     /// let text = content.find::<Text>().expect("Could not find text in content");
     /// ```
     pub fn find<T: std::any::Any>(&mut self) -> Option<&mut T> {
-        self.children.iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
+        self.children.inner().iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Find an item in the bumper at a specific index.
@@ -163,7 +165,7 @@ impl Content {
     /// let text_input = content.find_at::<TextInput>(0).expect("Could not find text input at first index in content");
     /// ```
     pub fn find_at<T: std::any::Any>(&mut self, i: usize) -> Option<&mut T> {
-        self.children.get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
+        self.children.inner().get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Remove an item from the content. Will remove the first instance of the type.
@@ -172,21 +174,24 @@ impl Content {
     /// let text = content.remove::<Text>().expect("Could not remove text from content");
     /// ```
     pub fn remove<T: std::any::Any>(&mut self) -> Option<T> {
-        if let Some(pos) = self.children.iter().position(|item| (**item).as_any().is::<T>()) {
-            let boxed = self.children.remove(pos);
+        if let Some(pos) = self.children.inner().iter().position(|item| (**item).as_any().is::<T>()) {
+            let boxed = self.children.inner().remove(pos);
             boxed.into_any().downcast::<T>().ok().map(|b| *b)
         } else {
             None
         }
     }
+
+    pub fn children(&self) -> &Vec<Box<dyn Drawable>> {&self.children.1}
+    pub fn children_mut(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.children.1}
 }
 
 impl OnEvent for Content {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            ctx.send(Request::event(InterfaceEvent::Disable(!(self.validation)(&self.children))));
+            ctx.send(Request::event(InterfaceEvent::Disable(!(self.validation)(self.children.inner()))));
         } else if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
-            self.layout.adjust_scroll(*a);
+            self.children.column().adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
         //     if roost_ui::IS_MOBILE {
         //         let mut total_height = 0.0;
@@ -204,10 +209,24 @@ impl OnEvent for Content {
         //         }
         //     }
         } else if let Some(MouseEvent { state: MouseState::Scroll(_, y), position: Some(_) }) = event.downcast_ref::<MouseEvent>() {
-            self.layout.adjust_scroll(*y);
+            self.children.column().adjust_scroll(*y);
         }
         vec![event]
     }
+}
+
+#[derive(Debug, Component, Clone)]
+pub struct ContentChildren(Column, Vec<Box<dyn Drawable>>);
+impl OnEvent for ContentChildren {}
+impl ContentChildren {
+    pub fn new(children: Vec<Box<dyn Drawable>>, anchor: ScrollAnchor) -> Self {
+        let layout = Column::new(24.0, Offset::Center, Size::Fit, Padding::default(), Some(anchor));
+        // if anchor == ScrollAnchor::End { layout.set_scroll(f32::MAX); }
+        ContentChildren(layout, children)
+    }
+
+    pub fn inner(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.1}
+    pub fn column(&mut self) -> &mut Column {&mut self.0}
 }
 
 
@@ -241,10 +260,7 @@ impl Header {
 
     /// A `Header` preset used for in-flow pages.
     pub fn stack(theme: &Theme, title: &str, icon: Option<(String, Box<dyn Callback>)>) -> Self {
-        let closure = |ctx: &mut Context, _: &Theme| {
-            println!("Attempting to return");
-            ctx.send(Request::event(NavigationEvent::Pop));
-        };
+        let closure = |ctx: &mut Context, _: &Theme| ctx.send(Request::event(NavigationEvent::Pop));
         Self::_new(theme, title, Some(("left".to_string(), Box::new(closure))), icon, TextSize::H4)
     }
 
@@ -252,6 +268,23 @@ impl Header {
     pub fn stack_end(theme: &Theme, title: &str) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Reset)));
         Self::_new(theme, title, Some(("close".to_string(), Box::new(closure))), None, TextSize::H4)
+    }
+
+    pub fn messaging(theme: &Theme, profiles: Vec<Profile>, info: Box<dyn FlowContainer>) -> Self {
+        let profiles: Vec<Profile> = profiles.into_iter().filter(|p| *p != Profile::me()).collect();
+        let closure = |ctx: &mut Context, _: &Theme| ctx.send(Request::event(NavigationEvent::Pop));
+        let l_icon = HeaderIcon::new(theme, "left", closure);
+        let r_icon = HeaderIcon::new(theme, "info", Box::new(move |ctx: &mut Context, _theme: &Theme| {
+            ctx.send(Request::event(NavigationEvent::Push(Some(info.clone()), vec![])))
+        })); // this needs to navigate to info page
+
+        let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0));
+        Header {
+            layout,
+            left: l_icon,
+            center: Box::new(MessageHeader::new(theme, profiles)),
+            right: r_icon
+        }
     }
 
     fn _new(
@@ -275,6 +308,18 @@ impl Header {
             center: Box::new(text),
             right: r_icon
         }
+    }
+}
+
+#[derive(Debug, Clone, Component)]
+pub struct MessageHeader(Column, AvatarGroup, ExpandableText);
+impl OnEvent for MessageHeader {}
+impl MessageHeader {
+    pub fn new(theme: &Theme, profiles: Vec<Profile>) -> Self {
+        let title = if profiles.len() > 1 {"Group Message".to_string()} else {profiles[0].name.to_string()};
+        let text = ExpandableText::new(theme, &title, TextSize::H4, TextStyle::Heading, Align::Center, Some(1));
+        let avatars = AvatarGroup::new(theme, profiles.iter().map(|p| p.pfp.clone()).collect::<Vec<_>>());
+        MessageHeader(Column::center(8.0), avatars, text)
     }
 }
 
@@ -340,8 +385,8 @@ impl Bumper {
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }
 
-    pub fn input(theme: &Theme) -> Self {
-        let content = TextInput::new(theme, None, None, None, None, None);
+    pub fn input(theme: &Theme, placeholder: &str, on_submit: impl FnMut(&mut Context, &mut String) + 'static) -> Self {
+        let content = TextInput::new(theme, None, None, Some(placeholder), None, Some(("send", Arc::new(Mutex::new(on_submit)))));
         let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }
@@ -401,7 +446,7 @@ impl Event for InterfaceEvent {
 pub struct Screen(Stack, Pages, Option<Bin<Stack, Rectangle>>);
 
 impl OnEvent for Screen {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![1];}
         vec![event]
     }

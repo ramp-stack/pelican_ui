@@ -36,7 +36,7 @@ use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 /// );
 /// ```
 #[derive(Debug, Component, Clone)]
-pub struct ListItem(Stack, interactions::Button);
+pub struct ListItem(Stack, interactions::Button, #[skip] String);
 impl OnEvent for ListItem {}
 
 impl ListItem {
@@ -49,16 +49,19 @@ impl ListItem {
         icon_r: Option<&'static str>,
         mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static,
     ) -> Self {
+        let label = left.title.title.to_string();
         let list_item = ListItemContent::new(theme, avatar, left, right, icon_l, icon_r);
 
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
-        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, callback, false))
+        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, callback, false), label)
     }
 
     pub fn default(theme: &Theme, ) -> Self {
         Self::new(theme, None, ListItemInfoLeft::new("List Item", Some("Click me for details"), None, None), None, None, Some("forward"), |_: &mut Context, _: &Theme| println!("Pressed..."))
     }
+
+    pub fn title(&self) -> &String {&self.2}
 }
 
 #[derive(Debug, Component, Clone)]

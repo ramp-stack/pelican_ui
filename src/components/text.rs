@@ -87,10 +87,10 @@ impl TextStyle {
 }
 
 #[derive(Debug, Clone)]
-pub struct ExpandableText(pub Text, f32);
+pub struct ExpandableText(pub Text);
 impl ExpandableText {
     pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
-        ExpandableText(Text::new(theme, text, size, style, align, max_lines), 0.0)
+        ExpandableText(Text::new(theme, text, size, style, align, max_lines),)
     }
 
     pub fn default(theme: &Theme, text: &str) -> Self {

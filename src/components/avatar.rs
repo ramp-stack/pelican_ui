@@ -1,6 +1,6 @@
 use prism::event::{OnEvent, Event};
 use prism::canvas::{Image, Shape, ShapeType};
-use prism::layout::{Stack, Offset, Size, Padding};
+use prism::layout::{Stack, Offset, Size, Padding, Row};
 use prism::Context;
 use prism::drawable::{Component, SizedTree};
 
@@ -142,6 +142,23 @@ impl Flair {
             AvatarIcon::new(theme, name, style, size.get() / 3.0),
             Circle::new(size.get() / 3.0,  Color::BLACK, true)
         )
+    }
+}
+
+#[derive(Debug, Component, Clone)]
+pub struct AvatarGroup(Row, Vec<Avatar>);
+impl OnEvent for AvatarGroup {}
+impl AvatarGroup {
+    pub fn new(theme: &Theme, images: Vec<Option<Arc<RgbaImage>>>) -> Self {
+        let avatars = images.into_iter().map(|i| {
+            let content = match i {
+                Some(img) => AvatarContent::image(img),
+                None => AvatarContent::icon("profile", AvatarIconStyle::Secondary),
+            };
+
+            Avatar::new(theme, content, None, true, AvatarSize::Sm, None)
+        }).collect::<Vec<_>>();
+        AvatarGroup(Row::center(-8.0), avatars)
     }
 }
 

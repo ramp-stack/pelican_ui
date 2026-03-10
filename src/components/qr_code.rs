@@ -1,5 +1,5 @@
 use prism::event::OnEvent;
-use prism::canvas::{ShapeType, Image};
+use prism::canvas::{RgbaImage, ShapeType, Image};
 use prism::drawable::Component;
 use prism::layout::{Padding, Size, Offset, Stack};
 use prism::display::Bin;
@@ -7,8 +7,9 @@ use prism::display::Bin;
 use crate::theme::{Theme, Color};
 use crate::components::{Rectangle, AspectRatioImage};
 
-use image::{Rgb, RgbImage, DynamicImage};
+use image::{Rgb, RgbImage};
 use imageproc::drawing::{draw_filled_circle_mut, draw_filled_rect_mut};
+use image::buffer::ConvertBuffer;
 use imageproc::rect::Rect;
 use qrcode::{QrCode, EcLevel};
 
@@ -33,9 +34,8 @@ impl QRCode {
         let app_icon = theme.brand().app_icon.clone();
         let qr_size = 300.0;
         let logo_size = 64.0;
-
         let image = generate_qr_code(data);
-        let img = DynamicImage::ImageRgb8(image).to_rgba8();
+        let img: RgbaImage = image.convert();
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(qr_size-24.0), Size::Static(qr_size-24.0), Padding::default());
         QRCode (
             Stack(Offset::Center, Offset::Center, Size::Static(qr_size), Size::Static(qr_size), Padding::default()),

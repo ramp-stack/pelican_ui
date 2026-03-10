@@ -39,7 +39,7 @@ pub struct TextInput {
     layout: Column,
     label: Option<Text>,
     pub inner: interactions::InputField,
-    hint: EitherOr<Option<ExpandableText>, ExpandableText>,
+    hint: EitherOr<Option<ExpandableText>, Opt<ExpandableText>>,
     #[skip] pub error: Option<String>,
 }
 
@@ -73,7 +73,7 @@ impl TextInput {
             layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
             label: label.map(|l| Text::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None)),
             inner: input_field, 
-            hint: EitherOr::new(help, error),
+            hint: EitherOr::new(help, Opt::new(error, false)),
             error: None
         }
     }
@@ -92,7 +92,7 @@ impl OnEvent for TextInput {
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
             self.hint.display_left(self.error.is_some()); 
             if let Some(e) = &self.error { 
-                self.hint.right().0.spans[0] = e.to_string(); 
+                self.hint.right().inner().0.spans[0] = e.to_string(); 
             } 
         } 
         vec![event] 
@@ -168,6 +168,8 @@ impl OnEvent for _InputContent {
         && let Some(on_submit) = &mut self.on_submit 
         && let Ok(mut cb) = on_submit.lock() {
             (cb)(ctx, &mut self.value);
+            self.default.inner().inner().1.0.spans[0] = String::new();
+            self.value = String::new();
         }
         vec![event]
     }

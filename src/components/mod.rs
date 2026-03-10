@@ -38,3 +38,6 @@ pub use keypad::Keypad;
 
 mod messages;
 pub use messages::*;
+
+mod searchbar;
+pub use searchbar::SearchBar;
