@@ -270,9 +270,9 @@ impl Header {
         Self::_new(theme, title, Some(("close".to_string(), Box::new(closure))), None, TextSize::H4)
     }
 
-    pub fn messaging(theme: &Theme, profiles: Vec<Profile>, info: Box<dyn FlowContainer>) -> Self {
+    pub fn messaging(theme: &Theme, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn FlowContainer>) -> Self {
         let profiles: Vec<Profile> = profiles.into_iter().filter(|p| *p != Profile::me()).collect();
-        let closure = |ctx: &mut Context, _: &Theme| ctx.send(Request::event(NavigationEvent::Pop));
+        let closure = move |ctx: &mut Context, _: &Theme| (0..exact_len).for_each(|_| ctx.send(Request::Event(Box::new(NavigationEvent::Pop))));
         let l_icon = HeaderIcon::new(theme, "left", closure);
         let r_icon = HeaderIcon::new(theme, "info", Box::new(move |ctx: &mut Context, _theme: &Theme| {
             ctx.send(Request::event(NavigationEvent::Push(Some(info.clone()), vec![])))
