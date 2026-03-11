@@ -26,6 +26,7 @@ impl SearchBar {
     }
 
     pub fn results(&self) -> Vec<ListItem> {
+        // println!("{:?}", self.2.1);
         self.2.1.iter().map(|p| p.3.clone()).collect::<Vec<_>>()
     }
 }
