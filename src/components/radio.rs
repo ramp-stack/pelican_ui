@@ -6,7 +6,7 @@ use prism::layout::Column;
 use ptsd::interactions;
 
 use crate::Callback;
-use crate::theme::Theme;
+use crate::theme::{Theme, Icons};
 use crate::components::list_item::ListItem;
 use crate::components::list_item::ListItemInfoLeft;
 
@@ -33,8 +33,8 @@ impl RadioSelector {
         let group_id = uuid::Uuid::new_v4();
         let selectables = items.into_iter().enumerate().map(|(i, (t, s, mut c))| {
             let title = t.to_string();
-            let selected = ListItem::new(theme, None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some("radio_filled"), None, |_, _| {});
-            let default = ListItem::new(theme, None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some("radio"), None, |_, _| {});
+            let selected = ListItem::new(theme, None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some(Icons::RadioFilled), None, |_, _| {});
+            let default = ListItem::new(theme, None, ListItemInfoLeft::new(&title.to_string(), Some(s), None, None), None, Some(Icons::Radio), None, |_, _| {});
 
             let theme = theme.clone();
             let callback = Box::new(move |ctx: &mut Context| (c)(ctx, &theme));

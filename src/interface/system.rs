@@ -12,7 +12,7 @@ use prism::display::Bin;
 
 use ptsd::interfaces::ShowKeyboard;
 
-use crate::theme::{Theme, Color};
+use crate::theme::{Theme, Color, Icons};
 
 use crate::components::text::{Text, TextStyle, TextSize};
 use crate::components::{Rectangle, Icon};
@@ -66,7 +66,7 @@ impl KeyboardIcons {
         let actions = vec![
             // IconButton::keyboard(ctx, "emoji", |_ctx: &mut Context| ()),
             // IconButton::keyboard(ctx, "gif", |_ctx: &mut Context| ()),
-            GhostIconButton::new(theme, "photos", |_ctx: &mut Context, _: &Theme| {}) //ctx.send(Request::Hardware(Hardware::PhotoPicker(sender.clone())))),
+            GhostIconButton::new(theme, Icons::Photos, |_ctx: &mut Context, _: &Theme| {}) //ctx.send(Request::Hardware(Hardware::PhotoPicker(sender.clone())))),
             // IconButton::keyboard(ctx, "camera", |_ctx: &mut Context| ()),
         ];
 
@@ -77,7 +77,7 @@ impl KeyboardIcons {
                 Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(1.0),  Padding::default()), 
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
-            GhostIconButton::new(theme, "down_arrow", |ctx: &mut Context, _: &Theme| {
+            GhostIconButton::new(theme, Icons::DownArrow, |ctx: &mut Context, _: &Theme| {
                 ctx.send(Request::Event(Box::new(ShowKeyboard(false))));
                 ctx.send(Request::Event(Box::new(event::TextInput::Focused(false))));
             }),
@@ -229,7 +229,7 @@ impl Key {
     }
 
     fn backspace(theme: &Theme) -> Self {
-        let character = KeyCharacter::icon(theme, "backspace");
+        let character = KeyCharacter::icon(theme, Icons::Backspace);
         let content = KeyContent::new(42.0, Offset::Center, character);
         Key(Stack::default(), content, ButtonState::Default, WinitKey::Named(NamedKey::Delete))
     }
@@ -267,7 +267,7 @@ struct Capslock(Stack, KeyContent, #[skip] ButtonState, #[skip] bool, #[skip] Se
 
 impl Capslock {
     fn new(theme: &Theme, sender: Sender<u8>) -> Self {
-        let character = KeyCharacter::icon(theme, "capslock");
+        let character = KeyCharacter::icon(theme, Icons::Capslock);
         let content = KeyContent::new(42.0, Offset::Center, character);
         Capslock(Stack::default(), content, ButtonState::Default, false, sender)
     }
@@ -400,7 +400,7 @@ impl KeyCharacter {
         KeyCharacter(Row::center(0.0), None, Some(Text::new(theme, key, TextSize::Md, TextStyle::Keyboard, Align::Left, None)), None, None)
     }
 
-    fn icon(theme: &Theme, i: &'static str) -> Self {
+    fn icon(theme: &Theme, i: Icons) -> Self {
         let c = theme.colors().get(ptsd::Text::Heading);
         KeyCharacter(Row::center(0.0), Some(Icon::new(theme, i, Some(c), 36.0)), None, None, None)
     }

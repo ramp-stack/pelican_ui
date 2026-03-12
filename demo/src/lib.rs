@@ -7,7 +7,7 @@ use pelican_ui::components::RadioSelector;
 use pelican_ui::components::Icon;
 use pelican_ui::components::list_item::{ListItem, ListItemInfoLeft};
 use pelican_ui::components::text::{ExpandableText, TextSize, TextStyle};
-use pelican_ui::theme::{Theme, Color};
+use pelican_ui::theme::{Theme, Color, Icons};
 use pelican_ui::utils::TitleSubtitle;
 use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
 use pelican_ui::interface::general::{Interface, Page, Header, Bumper, Content};
@@ -29,11 +29,11 @@ impl Home {
 
         let list = ListItemGroup::new(tickets.into_iter().map(|ticket| 
             ListItem::new(theme, 
-                Some(AvatarContent::icon(&ticket.age.get().to_lowercase(), AvatarIconStyle::Brand)), 
+                Some(AvatarContent::icon(ticket.age.icon(), AvatarIconStyle::Brand)), 
                 ListItemInfoLeft::new(&ticket.name, None, None, None), 
                 Some(TitleSubtitle::new(&ticket.age.get(), Some(&ticket.length.get()))),
                 None,
-                Some("forward"),
+                Some(Icons::Forward),
                 move |ctx: &mut Context, theme: &Theme| {
                     let flow = ViewTicketFlow::new(theme, ticket.clone());
                     ctx.send(Request::event(NavigationEvent::push(flow)));
@@ -144,7 +144,7 @@ impl PurchasedTicket {
         let header = Header::stack_end(theme, "Ticket purchased");
         let bumper = Bumper::stack_end(theme, None);
         let content = Content::new(Offset::Center, drawables![
-            Icon::new(theme, "checkmark", Some(theme.colors().get(colors::Brand)), 128.0),
+            Icon::new(theme, Icons::Checkmark, Some(theme.colors().get(colors::Brand)), 128.0),
             ExpandableText::new(theme, "You purchased a ticket", TextSize::H4, TextStyle::Heading, Align::Center, None)
         ], Box::new(|_children| true));
 
@@ -186,7 +186,7 @@ impl ViewTicket {
 
 ramp::run!{|ctx: &mut Context, assets: Assets| {
     let theme = Theme::dark(assets.all(), Color::from_hex("#8efe33", 255));
-    let home = RootInfo::icon("explore", "My Tickets", Box::new(Home::new(ctx, &theme)));
+    let home = RootInfo::icon(Icons::Explore, "My Tickets", Box::new(Home::new(ctx, &theme)));
     Interface::new(&theme, vec![home], Box::new(|_page: &mut Box<dyn Drawable>, _ctx: &mut Context, e: Box<dyn Event>| {
         vec![e]
     }))
@@ -218,6 +218,14 @@ impl AgeGroup {
             AgeGroup::Youth => "Youth".to_string(),
             AgeGroup::Adult => "Adult".to_string(),
             AgeGroup::Senior => "Senior".to_string()
+        }
+    }
+
+    pub fn icon(&self) -> Icons {
+        match self {
+            AgeGroup::Youth => Icons::Baby,
+            AgeGroup::Adult => Icons::Profile,
+            AgeGroup::Senior => Icons::Senior
         }
     }
 }

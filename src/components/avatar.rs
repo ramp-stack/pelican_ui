@@ -11,6 +11,7 @@ use crate::components::{Icon, Circle};
 
 use image::RgbaImage;
 use std::sync::Arc;
+use crate::theme::Icons;
 
 /// ## Avatar
 ///
@@ -39,7 +40,7 @@ pub struct Avatar {
     #[skip] _size: AvatarSize,
     #[skip] _on_click: Option<Box<dyn Callback>>,
     #[skip] pub content: AvatarContent,
-    #[skip] pub flair: Option<(String, AvatarIconStyle)>,
+    #[skip] pub flair: Option<(Icons, AvatarIconStyle)>,
     #[skip] pub outline: bool,
 }
 
@@ -53,7 +54,7 @@ impl Avatar {
     pub fn new(
         theme: &Theme, 
         content: AvatarContent, 
-        flair: Option<(String, AvatarIconStyle)>, 
+        flair: Option<(Icons, AvatarIconStyle)>, 
         outline: bool, 
         size: AvatarSize,
         on_click: Option<Box<dyn Callback>>
@@ -61,7 +62,7 @@ impl Avatar {
         Avatar {
             _layout: Stack(Offset::End, Offset::End, Size::Fit, Size::Fit, Padding::default()),
             _avatar: PrimaryAvatar::new(theme, content.clone(), outline, size),
-            _flair: flair.clone().map(|(name, style)| Flair::new(theme, &name, style, size)),
+            _flair: flair.map(|(name, style)| Flair::new(theme, name, style, size)),
             _size: size,
             _on_click: on_click,
             content,
@@ -71,7 +72,7 @@ impl Avatar {
     }
 
     pub fn default(theme: &Theme) -> Self {
-        Self::new(theme, AvatarContent::icon("profile", AvatarIconStyle::Secondary), None, false, AvatarSize::Lg, None)
+        Self::new(theme, AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary), None, false, AvatarSize::Lg, None)
     }
 }
 
@@ -107,7 +108,7 @@ impl PrimaryAvatar {
     fn new(theme: &Theme, content: AvatarContent, outline: bool, size: AvatarSize) -> Self {
         let (circle_icon, image) = match content {
             AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (size.get(), size.get()), 0.0), image, color: None})),
-            AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(theme, &name, style, size.get())), None)
+            AvatarContent::Icon(icon, style) => (Some(AvatarIcon::new(theme, icon, style, size.get())), None)
         };
 
         PrimaryAvatar(
@@ -121,7 +122,7 @@ impl PrimaryAvatar {
 struct AvatarIcon(Stack, Shape, Image);
 impl OnEvent for AvatarIcon {}
 impl AvatarIcon {
-    fn new(theme: &Theme, name: &str, style: AvatarIconStyle, size: f32) -> Self {
+    fn new(theme: &Theme, name: Icons, style: AvatarIconStyle, size: f32) -> Self {
         let icon_size = size * 0.75;
         let (background, icon_color) = style.get(theme);
         AvatarIcon(
@@ -136,7 +137,7 @@ impl AvatarIcon {
 struct Flair(Stack, AvatarIcon, Shape);
 impl OnEvent for Flair {}
 impl Flair {
-    fn new(theme: &Theme, name: &str, style: AvatarIconStyle, size: AvatarSize) -> Self {
+    fn new(theme: &Theme, name: Icons, style: AvatarIconStyle, size: AvatarSize) -> Self {
         Flair(
             Stack::center(),
             AvatarIcon::new(theme, name, style, size.get() / 3.0),
@@ -153,7 +154,7 @@ impl AvatarGroup {
         let avatars = images.into_iter().map(|i| {
             let content = match i {
                 Some(img) => AvatarContent::image(img),
-                None => AvatarContent::icon("profile", AvatarIconStyle::Secondary),
+                None => AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary),
             };
 
             Avatar::new(theme, content, None, true, AvatarSize::Sm, None)
@@ -166,14 +167,14 @@ impl AvatarGroup {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AvatarContent {
     /// Display an icon on a circle background.
-    Icon(String, AvatarIconStyle),
+    Icon(Icons, AvatarIconStyle),
     /// Display a circular image .
     Image(Arc<RgbaImage>)
 }
 
 impl AvatarContent {
-    pub fn icon(icon: &str, style: AvatarIconStyle) -> Self {
-        AvatarContent::Icon(icon.to_string(), style)
+    pub fn icon(icon: Icons, style: AvatarIconStyle) -> Self {
+        AvatarContent::Icon(icon, style)
     }
 
     pub fn image(image: Arc<RgbaImage>) -> Self {

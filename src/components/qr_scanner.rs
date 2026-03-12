@@ -6,7 +6,7 @@ use prism::layout::{Area, Column, Padding, Size, Offset, Stack};
 
 use ptsd::theme::TextSize;
 
-use crate::theme::Theme;
+use crate::theme::{Theme, Icons};
 use crate::components::text::{TextStyle, Text};
 use crate::components::{Icon, Rectangle};
 
@@ -103,7 +103,7 @@ impl QRGuide {
             Stack(Offset::Center, Offset::Center, Size::Static(308.0), Size::Static(308.0), Padding::default()), 
             Some(Rectangle::new(background, 8.0, None)), 
             Rectangle::new(outline, 8.0, Some((4.0, background))), 
-            Some(Message::new(theme, "camera", "Accessing device camera."))
+            Some(Message::new(theme, Icons::Camera, "Accessing device camera."))
         )
     }
 
@@ -116,7 +116,7 @@ struct Message(Column, Image, Text);
 impl OnEvent for Message {}
 
 impl Message {
-    pub fn new(theme: &Theme, icon: &'static str, msg: &str) -> Self {
+    pub fn new(theme: &Theme, icon: Icons, msg: &str) -> Self {
         Message(Column::center(4.0), 
             Icon::new(theme, icon, Some(theme.colors().get(ptsd::Text::Heading)), 48.0),
             Text::new(theme, msg, TextSize::Sm, TextStyle::Secondary, Align::Left, None)

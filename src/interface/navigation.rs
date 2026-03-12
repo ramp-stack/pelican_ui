@@ -9,7 +9,7 @@ use ptsd::interactions;
 
 pub use ptsd::navigation::{NavigationEvent, AppPage, Flow, FlowContainer};
 
-use crate::theme::{self, Theme, Color, Variant};
+use crate::theme::{self, Theme, Color, Variant, Icons};
 use crate::components::{Icon, AspectRatioImage, Rectangle};
 use crate::components::text::{TextStyle, Text};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
@@ -18,16 +18,16 @@ use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, Ic
 
 #[derive(Debug, Clone)]
 pub struct RootInfo {
-    pub(crate) icon: String,
+    pub(crate) icon: Icons,
     pub(crate) label: String,
     pub(crate) avatar: Option<AvatarContent>,
     pub(crate) page: Option<Box<dyn AppPage>>,
 }
 
 impl RootInfo {
-    pub fn icon(icon: &str, label: &str, page: Box<dyn AppPage>) -> Self {
+    pub fn icon(icon: Icons, label: &str, page: Box<dyn AppPage>) -> Self {
         RootInfo {
-            icon: icon.to_string(),
+            icon,
             label: label.to_string(),
             avatar: None,
             page: Some(page)
@@ -36,7 +36,7 @@ impl RootInfo {
 
     pub fn avatar(avatar: AvatarContent, label: &str, page: Box<dyn AppPage>) -> Self {
         RootInfo {
-            icon: "profile".to_string(),
+            icon: Icons::Profile,
             label: label.to_string(),
             avatar: Some(avatar),
             page: Some(page)
@@ -49,7 +49,7 @@ impl RootInfo {
 pub struct NavigatorSelectable(Stack, interactions::Selectable);
 impl OnEvent for NavigatorSelectable {}
 impl NavigatorSelectable {
-    pub fn desktop_icon(theme: &Theme, icon: &str, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
+    pub fn desktop_icon(theme: &Theme, icon: Icons, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
@@ -77,7 +77,7 @@ impl NavigatorSelectable {
         NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, callback, group_id))
     }
 
-    pub fn mobile(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
+    pub fn mobile(theme: &Theme, icon: Icons, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
             IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
@@ -142,7 +142,7 @@ impl Navigator {
                     has_profile = true;
                     bot_col.push(NavigatorSelectable::desktop_avatar(theme, a, &info.label, closure, 0 == i, group_id));
                 }
-                None => top_col.push(NavigatorSelectable::desktop_icon(theme, &info.icon, &info.label, closure, 0 == i, group_id))
+                None => top_col.push(NavigatorSelectable::desktop_icon(theme, info.icon, &info.label, closure, 0 == i, group_id))
             };
             i += 1;
         });
@@ -173,7 +173,7 @@ impl Navigator {
         let mut tabs = Vec::new();
         for (i, info) in navigation.into_iter().enumerate() {
             let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Root(info.label.to_string()))));
-            tabs.push(NavigatorSelectable::mobile(theme, &info.icon, closure, 0 == i, group_id));
+            tabs.push(NavigatorSelectable::mobile(theme, info.icon, closure, 0 == i, group_id));
         }
 
         Navigator::Mobile {
@@ -191,7 +191,7 @@ impl Navigator {
         for (index, info) in navigation.into_iter().enumerate() {
             let root = info.label.to_string();
             let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Root(root.clone()))));
-            buttons.push(NavigatorSelectable::desktop_icon(theme, &info.icon, &info.label, closure, 0 == index, group_id));
+            buttons.push(NavigatorSelectable::desktop_icon(theme, info.icon, &info.label, closure, 0 == index, group_id));
         }
 
         let wordmark = theme.brand().wordmark.clone();

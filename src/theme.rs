@@ -22,6 +22,7 @@ impl Theme {
     pub fn light(assets: &Dir<'static>, color: Color) -> Self { Theme::new(assets, ptsd::Theme::light(assets, color), false, color) }
 
     fn new(assets: &Dir<'static>, mut inner: ptsd::Theme, is_dark: bool, color: Color) -> Self {
+        Icons::map(&mut inner.icons);
         Button::map(&mut inner.colors, is_dark, color);
         Theme(inner, BrandResources::new(assets))
     }
@@ -68,7 +69,6 @@ impl Default for BrandResources {
 
 impl BrandResources {
     fn new(dir: &Dir<'static>) -> Self {
-        println!("Retreived brand resources from {:?}", dir);
         let defaults = BrandResources::default();
         let dir = dir.entries().iter().find_map(|entry| {
             match entry {
@@ -235,4 +235,95 @@ impl Button {
             }
         }
     }
+}
+
+macro_rules! icons {
+    ($($variant:ident => $name:expr),* $(,)?) => {
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum Icons {
+            $($variant),*
+        }
+
+        impl Icons {
+            pub fn map(icons: &mut IconResources) {
+                $(icons.insert(Icons::$variant, $name);)*
+            }
+        }
+
+        impl std::fmt::Display for Icons {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    $(Icons::$variant => write!(f, $name),)*
+                }
+            }
+        }
+    };
+}
+
+icons! {
+    Accounts => "accounts",
+    Add => "add",
+    AppStore => "app_store",
+    Baby => "baby",
+    Back => "back",
+    Backspace => "backspace",
+    Bitcoin => "bitcoin",
+    Block => "block",
+    Boot => "boot",
+    Camera => "camera",
+    Cancel => "cancel",
+    CapslockOn => "capslock_on",
+    Capslock => "capslock",
+    Check => "check",
+    Checkmark => "checkmark",
+    Close => "close",
+    Copy => "copy",
+    Credential => "credential",
+    Delete => "delete",
+    Discord => "discord",
+    Door => "door",
+    DownArrow => "down_arrow",
+    Down => "down",
+    Edit => "edit",
+    Emoji => "emoji",
+    Error => "error",
+    Explore => "explore",
+    Facebook => "facebook",
+    Forward => "forward",
+    Gif => "gif",
+    Group => "group",
+    Heart => "heart",
+    Home => "home",
+    Infinite => "infinite",
+    Info => "info",
+    Instagram => "instagram",
+    Left => "left",
+    Link => "link",
+    Megaphone => "megaphone",
+    Messages => "messages",
+    Microphone => "microphone",
+    Monitor => "monitor",
+    Notification => "notification",
+    Paste => "paste",
+    PelicanUI => "pelican_ui",
+    Photos => "photos",
+    PlayStore => "play_store",
+    Profile => "profile",
+    QrCode => "qr_code",
+    RadioFilled => "radio_filled",
+    Radio => "radio",
+    Right => "right",
+    Scan => "scan",
+    Search => "search",
+    Send => "send",
+    Senior => "senior",
+    Settings => "settings",
+    Unblock => "unblock",
+    Unboot => "unboot",
+    Unchecked => "unchecked",
+    Up => "up",
+    Wallet => "wallet",
+    Warning => "warning",
+    X => "x",
 }

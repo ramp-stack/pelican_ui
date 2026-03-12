@@ -6,7 +6,7 @@ use prism::layout::{Area, Wrap, Stack, Column};
 use ptsd::interactions;
 
 use crate::Callback;
-use crate::theme::Theme;
+use crate::theme::{Theme, Icons};
 use crate::components::TextInput;
 use crate::components::list_item::ListItem;
 use crate::components::button::SecondaryButton;
@@ -44,7 +44,7 @@ impl OnEvent for SelectedItems {
                 SearchbarEvent::Relist(item) => {
                     let i = self.1.len();
                     self.1.push(SearchPill::new(
-                        SecondaryButton::medium(&self.2, "close", &item.title().clone(), None, move |ctx: &mut Context, _theme: &Theme| {
+                        SecondaryButton::medium(&self.2, Icons::Close, &item.title().clone(), None, move |ctx: &mut Context, _theme: &Theme| {
                             ctx.send(Request::event(SearchbarEvent::Remove(i)))
                         }), i, item.clone()
                     ))
@@ -59,7 +59,7 @@ impl OnEvent for SelectedItems {
 impl SelectedItems {
     pub fn new(theme: &Theme, items: Vec<SearchBarListItem>) -> Self {
         SelectedItems(Wrap::start(8.0, 8.0), items.into_iter().enumerate().map(|(i, item)| 
-            SearchPill::new(SecondaryButton::medium(theme, "close", &item.3.clone(), None, move |ctx: &mut Context, _theme: &Theme| {
+            SearchPill::new(SecondaryButton::medium(theme, Icons::Close, &item.3.clone(), None, move |ctx: &mut Context, _theme: &Theme| {
                 ctx.send(Request::event(SearchbarEvent::Remove(i)))
             }), i, item.4.clone())).collect::<Vec<_>>(), theme.clone()
         )

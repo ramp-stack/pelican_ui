@@ -6,7 +6,7 @@ use prism::display::Bin;
 use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
 
 use crate::Callback;
-use crate::theme::Theme;
+use crate::theme::{Theme, Icons};
 use crate::components::{Rectangle, TextInput, Profile};
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
@@ -254,27 +254,27 @@ impl OnEvent for Header {}
 
 impl Header {
     /// A `Header` preset used for home pages.
-    pub fn home(theme: &Theme, title: &str, icon: Option<(String, Box<dyn Callback>)>) -> Self {
+    pub fn home(theme: &Theme, title: &str, icon: Option<(Icons, Box<dyn Callback>)>) -> Self {
         Self::_new(theme, title, None, icon, TextSize::H3)
     }
 
     /// A `Header` preset used for in-flow pages.
-    pub fn stack(theme: &Theme, title: &str, icon: Option<(String, Box<dyn Callback>)>) -> Self {
+    pub fn stack(theme: &Theme, title: &str, icon: Option<(Icons, Box<dyn Callback>)>) -> Self {
         let closure = |ctx: &mut Context, _: &Theme| ctx.send(Request::event(NavigationEvent::Pop));
-        Self::_new(theme, title, Some(("left".to_string(), Box::new(closure))), icon, TextSize::H4)
+        Self::_new(theme, title, Some((Icons::Left, Box::new(closure))), icon, TextSize::H4)
     }
 
     /// A `Header` preset used for end-of-flow pages.
     pub fn stack_end(theme: &Theme, title: &str) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Reset)));
-        Self::_new(theme, title, Some(("close".to_string(), Box::new(closure))), None, TextSize::H4)
+        Self::_new(theme, title, Some((Icons::Close, Box::new(closure))), None, TextSize::H4)
     }
 
     pub fn messaging(theme: &Theme, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn FlowContainer>) -> Self {
         let profiles: Vec<Profile> = profiles.into_iter().filter(|p| *p != Profile::me()).collect();
         let closure = move |ctx: &mut Context, _: &Theme| (0..exact_len).for_each(|_| ctx.send(Request::Event(Box::new(NavigationEvent::Pop))));
-        let l_icon = HeaderIcon::new(theme, "left", closure);
-        let r_icon = HeaderIcon::new(theme, "info", Box::new(move |ctx: &mut Context, _theme: &Theme| {
+        let l_icon = HeaderIcon::new(theme, Icons::Left, closure);
+        let r_icon = HeaderIcon::new(theme, Icons::Info, Box::new(move |ctx: &mut Context, _theme: &Theme| {
             ctx.send(Request::event(NavigationEvent::Push(Some(info.clone()), vec![])))
         })); // this needs to navigate to info page
 
@@ -290,16 +290,16 @@ impl Header {
     fn _new(
         theme: &Theme,
         title: &str,
-        l_icon: Option<(String, Box<dyn Callback>)>,
-        r_icon: Option<(String, Box<dyn Callback>)>,
+        l_icon: Option<(Icons, Box<dyn Callback>)>,
+        r_icon: Option<(Icons, Box<dyn Callback>)>,
         size: TextSize,
     ) -> Self {
         let clean: String = title.chars().collect();
         let title = clean[..1].to_uppercase() + &clean[1..].to_lowercase();
         let text = ExpandableText::new(theme, &title, size, TextStyle::Heading, Align::Center, Some(1));
 
-        let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(theme, &n, c)).unwrap_or_default();
-        let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(theme, &n, c)).unwrap_or_default();
+        let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(theme, n, c)).unwrap_or_default();
+        let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(theme, n, c)).unwrap_or_default();
 
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0));
         Header {
@@ -336,7 +336,7 @@ impl OnEvent for HeaderIcon {}
 impl Default for HeaderIcon {fn default() -> Self {Self::none()}}
 
 impl HeaderIcon {
-    pub fn new(theme: &Theme, icon: &str, closure: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
+    pub fn new(theme: &Theme, icon: Icons, closure: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let layout = Stack(Offset::Center, Offset::Center, Size::Static(48.0), Size::Static(48.0), Padding::default());
         HeaderIcon{layout, icon: Some(GhostIconButton::new(theme, icon, closure))}
     }
@@ -386,7 +386,7 @@ impl Bumper {
     }
 
     pub fn input(theme: &Theme, placeholder: &str, on_submit: impl FnMut(&mut Context, &mut String) + 'static) -> Self {
-        let content = TextInput::new(theme, None, None, Some(placeholder), None, Some(("send", Arc::new(Mutex::new(on_submit)))));
+        let content = TextInput::new(theme, None, None, Some(placeholder), None, Some((Icons::Send, Arc::new(Mutex::new(on_submit)))));
         let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }

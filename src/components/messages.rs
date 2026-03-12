@@ -11,7 +11,7 @@ use chrono::{Local, Duration};
 use std::sync::Arc;
 use image::RgbaImage;
 
-use crate::Theme;
+use crate::theme::{Theme, Icons};
 use crate::components::Rectangle;
 
 use crate::components::avatar::{AvatarSize, AvatarContent, AvatarIconStyle, Avatar};
@@ -51,7 +51,7 @@ impl Profile {
     pub fn avatar(&self) -> AvatarContent {
         match &self.pfp {
             Some(img) => AvatarContent::image(img.clone()),
-            None => AvatarContent::icon("profile", AvatarIconStyle::Secondary)
+            None => AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary)
         }
     }
 
@@ -162,7 +162,7 @@ impl MessageGroup {
     pub fn new(theme: &Theme, messages: Vec<&str>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
         let avatar = Avatar::new(theme, match profile.pfp {
                 Some(ref pfp) => AvatarContent::image(pfp.clone()),
-                None => AvatarContent::icon("profile", AvatarIconStyle::Secondary),
+                None => AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary),
             }, None, false, AvatarSize::Xs, None
         );
 

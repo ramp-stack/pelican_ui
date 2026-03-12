@@ -9,7 +9,7 @@ use ptsd::interactions;
 
 use std::sync::{Arc, Mutex};
 
-use crate::theme::{Theme, Color};
+use crate::theme::{Theme, Color, Icons};
 
 use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableText};
 use crate::components::Rectangle;
@@ -52,7 +52,7 @@ impl TextInput {
         label: Option<&str>,
         placeholder: Option<&str>,
         help_text: Option<&str>,
-        icon_button: Option<(&str, InputCallback)>,
+        icon_button: Option<(Icons, InputCallback)>,
         // on_edit: impl FnMut(&mut Context, &mut String) + 'static,
     ) -> Self {
         let background = |bg: Color, o: Color| Rectangle::new(bg, 8.0, Some((1.0, o)));
@@ -121,7 +121,7 @@ impl _InputContent {
         theme: &Theme,
         value: Option<&str>,
         placeholder: Option<&str>,
-        button: Option<(&str, InputCallback)>,
+        button: Option<(Icons, InputCallback)>,
     ) -> Self {
         let (button, on_submit) = button.map(|(icon, cb)| {
             let btn = SecondaryIconButton::medium(theme, icon, |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(TextInputEvent::Submit))));
