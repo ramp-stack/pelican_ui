@@ -30,16 +30,11 @@ Pelican UI provides:
 
 - A predefined component library
 - Structured page layout primitives
-- Navigation between application pages
 - Integration with Prism’s layout, event, and rendering systems
-- Integration with PTSD’s interaction and theming systems
+- Integration with PTSD’s navigation, interaction and theming systems
 - Data connectivity through AIR servers
 
 Pelican UI intentionally **does not attempt to provide a flexible UI toolkit** for building custom design systems or component libraries.
-
-## Non-Goals
-
-Pelican UI is **not intended to be a general-purpose UI framework**.
 
 Developers who want to create their own design systems, custom components, or alternative UI architectures should consider:
 
