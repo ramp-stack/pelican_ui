@@ -148,7 +148,7 @@ impl Navigator {
         });
 
         let spacer = has_profile.then(|| {
-            let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, widths[1].1));
+            let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, widths[0].1));
             let spacer = Stack(Offset::Center, Offset::Center, width, Size::Fill, Padding::default());
             Bin(spacer, Rectangle::new(Color::TRANSPARENT, 0.0, None))
         });
