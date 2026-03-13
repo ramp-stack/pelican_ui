@@ -56,3 +56,9 @@ Pelican UI is designed to be cross-platform and can be used to build application
 Several demo projects are provided in the Pelican UI GitHub repository. These examples demonstrate common usage patterns and serve as a reference for building applications with the framework.
 
 Developers are encouraged to explore these demos to understand how Pelican UI applications are structured and how the provided components and layout primitives are intended to be used.
+
+## Discord
+
+https://discord.gg/53ERRpS4S4
+
+Join the Discord server to ask questions, discuss development, or share projects.
