@@ -7,6 +7,7 @@ use prism::layout::{Wrap, Offset, Padding, Row, Size, Stack};
 use ptsd::interactions;
 use ptsd::theme::{Color, TextSize};
 
+use crate::Callback;
 use crate::theme::{self, Variant, Theme, ButtonColorScheme, Icons};
 use crate::components::text::{Text, TextStyle};
 use crate::components::{Icon, Rectangle};
@@ -19,9 +20,9 @@ pub struct QuickActions{
 
 impl OnEvent for QuickActions {}
 impl QuickActions {
-    pub fn new(theme: &Theme, actions: Vec<(String, Option<String>, impl FnMut(&mut Context, &Theme) + Clone + 'static)>) -> Self {
-        let buttons = actions.into_iter().map(|(l, o, a)| {
-            SecondaryButton::medium(theme, Icons::Edit, &l, o.as_deref(), a)
+    pub fn new(theme: &Theme, actions: Vec<(String, Icons, Box<dyn Callback>)>) -> Self {
+        let buttons = actions.into_iter().map(|(l, o, mut a)| {
+            SecondaryButton::medium(theme, o, &l, None, move |ctx: &mut Context, theme: &Theme| (a)(ctx, theme))
         }).collect();
         QuickActions{layout: Wrap::start(8.0, 8.0), buttons}
     }

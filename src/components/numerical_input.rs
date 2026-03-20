@@ -1,6 +1,7 @@
-use prism::{event, event::{Event, OnEvent, Key, NamedKey}, display::{Opt, EitherOr}, Context, canvas::Align, layout::{Stack, Row, Padding, Size, Offset, Column}, drawable::{Component, SizedTree}, emitters};
+use prism::{event, event::{Event, OnEvent, Key, NamedKey, TickEvent}, display::{Opt, EitherOr}, Context, canvas::{Align, Image}, layout::{Stack, Row, Padding, Size, Offset, Column}, drawable::{Component, SizedTree}, emitters};
 use crate::components::text::{Text, ExpandableText, TextStyle};
-use crate::theme::Theme;
+use crate::components::Icon;
+use crate::theme::{Theme, Icons};
 use ptsd::{colors, TextSize};
 
 #[derive(Debug, Clone, Component)]
@@ -20,13 +21,15 @@ impl NumericalInput {
     }
 
     pub fn display(theme: &Theme, amount: f32, instructions: &str) -> Self {
-        NumericalInput::new(theme, instructions, SlotDisplay::display(theme, amount))
+        let input = _NumericalInput::new(theme, instructions, SlotDisplay::display(theme, amount));
+        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fit, Padding::default());
+        NumericalInput(layout, input)
     }
 
     pub fn value(&self) -> String {
         let mut out = String::new();
 
-        for slot in &self.1.1.1.1 {
+        for slot in &self.1.inner.1.1 {
             let s = match slot.2.get_visual() {
                 SlotVisual::Primary(s) | SlotVisual::Ghost(s) => s,
                 SlotVisual::None => continue,
@@ -48,16 +51,71 @@ impl NumericalInput {
         let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default());
         NumericalInput(layout, input)
     }
+
+    pub fn error(&mut self, error: Result<String, String>) {
+        self.1.error(error);
+    }
 }
 
 #[derive(Clone, Debug, Component)]
-pub struct _NumericalInput(Column, emitters::TextInput<SlotDisplay>, ExpandableText);
-impl OnEvent for _NumericalInput {}
+pub struct _NumericalInput {
+    layout: Column,
+    inner: emitters::TextInput<SlotDisplay>, 
+    _subtext: EitherOr<ExpandableText, NumericalInputError>, 
+    #[skip] pub error: Option<String>,
+    #[skip] pub subtext: (Option<String>, String),
+}
+
+impl OnEvent for _NumericalInput {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            if let Some(e) = &self.error {
+                if !e.is_empty() {
+                    self._subtext.right().2.spans[0] = e.to_string();
+                    self._subtext.display_left(false); 
+                } else {
+                    self._subtext.left().0.spans[0] = self.subtext.1.to_string(); 
+                    self._subtext.display_left(true); 
+                }
+            } else {
+                if let Some(h) = &self.subtext.0 {
+                    self._subtext.left().0.spans[0] = h.to_string(); 
+                } else {
+                    self._subtext.left().0.spans[0] = self.subtext.1.to_string(); 
+                }
+
+                self._subtext.display_left(true); 
+            }
+        }
+        vec![event]
+    }
+}
+
 impl _NumericalInput {
     fn new(theme: &Theme, instructions: &str, input: SlotDisplay) -> Self {
         let layout = Column::new(24.0, Offset::Center, Size::Fit, Padding::new(64.0), None);
-        let text = ExpandableText::new(theme, instructions, TextSize::Lg, TextStyle::Secondary, Align::Center, None);
-        _NumericalInput(layout, emitters::TextInput::new(input, false), text)
+        let help = ExpandableText::new(theme, instructions, TextSize::Lg, TextStyle::Secondary, Align::Center, None);
+        let error = NumericalInputError::new(theme);
+        _NumericalInput{ layout, inner: emitters::TextInput::new(input, false), _subtext: EitherOr::new(help, error), error: None, subtext: (None, instructions.to_string()) }
+    }
+
+    pub fn error(&mut self, error: Result<String, String>) {
+        match error {
+            Ok(help) => {self.error = None; self.subtext.0 = (!help.is_empty()).then_some(help); },
+            Err(e) => self.error = Some(e),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Component)]
+pub struct NumericalInputError(Row, Image, Text);
+impl OnEvent for NumericalInputError {}
+impl NumericalInputError {
+    pub fn new(theme: &Theme) -> Self {
+        let error = theme.colors().get(ptsd::Status::Danger);
+        let icon = Icon::new(theme, Icons::Error, Some(error), 18.0);
+        let text = Text::new(theme, "", TextSize::Lg, TextStyle::Error, Align::Center, None);
+        NumericalInputError(Row::center(8.0), icon, text)
     }
 }
 

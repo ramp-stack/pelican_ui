@@ -1,4 +1,4 @@
-use prism::event::{OnEvent, TickEvent, Event, self};
+use prism::event::{OnEvent, TickEvent, Event, HardwareEvent, self};
 use prism::canvas::Align;
 use prism::drawable::{Component, SizedTree};
 use prism::{Context, Request};
@@ -39,7 +39,7 @@ pub struct TextInput {
     layout: Column,
     label: Option<Text>,
     pub inner: interactions::InputField,
-    hint: EitherOr<Option<ExpandableText>, Opt<ExpandableText>>,
+    hint: EitherOr<Option<ExpandableText>, ExpandableText>,
     #[skip] pub error: Option<String>,
 }
 
@@ -73,7 +73,7 @@ impl TextInput {
             layout: Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
             label: label.map(|l| Text::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None)),
             inner: input_field, 
-            hint: EitherOr::new(help, Opt::new(error, false)),
+            hint: EitherOr::new(help, error),
             error: None
         }
     }
@@ -84,15 +84,23 @@ impl TextInput {
 
     pub fn value(&self) -> String {
         self.inner.2.as_any().downcast_ref::<_InputContent>().unwrap().value.to_string()
-    }  
+    } 
+    
+    pub fn error(&mut self, error: Result<(), String>) {
+        self.inner.error(matches!(error, Err(ref e) if !e.is_empty()));
+        match error {
+            Ok(_) => self.error = None,
+            Err(e) => self.error = (!e.is_empty()).then_some(e),
+        }
+    }
 }
 
 impl OnEvent for TextInput { 
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
-            self.hint.display_left(self.error.is_some()); 
-            if let Some(e) = &self.error { 
-                self.hint.right().inner().0.spans[0] = e.to_string(); 
+            self.hint.display_left(!self.error.is_some()); 
+            if let Some(e) = &self.error {
+                self.hint.right().0.spans[0] = e.to_string(); 
             } 
         } 
         vec![event] 
@@ -143,8 +151,11 @@ impl _InputContent {
 }
 
 impl OnEvent for _InputContent { 
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
-        if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
+            println!("Received paste");
+            self.default.inner().inner().1.0.spans[0] = data.to_string();
+        } else if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {
             self.is_focused = *x;
             // println!("FOCUSED {:?}", self.is_focused);
         } else if event.downcast_ref::<TickEvent>().is_some() {

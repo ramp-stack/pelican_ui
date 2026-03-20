@@ -91,7 +91,7 @@ impl Message {
         let yesterday = Local::now() - Duration::days(1);
         Message {
             message: message.to_string(),
-            timestamp: Timestamp::new(yesterday),
+            timestamp: Timestamp::new(Some(yesterday)),
             author,
         }
     }
@@ -112,7 +112,7 @@ impl MessageGroups {
         for message in messages {
             let timestamp = message.timestamp.clone();
             let author = message.author.clone();
-            let close_enough = prev.timestamp.as_local().signed_duration_since(timestamp.as_local()).num_seconds().abs() <= 60;
+            let close_enough = prev.timestamp.as_local().unwrap().signed_duration_since(timestamp.as_local().unwrap()).num_seconds().abs() <= 60;
 
             if !collection.is_empty() && (!close_enough || author != prev_auth) {
                 let a = collection[0].author.clone();
