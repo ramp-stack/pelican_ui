@@ -7,7 +7,8 @@ use prism::layout::{Wrap, Offset, Padding, Row, Size, Stack};
 use ptsd::interactions;
 use ptsd::theme::{Color, TextSize};
 
-use crate::theme::{self, Variant, Theme, ButtonColorScheme};
+use crate::Callback;
+use crate::theme::{self, Variant, Theme, ButtonColorScheme, Icons};
 use crate::components::text::{Text, TextStyle};
 use crate::components::{Icon, Rectangle};
 
@@ -19,9 +20,9 @@ pub struct QuickActions{
 
 impl OnEvent for QuickActions {}
 impl QuickActions {
-    pub fn new(theme: &Theme, actions: Vec<(String, Option<String>, impl FnMut(&mut Context, &Theme) + Clone + 'static)>) -> Self {
-        let buttons = actions.into_iter().map(|(l, o, a)| {
-            SecondaryButton::medium(theme, "edit", &l, o.as_deref(), a)
+    pub fn new(theme: &Theme, actions: Vec<(String, Icons, Box<dyn Callback>)>) -> Self {
+        let buttons = actions.into_iter().map(|(l, o, mut a)| {
+            SecondaryButton::medium(theme, o, &l, None, move |ctx: &mut Context, theme: &Theme| (a)(ctx, theme))
         }).collect();
         QuickActions{layout: Wrap::start(8.0, 8.0), buttons}
     }
@@ -74,7 +75,7 @@ impl PrimaryButton {
 pub struct SecondaryButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryButton {}
 impl SecondaryButton {
-    pub fn medium(theme: &Theme, icon: &str, label: &str, active_label: Option<&str>, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
+    pub fn medium(theme: &Theme, icon: Icons, label: &str, active_label: Option<&str>, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.disabled];
         let [default, hover, disabled] = buttons.map(|colors| Self::_medium(theme, icon, label, colors));
@@ -85,7 +86,7 @@ impl SecondaryButton {
         SecondaryButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), callback, false))
     }
 
-    fn _medium(theme: &Theme, icon: &str, label: &str, colors: ButtonColorScheme) -> Button {
+    fn _medium(theme: &Theme, icon: Icons, label: &str, colors: ButtonColorScheme) -> Button {
         let font_size = ButtonSize::Medium.font();
         let icon_size = ButtonSize::Medium.icon();
         let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
@@ -108,7 +109,7 @@ impl SecondaryButton {
     }
 
     pub fn default(theme: &Theme) -> Self { 
-        Self::medium(theme, "edit", "Secondary", None, |_: &mut Context, _: &Theme| println!("Pressed...."))
+        Self::medium(theme, Icons::Edit, "Secondary", None, |_: &mut Context, _: &Theme| println!("Pressed...."))
     }
 }
 
@@ -126,7 +127,7 @@ impl SecondaryButton {
 pub struct SecondaryIconButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryIconButton {}
 impl SecondaryIconButton {
-    pub fn large(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
+    pub fn large(theme: &Theme, icon: Icons, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -138,7 +139,7 @@ impl SecondaryIconButton {
         SecondaryIconButton(Stack::default(), interactions::Button::new(default, Some(hover), Some(pressed), Some(disabled), callback, false))
     }
 
-    pub fn medium(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
+    pub fn medium(theme: &Theme, icon: Icons, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -151,7 +152,7 @@ impl SecondaryIconButton {
     }
 
     pub fn default(theme: &Theme) -> Self { 
-        Self::medium(theme, "explore", |_: &mut Context, _: &Theme| println!("Pressed...."))
+        Self::medium(theme, Icons::Explore, |_: &mut Context, _: &Theme| println!("Pressed...."))
     }
 }
 
@@ -169,7 +170,7 @@ impl SecondaryIconButton {
 pub struct GhostIconButton(Stack, pub interactions::Button);
 impl OnEvent for GhostIconButton {}
 impl GhostIconButton {
-    pub fn new(theme: &Theme, icon: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
+    pub fn new(theme: &Theme, icon: Icons, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
@@ -182,7 +183,7 @@ impl GhostIconButton {
     }
 
     pub fn default(theme: &Theme) -> Self { 
-        Self::new(theme, "left", |_: &mut Context, _: &Theme| println!("Pressed...."))
+        Self::new(theme, Icons::Left, |_: &mut Context, _: &Theme| println!("Pressed...."))
     }
 }
 
@@ -193,7 +194,7 @@ impl OnEvent for IconButton {}
 impl IconButton {
     pub(crate) fn new(
         theme: &Theme,
-        icon: &str,
+        icon: Icons,
         style: ButtonStyle,
         size: ButtonSize,
         background: Color,

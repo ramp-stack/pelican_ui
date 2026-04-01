@@ -2,7 +2,7 @@ use prism::layout::SizeRequest;
 use prism::drawable::{Drawable, SizedTree, RequestTree, Rect}; 
 use prism::canvas::{ShapeType, Image, Area as CanvasArea, Item as CanvasItem};
 
-use crate::theme::{Theme, Color};
+use crate::theme::{Theme, Color, Icons};
 
 // use std::io::BufWriter;
 use std::sync::Arc;
@@ -23,7 +23,7 @@ use image::RgbaImage;
 pub struct Icon;
 impl Icon {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(theme: &Theme, name: &str, color: Option<Color>, size: f32) -> Image {
+    pub fn new(theme: &Theme, name: Icons, color: Option<Color>, size: f32) -> Image {
         Image{shape: ShapeType::Rectangle(0.0, (size, size), 0.0), image: theme.icons().get(name), color: color.map(|c| c.into())}
     }
 }

@@ -1,4 +1,4 @@
-use prism::event::{OnEvent, TickEvent, Event, self};
+use prism::event::{OnEvent, TickEvent, Event, HardwareEvent, self};
 use prism::canvas::Align;
 use prism::drawable::{Component, SizedTree};
 use prism::{Context, Request};
@@ -9,11 +9,12 @@ use ptsd::interactions;
 
 use std::sync::{Arc, Mutex};
 
-use crate::theme::{Theme, Color};
+use crate::theme::{Theme, Color, Icons};
 
 use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableText};
 use crate::components::Rectangle;
 use crate::components::button::SecondaryIconButton;
+use crate::components::QRCodeScannedEvent;
 
 /// ## Text Input
 ///
@@ -52,7 +53,7 @@ impl TextInput {
         label: Option<&str>,
         placeholder: Option<&str>,
         help_text: Option<&str>,
-        icon_button: Option<(&str, InputCallback)>,
+        icon_button: Option<(Icons, InputCallback)>,
         // on_edit: impl FnMut(&mut Context, &mut String) + 'static,
     ) -> Self {
         let background = |bg: Color, o: Color| Rectangle::new(bg, 8.0, Some((1.0, o)));
@@ -84,14 +85,22 @@ impl TextInput {
 
     pub fn value(&self) -> String {
         self.inner.2.as_any().downcast_ref::<_InputContent>().unwrap().value.to_string()
-    }  
+    } 
+    
+    pub fn error(&mut self, error: Result<(), String>) {
+        self.inner.error(matches!(error, Err(ref e) if !e.is_empty()));
+        match error {
+            Ok(_) => self.error = None,
+            Err(e) => self.error = (!e.is_empty()).then_some(e),
+        }
+    }
 }
 
 impl OnEvent for TextInput { 
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
-            self.hint.display_left(self.error.is_some()); 
-            if let Some(e) = &self.error { 
+            self.hint.display_left(self.error.is_none()); 
+            if let Some(e) = &self.error {
                 self.hint.right().0.spans[0] = e.to_string(); 
             } 
         } 
@@ -121,7 +130,7 @@ impl _InputContent {
         theme: &Theme,
         value: Option<&str>,
         placeholder: Option<&str>,
-        button: Option<(&str, InputCallback)>,
+        button: Option<(Icons, InputCallback)>,
     ) -> Self {
         let (button, on_submit) = button.map(|(icon, cb)| {
             let btn = SecondaryIconButton::medium(theme, icon, |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(TextInputEvent::Submit))));
@@ -143,8 +152,14 @@ impl _InputContent {
 }
 
 impl OnEvent for _InputContent { 
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
-        if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
+            self.default.inner().inner().1.0.spans[0] = data.to_string();
+        } else if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
+            self.default.inner().inner().1.0.spans[0] = data.to_string();
+        } else if let Some(QRCodeScannedEvent(data)) = event.downcast_ref::<QRCodeScannedEvent>() {
+            self.default.inner().inner().1.0.spans[0] = data.to_string();
+        } else if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {
             self.is_focused = *x;
             // println!("FOCUSED {:?}", self.is_focused);
         } else if event.downcast_ref::<TickEvent>().is_some() {
@@ -168,6 +183,8 @@ impl OnEvent for _InputContent {
         && let Some(on_submit) = &mut self.on_submit 
         && let Ok(mut cb) = on_submit.lock() {
             (cb)(ctx, &mut self.value);
+            self.default.inner().inner().1.0.spans[0] = String::new();
+            self.value = String::new();
         }
         vec![event]
     }
@@ -177,6 +194,7 @@ impl OnEvent for _InputContent {
 pub enum TextInputEvent {
     Submit,
     Edited(String, String),
+    Set(String),
 }
 
 impl Event for TextInputEvent {

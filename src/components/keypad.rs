@@ -6,7 +6,7 @@ use prism::{Context, Request};
 
 use ptsd::interactions;
 
-use crate::theme::{self, Theme};
+use crate::theme::{self, Theme, Icons};
 use crate::components::Icon;
 use crate::components::text::{Text, TextStyle};
 use crate::components::button::{ButtonWidth, ButtonSize, Button};
@@ -16,12 +16,12 @@ pub struct Keypad(Column, Vec<GhostButtonRow>);
 impl OnEvent for Keypad {}
 
 impl Keypad {
-    pub fn new(theme: &Theme, special: char) -> Self {
+    pub fn new(theme: &Theme) -> Self {
         Keypad(Column::center(16.0), vec![
             GhostButtonRow::new(theme, vec![KeypadButton::char('1'), KeypadButton::char('2'), KeypadButton::char('3')]),
             GhostButtonRow::new(theme, vec![KeypadButton::char('4'), KeypadButton::char('5'), KeypadButton::char('6')]),
             GhostButtonRow::new(theme, vec![KeypadButton::char('7'), KeypadButton::char('8'), KeypadButton::char('9')]),
-            GhostButtonRow::new(theme, vec![KeypadButton::char(special), KeypadButton::char('0'), KeypadButton::delete()]),
+            GhostButtonRow::new(theme, vec![KeypadButton::char('.'), KeypadButton::char('0'), KeypadButton::delete()]),
         ])
     }
 }
@@ -30,12 +30,12 @@ impl Keypad {
 struct KeypadButton;
 
 impl KeypadButton {
-    pub fn char(c: char) -> (Option<char>, Option<String>, Key) {
+    pub fn char(c: char) -> (Option<char>, Option<Icons>, Key) {
         (Some(c), None, Key::Character(c.to_string().as_str().into()))
     }
 
-    pub fn delete() -> (Option<char>, Option<String>, Key) {
-        (None, Some("back".to_string()), Key::Named(NamedKey::Delete))
+    pub fn delete() -> (Option<char>, Option<Icons>, Key) {
+        (None, Some(Icons::Back), Key::Named(NamedKey::Delete))
     }
 }
 
@@ -44,10 +44,10 @@ pub struct GhostButtonRow(Row, Vec<GhostButton>);
 impl OnEvent for GhostButtonRow {}
 
 impl GhostButtonRow {
-    pub fn new(theme: &Theme, data: Vec<(Option<char>, Option<String>, Key)>) -> Self {
+    pub fn new(theme: &Theme, data: Vec<(Option<char>, Option<Icons>, Key)>) -> Self {
         GhostButtonRow(Row::center(16.0), data.into_iter().map(|(c, i, key)| {
             let label = c.map(|character| character.to_string());
-            GhostButton::new(theme, label.as_deref(), i.as_deref(), move |ctx: &mut Context, _: &Theme| {
+            GhostButton::new(theme, label.as_deref(), i, move |ctx: &mut Context, _: &Theme| {
                 ctx.send(Request::Event(Box::new(KeyboardEvent{state: KeyboardState::Pressed, key: key.clone()})));
             })
         }).collect::<Vec<GhostButton>>())
@@ -58,7 +58,7 @@ impl GhostButtonRow {
 struct GhostButton(Stack, pub interactions::Button);
 impl OnEvent for GhostButton {}
 impl GhostButton {
-    fn new(theme: &Theme, label: Option<&str>, icon: Option<&str>, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
+    fn new(theme: &Theme, label: Option<&str>, icon: Option<Icons>, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), theme::Variant::Ghost);
         let default =  {
             let font_size = ButtonSize::Large.font();

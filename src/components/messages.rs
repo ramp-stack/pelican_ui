@@ -1,10 +1,8 @@
-use prism::event::{OnEvent, KeyboardState, KeyboardEvent, NamedKey, Key};
+use prism::event::OnEvent;
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
-use prism::drawable::{Drawable, Component};
+use prism::drawable::Component;
 use prism::canvas::Align;
 use prism::display::Bin;
-use prism::{Context, Request};
-
 use ptsd::colors;
 use ptsd::utils::Timestamp;
 
@@ -13,23 +11,23 @@ use chrono::{Local, Duration};
 use std::sync::Arc;
 use image::RgbaImage;
 
-use crate::Theme;
+use crate::theme::{Theme, Icons};
 use crate::components::Rectangle;
 
 use crate::components::avatar::{AvatarSize, AvatarContent, AvatarIconStyle, Avatar};
 use crate::components::text::{Text, ExpandableText, TextSize, TextStyle};
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Profile {
-    name: String,
-    pfp: Option<Arc<RgbaImage>>,
+    pub name: String,
+    pub pfp: Option<Arc<RgbaImage>>,
 }
 
 impl Profile {
-    pub fn new(name: &str, pfp: &str) -> Self {
+    pub fn new(name: &str, _pfp: &str) -> Self {
         Profile {
             name: name.to_string(),
-            pfp: Some(Arc::new(image::open(&format!("./{}", pfp.to_string())).unwrap().into()))
+            pfp: None, //Some(Arc::new(image::open(&format!("./{}", pfp.to_string())).unwrap().into()))
         }
     }
 
@@ -39,21 +37,42 @@ impl Profile {
         ]
     }
 
-    // pub fn sofia() -> Profile { Profile::new("Sofia Martinez", "cat.jpeg") }
-    // pub fn marcus() -> Profile { Profile::new("Marcus Johansson", "deer.jpeg") }
-    // pub fn chloe() -> Profile { Profile::new("Chloe Bennett", "bird.jpeg") }
-    // pub fn ethan() -> Profile { Profile::new("Ethan Clarke", "finland.jpeg") }
+    pub fn more_tests() -> Vec<Profile> {
+        vec![
+            Profile::daniel(),
+            Profile::sofia(),
+            Profile::marcus(),
+            Profile::chloe(),
+            Profile::david(),
+            Profile::ethan(),
+        ]
+    }
+
+    pub fn avatar(&self) -> AvatarContent {
+        match &self.pfp {
+            Some(img) => AvatarContent::image(img.clone()),
+            None => AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary)
+        }
+    }
+
+    pub fn sofia() -> Profile { Profile::new("Sofia Martinez", "cat.jpeg") }
+    pub fn marcus() -> Profile { Profile::new("Marcus Johansson", "deer.jpeg") }
+    pub fn chloe() -> Profile { Profile::new("Chloe Bennett", "bird.jpeg") }
+    pub fn ethan() -> Profile { Profile::new("Ethan Clarke", "finland.jpeg") }
     pub fn daniel() -> Profile { Profile::new("Daniel Vermeer", "flamingo.png") }
+    pub fn david() -> Profile { Profile::new("David Vermeer", "flomango.png") }
     pub fn me() -> Profile { Profile::new("Flamingo", "flamingo.png") }
 
     pub fn is_me(&self) -> bool {*self == Self::me()}
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Message {
-    message: String,
-    timestamp: Timestamp,
-    author: Profile,
+    pub message: String,
+    pub timestamp: Timestamp,
+    pub author: Profile,
 }
 
 impl Message {
@@ -72,7 +91,7 @@ impl Message {
         let yesterday = Local::now() - Duration::days(1);
         Message {
             message: message.to_string(),
-            timestamp: Timestamp::new(yesterday),
+            timestamp: Timestamp::new(Some(yesterday)),
             author,
         }
     }
@@ -93,7 +112,7 @@ impl MessageGroups {
         for message in messages {
             let timestamp = message.timestamp.clone();
             let author = message.author.clone();
-            let close_enough = prev.timestamp.as_local().signed_duration_since(timestamp.as_local()).num_seconds().abs() <= 60;
+            let close_enough = prev.timestamp.as_local().unwrap().signed_duration_since(timestamp.as_local().unwrap()).num_seconds().abs() <= 60;
 
             if !collection.is_empty() && (!close_enough || author != prev_auth) {
                 let a = collection[0].author.clone();
@@ -101,11 +120,14 @@ impl MessageGroups {
                 let msgs = collection.iter().map(|m| m.message.as_str()).collect::<Vec<_>>();
                 let direction = if a.is_me() { Direction::Sent } else { Direction::Received };
 
-                new.push(MessageGroup::new(theme, msgs, t, a, match is_room {
+                let room_type = match is_room {
                     true => Room::Room,
-                    false if members.len() > 1 => Room::Group(direction),
+                    false if members.len() > 2 => Room::Group(direction),
                     false => Room::Direct(direction),
-                }));
+                };
+
+                // println!("ROOM TYPE {:?} because {:?}", room_type, members.len());
+                new.push(MessageGroup::new(theme, msgs, t, a, room_type));
 
                 collection.clear();
             }
@@ -124,7 +146,7 @@ impl MessageGroups {
 
             new.push(MessageGroup::new(theme, msgs, t, a, match is_room {
                 true => Room::Room,
-                false if members.len() > 1 => Room::Group(direction),
+                false if members.len() > 2 => Room::Group(direction),
                 false => Room::Direct(direction),
             }));
         }
@@ -140,7 +162,7 @@ impl MessageGroup {
     pub fn new(theme: &Theme, messages: Vec<&str>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
         let avatar = Avatar::new(theme, match profile.pfp {
                 Some(ref pfp) => AvatarContent::image(pfp.clone()),
-                None => AvatarContent::icon("profile", AvatarIconStyle::Secondary),
+                None => AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary),
             }, None, false, AvatarSize::Xs, None
         );
 
@@ -196,10 +218,9 @@ impl MessageInfo {
     pub fn new(theme: &Theme, name: String, timestamp: Timestamp, room: Room) -> Self {
         let name = match room {
             Room::Room => Some(Text::new(theme, &name, TextSize::H5, TextStyle::Heading, Align::Left, None)),
-            Room::Group(Direction::Received) | 
-            Room::Direct(Direction::Received) => Some(Text::new(theme, &name, TextSize::Sm, TextStyle::Secondary, Align::Left, None)),
+            Room::Group(Direction::Received) => Some(Text::new(theme, &name, TextSize::Sm, TextStyle::Secondary, Align::Left, None)),
             Room::Group(Direction::Sent) => Some(Text::new(theme, "You", TextSize::Sm, TextStyle::Secondary, Align::Left, None)),
-            Room::Direct(Direction::Sent) => None,
+            Room::Direct(_) => None,
         };
 
         let timestamp = Text::new(theme, &timestamp.friendly(), TextSize::Sm, TextStyle::Secondary, Align::Left, None);
@@ -240,7 +261,8 @@ impl _TextMessage {
         let width = Size::custom(move |h: Vec<(f32, f32)>| (h[1].0.max(32.0), h[1].1.max(32.0)));
         let height = Size::custom(move |h: Vec<(f32, f32)>| (h[1].0, h[1].1));
         let layout = Stack::new(Offset::Center, Offset::Center, width, height, Padding::default());
-        let bin = Stack::new(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::new(padding));
+        let width = Size::custom(|w| (w[0].0, w[0].1.min(250.0)));
+        let bin = Stack::new(Offset::Start, Offset::Start, width, Size::Fit, Padding::new(padding));
         _TextMessage(layout, background.map(|c| Rectangle::new(c, 16.0, None)), Bin(bin, text))
     }
 }

@@ -7,7 +7,7 @@ use prism::Context;
 use ptsd::interactions;
 use ptsd::utils::TitleSubtitle;
 
-use crate::theme::{Theme, Color};
+use crate::theme::{Theme, Color, Icons};
 use crate::components::text::{Text, TextSize, ExpandableText, TextStyle};
 use crate::components::Icon;
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
@@ -36,7 +36,7 @@ use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 /// );
 /// ```
 #[derive(Debug, Component, Clone)]
-pub struct ListItem(Stack, interactions::Button);
+pub struct ListItem(Stack, interactions::Button, #[skip] String);
 impl OnEvent for ListItem {}
 
 impl ListItem {
@@ -45,20 +45,23 @@ impl ListItem {
         avatar: Option<AvatarContent>,
         left: ListItemInfoLeft,
         right: Option<TitleSubtitle>,
-        icon_l: Option<&'static str>,
-        icon_r: Option<&'static str>,
+        icon_l: Option<Icons>,
+        icon_r: Option<Icons>,
         mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static,
     ) -> Self {
+        let label = left.title.title.to_string();
         let list_item = ListItemContent::new(theme, avatar, left, right, icon_l, icon_r);
 
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
-        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, callback, false))
+        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, callback, false), label)
     }
 
     pub fn default(theme: &Theme, ) -> Self {
-        Self::new(theme, None, ListItemInfoLeft::new("List Item", Some("Click me for details"), None, None), None, None, Some("forward"), |_: &mut Context, _: &Theme| println!("Pressed..."))
+        Self::new(theme, None, ListItemInfoLeft::new("List Item", Some("Click me for details"), None, None), None, None, Some(Icons::Forward), |_: &mut Context, _: &Theme| println!("Pressed..."))
     }
+
+    pub fn title(&self) -> &String {&self.2}
 }
 
 #[derive(Debug, Component, Clone)]
@@ -72,8 +75,8 @@ impl ListItemContent {
         avatar: Option<AvatarContent>,
         left: ListItemInfoLeft,
         right: Option<TitleSubtitle>,
-        icon_l: Option<&'static str>,
-        icon_r: Option<&'static str>,
+        icon_l: Option<Icons>,
+        icon_r: Option<Icons>,
     ) -> Self {
         let c = theme.colors().get(ptsd::Text::Primary); 
         let avatar = avatar.map(|data| Avatar::new(theme, data, None, false, AvatarSize::Md, None));
@@ -113,7 +116,7 @@ struct TitleRow(Row, ExpandableText, Option<Image>);
 impl OnEvent for TitleRow {}
 
 impl TitleRow {
-    fn new(theme: &Theme, title: &str, flair: Option<(&'static str, Color)>) -> Self {
+    fn new(theme: &Theme, title: &str, flair: Option<(Icons, Color)>) -> Self {
         let layout = Row::new(4.0, Offset::Center, Size::Fit, Padding::default());
         let text = ExpandableText::new(theme, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
         let flair = flair.map(|(name, color)| Icon::new(theme, name, Some(color), 16.0));
@@ -136,12 +139,12 @@ impl RightData {
 #[derive(Clone, Debug)]
 pub struct ListItemInfoLeft {
     title: TitleSubtitle,
-    flair: Option<(&'static str, Color)>,
+    flair: Option<(Icons, Color)>,
     description: Option<String>,
 }
 
 impl ListItemInfoLeft {
-    pub fn new(title: &str, subtitle: Option<&str>, description: Option<&str>, flair: Option<(&'static str, Color)>) -> Self {
+    pub fn new(title: &str, subtitle: Option<&str>, description: Option<&str>, flair: Option<(Icons, Color)>) -> Self {
         ListItemInfoLeft {
             title: TitleSubtitle::new(title, subtitle),
             description: description.map(|text| text.to_string()),
