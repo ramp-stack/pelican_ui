@@ -1,6 +1,6 @@
 [package]
 name = "pelican_ui"
-version = "2.1.3"
+version = "2.2.0"
 edition = "2024"
 description = "Standard UI tools and components built off Pelican UI of the RAMP stack."
 license = "BSD-3-Clause"
@@ -16,11 +16,12 @@ hex = "0.4.3"
 include_dir = "0.7.4"
 chrono = "0.4.42"
 quircs = "0.10.3"
+zxing-cpp = { version = "0.5", features = ["bundled", "image"] }
 qrcode = "0.14.1"
 imageproc = "0.25.0"
 image = "0.25.9"
 nsvg = "0.5.1"
-#ptsd = {version="0.1.2", package = "ptsd2"}
-ptsd = {path="../ptsd", package = "ptsd2"}
-#prism = {version="0.1.4", package = "prism2"}
-prism = {package = 'prism2', path = "../prism"}
+ptsd = {version="0.1.3", package = "ptsd2"}
+#ptsd = {path="../ptsd", package = "ptsd2"}
+prism = {version="0.1.5", package = "prism2"}
+#prism = {package = 'prism2', path = "../prism"}

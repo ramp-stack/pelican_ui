@@ -1,9 +1,9 @@
+#![allow(clippy::type_complexity)]
+
 use prism::event::OnEvent;
 use prism::drawable::Component;
 use prism::canvas::Align;
 use prism::layout::{Column, Row, Padding, Offset, Size};
-use prism::Context;
-
 use ptsd::theme::TextSize;
 use crate::Callback;
 use crate::components::text::{Text, ExpandableText, TextStyle};

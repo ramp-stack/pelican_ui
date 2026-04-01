@@ -1,49 +1,45 @@
-use prism::event::{OnEvent, Event};
+use prism::event::{OnEvent, Event, HardwareEvent, TickEvent};
 use prism::canvas::{ShapeType, Image, Align};
-use prism::{Context, Request};
+use prism::{Context, Request, Hardware};
 use prism::drawable::{Component, SizedTree};
 use prism::layout::{Area, Column, Padding, Size, Offset, Stack};
 
 use ptsd::theme::TextSize;
 
-use crate::theme::{Theme, Icons};
+use crate::theme::{Theme, Icons, Color};
 use crate::components::text::{TextStyle, Text};
 use crate::components::{Icon, Rectangle};
 
-use image::{DynamicImage, GrayImage, RgbaImage};
+use image::{DynamicImage, RgbaImage};
 use std::sync::{Mutex, Arc};
 
-use quircs::Quirc;
-
-
-/// ## QR Code Scanner
-///
-/// A camera-based component for scanning and decoding QR codes.
-/// Triggers a [`QRCodeScannedEvent`] carrying the data read from the QR code.
-///
-/// ### Example
-/// ```rust
-/// let scanner = QRCodeScanner::new(&mut ctx);
-/// ```
 #[derive(Debug, Component, Clone)]
 pub struct QRCodeScanner(
     Stack, 
     Option<Image>, 
     QRGuide,
     #[skip] Arc<Mutex<Option<String>>>, 
-    #[skip] Arc<Mutex<bool>>
+    #[skip] Arc<Mutex<bool>>,
+    #[skip] Option<String>,
+    #[skip] Box<dyn QrCodeFound>,
+    #[skip] Option<String>,
 );
 
 impl QRCodeScanner {
-    pub fn new(theme: &Theme) -> Self {
+    pub fn new(theme: &Theme, on_find: Box<dyn QrCodeFound>) -> Self {
         QRCodeScanner(
             Stack::center(), 
             None, 
             QRGuide::new(theme),
             Arc::new(Mutex::new(None)), 
-            Arc::new(Mutex::new(false))
+            Arc::new(Mutex::new(false)),
+            None,
+            on_find,
+            None,
         )
     }
+
+    pub fn found(&self) -> Option<String> { self.5.clone() }
 
     fn find_code(&mut self, img: Arc<RgbaImage>) {
         if *self.4.lock().unwrap() {return;}
@@ -53,12 +49,7 @@ impl QRCodeScanner {
         let flag_clone = self.4.clone();
 
         std::thread::spawn(move || {
-            let result = decode_image(Arc::try_unwrap(img).ok().unwrap(), Quirc::default());
-
-            if let Some(r) = result {
-                *result_clone.lock().unwrap() = Some(r);
-            }
-
+            if let Some(r) = decode_image(img) { *result_clone.lock().unwrap() = Some(r); }
             *flag_clone.lock().unwrap() = false;
         });
     }
@@ -66,20 +57,35 @@ impl QRCodeScanner {
 
 impl OnEvent for QRCodeScanner {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(CameraEvent::ReceivedFrame(Some(image))) = event.downcast_ref::<CameraEvent>() {
-                self.find_code(image.clone());
+        if event.downcast_ref::<TickEvent>().is_some() {
+            ctx.send(Request::Hardware(Hardware::GetCamera));
             
-                if let Some(data) = &*self.3.lock().unwrap() {
-                    ctx.send(Request::Event(Box::new(QRCodeScannedEvent(data.to_string()))));
+            if let Some(new_code) = &self.5 {
+                if let Some(old_code) = &mut self.7 {
+                    if old_code != new_code {
+                        (self.6)(ctx, new_code.to_string());
+                        *old_code = new_code.to_string();
+                        ctx.send(Request::event(QRCodeScannedEvent(new_code.to_string())));
+                    }
+                } else {
+                    self.7 = Some(new_code.to_string());
+                    (self.6)(ctx, new_code.to_string());
+                    ctx.send(Request::event(QRCodeScannedEvent(new_code.to_string())));
                 }
-                
-                *self.2.message() = None; 
-                *self.2.background() = None;
-                self.1 = Some(Image{
-                    shape: ShapeType::Rectangle(0.0, (300.0, 300.0), 0.0), 
-                    image: image.clone(), 
-                    color: None
-                });
+            }
+        }
+
+        if let Some(HardwareEvent::Camera(image)) = event.downcast_ref::<HardwareEvent>() {
+            self.find_code(image.clone());
+            self.5 = self.3.lock().unwrap().clone();
+            
+            *self.2.message() = None; 
+            *self.2.background() = None;
+            self.1 = Some(Image{
+                shape: ShapeType::Rectangle(0.0, (300.0, 300.0), 0.0), 
+                image: image.clone(), 
+                color: None
+            });
             //else {
                 //TODO: fix this 
                 // let background = ctx.state.get_or_default::<Theme>().colors.background.secondary;
@@ -102,7 +108,7 @@ impl QRGuide {
         QRGuide(
             Stack(Offset::Center, Offset::Center, Size::Static(308.0), Size::Static(308.0), Padding::default()), 
             Some(Rectangle::new(background, 8.0, None)), 
-            Rectangle::new(outline, 8.0, Some((4.0, background))), 
+            Rectangle::new(Color::TRANSPARENT, 8.0, Some((4.0, outline))), 
             Some(Message::new(theme, Icons::Camera, "Accessing device camera."))
         )
     }
@@ -124,28 +130,23 @@ impl Message {
     }
 }
 
-fn decode_image(img_rgba: RgbaImage, mut decoder: Quirc) -> Option<String> {
-    let img_gray: GrayImage = DynamicImage::ImageRgba8(img_rgba).to_luma8();
+// use zxingcpp::BarcodeFormat;
+pub fn decode_image(img: Arc<RgbaImage>) -> Option<String> {
+    let dyn_img: DynamicImage = DynamicImage::ImageRgba8((*img).clone()); 
+    let reader = zxingcpp::read().formats([zxingcpp::BarcodeFormat::QRCode]);
+    let barcodes = match reader.from(&dyn_img) {
+        Ok(b) => b,
+        Err(_) => return None,
+    };
 
-    let codes = decoder.identify(
-        img_gray.width() as usize,
-        img_gray.height() as usize,
-        &img_gray,
-    );
-
-    for code in codes {
-        match code {
-            Ok(c) => match c.decode() {
-                Ok(decoded) => {
-                    let code = std::str::from_utf8(&decoded.payload).unwrap_or("<invalid utf8>");
-                    return Some(code.to_string());
-                }
-                Err(_) => continue,
-            },
-            Err(_) => continue,
+    barcodes.into_iter().find(|b| b.format() == zxingcpp::BarcodeFormat::QRCode).and_then(|b| {
+        let text = b.text();
+        if text.is_empty() {
+            None
+        } else {
+            Some(text)
         }
-    }
-    None
+    })
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -168,3 +169,26 @@ impl Event for CameraEvent {
     }
 }
 
+pub trait QrCodeFound: FnMut(&mut Context, String) + 'static {
+    fn clone_box(&self) -> Box<dyn QrCodeFound>;
+}
+
+impl PartialEq for dyn QrCodeFound{fn eq(&self, _: &Self) -> bool {true}}
+
+impl<F> QrCodeFound for F where F: FnMut(&mut Context, String) + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn QrCodeFound> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn QrCodeFound> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone_box()
+    }
+}
+
+impl std::fmt::Debug for dyn QrCodeFound {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "QrCodeFound")
+    }
+}

@@ -80,7 +80,7 @@ impl NavigatorSelectable {
     pub fn mobile(theme: &Theme, icon: Icons, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
-            IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Large, colors.background, colors.outline, colors.label)
+            IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
         });
 
         let theme = theme.clone();

@@ -53,6 +53,7 @@ pub struct BrandResources {
     pub logo: Arc<RgbaImage>,
     pub app_icon: Arc<RgbaImage>,
     pub error: Arc<RgbaImage>,
+    pub qr_code: Arc<RgbaImage>,
 }
 
 impl Default for BrandResources {
@@ -63,6 +64,7 @@ impl Default for BrandResources {
             wordmark: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "wordmark.svg").unwrap())),
             app_icon: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "app_icon.svg").unwrap())),
             error: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "error.svg").unwrap())),
+            qr_code: Arc::new(Assets::load_png(&dir, "qr_code.png").unwrap())
         }
     }
 }
@@ -84,6 +86,7 @@ impl BrandResources {
             wordmark: Assets::load_file(&dir, "brand/wordmark.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.wordmark.clone()),
             app_icon: Assets::load_file(&dir, "brand/app_icon.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.app_icon.clone()),
             error: Assets::load_file(&dir, "brand/error.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.error.clone()),
+            qr_code: defaults.qr_code.clone()
         }
     }
 }
@@ -215,7 +218,7 @@ impl Button {
                 resources.insert(Button(Secondary, Hover, Label), Color::WHITE);
                 resources.insert(Button(Secondary, Hover, Outline), Color::from_hex("#585250", 255));
                 resources.insert(Button(Secondary, Pressed, Background), Color::from_hex("#262322", 255));
-                resources.insert(Button(Secondary, Pressed, Label), Color::BLACK);
+                resources.insert(Button(Secondary, Pressed, Label), Color::WHITE);
                 resources.insert(Button(Secondary, Pressed, Outline), Color::WHITE);
                 resources.insert(Button(Secondary, Disabled, Background), Color::from_hex("#443f3f", 255));
                 resources.insert(Button(Secondary, Disabled, Label), Color::BLACK);
@@ -229,8 +232,8 @@ impl Button {
                 resources.insert(Button(Ghost, Pressed, Background), Color::from_hex("#262322", 255));
                 resources.insert(Button(Ghost, Pressed, Label), Color::WHITE);
                 resources.insert(Button(Ghost, Pressed, Outline), Color::TRANSPARENT);
-                resources.insert(Button(Ghost, Disabled, Background), Color::from_hex("#443f3f", 255));
-                resources.insert(Button(Ghost, Disabled, Label), Color::BLACK);
+                resources.insert(Button(Ghost, Disabled, Background), Color::TRANSPARENT);
+                resources.insert(Button(Ghost, Disabled, Label), Color::from_hex("#585250", 255));
                 resources.insert(Button(Ghost, Disabled, Outline), Color::TRANSPARENT);
             }
         }

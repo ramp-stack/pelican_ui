@@ -14,6 +14,7 @@ use crate::theme::{Theme, Color, Icons};
 use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableText};
 use crate::components::Rectangle;
 use crate::components::button::SecondaryIconButton;
+use crate::components::QRCodeScannedEvent;
 
 /// ## Text Input
 ///
@@ -98,7 +99,7 @@ impl TextInput {
 impl OnEvent for TextInput { 
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
-            self.hint.display_left(!self.error.is_some()); 
+            self.hint.display_left(self.error.is_none()); 
             if let Some(e) = &self.error {
                 self.hint.right().0.spans[0] = e.to_string(); 
             } 
@@ -152,8 +153,11 @@ impl _InputContent {
 
 impl OnEvent for _InputContent { 
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
-            println!("Received paste");
+        if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
+            self.default.inner().inner().1.0.spans[0] = data.to_string();
+        } else if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
+            self.default.inner().inner().1.0.spans[0] = data.to_string();
+        } else if let Some(QRCodeScannedEvent(data)) = event.downcast_ref::<QRCodeScannedEvent>() {
             self.default.inner().inner().1.0.spans[0] = data.to_string();
         } else if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {
             self.is_focused = *x;
@@ -190,6 +194,7 @@ impl OnEvent for _InputContent {
 pub enum TextInputEvent {
     Submit,
     Edited(String, String),
+    Set(String),
 }
 
 impl Event for TextInputEvent {

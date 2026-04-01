@@ -16,12 +16,12 @@ pub struct Keypad(Column, Vec<GhostButtonRow>);
 impl OnEvent for Keypad {}
 
 impl Keypad {
-    pub fn new(theme: &Theme, special: char) -> Self {
+    pub fn new(theme: &Theme) -> Self {
         Keypad(Column::center(16.0), vec![
             GhostButtonRow::new(theme, vec![KeypadButton::char('1'), KeypadButton::char('2'), KeypadButton::char('3')]),
             GhostButtonRow::new(theme, vec![KeypadButton::char('4'), KeypadButton::char('5'), KeypadButton::char('6')]),
             GhostButtonRow::new(theme, vec![KeypadButton::char('7'), KeypadButton::char('8'), KeypadButton::char('9')]),
-            GhostButtonRow::new(theme, vec![KeypadButton::char(special), KeypadButton::char('0'), KeypadButton::delete()]),
+            GhostButtonRow::new(theme, vec![KeypadButton::char('.'), KeypadButton::char('0'), KeypadButton::delete()]),
         ])
     }
 }

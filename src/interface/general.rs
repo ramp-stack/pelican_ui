@@ -1,5 +1,5 @@
-use prism::{drawables, Context, IS_MOBILE, IS_WEB, Request};
-use prism::event::{self, Event, OnEvent, MouseEvent, MouseState, TickEvent};
+use prism::{drawables, Hardware, Context, IS_MOBILE, IS_WEB, Request};
+use prism::event::{self, Event, OnEvent, MouseEvent, MouseState, TickEvent, HardwareEvent};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
 use prism::display::Bin;
@@ -37,8 +37,15 @@ pub struct Interface {
 
 impl OnEvent for Interface {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if IS_MOBILE && self.layout.4 == Padding(0.0, 0.0, 0.0, 0.0) {
+            ctx.send(Request::Hardware(Hardware::GetSafeArea));
+        }
+
         if let Some(InterfaceEvent::Disable(disable)) = event.downcast_ref::<InterfaceEvent>() {
             ctx.send(Request::event(event::Button::Disable(*disable)));
+        } else if let Some(HardwareEvent::SafeArea(b, l, t, r)) = event.downcast_ref::<HardwareEvent>() {
+            self.layout = Stack::new(Offset::default(), Offset::default(), Size::default(), Size::default(), Padding(*l, *t, *r, *b));
+            println!("Setting padding to {:?}", self.layout.4);
         }
 
         if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![0];}
@@ -71,7 +78,7 @@ impl Interface {
                 },
                 false if IS_MOBILE => { // mobile
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::mobile(theme, roots)) as Box<dyn PTSDNavigator>);
-                    ptsd::interfaces::Interface::mobile(navigator, Screen::mobile(Pages::new(pages)), MobileKeyboard::new(theme, false))
+                    ptsd::interfaces::Interface::mobile(navigator, Screen::mobile(Pages::new(pages)), MobileKeyboard::new(theme))
                 },
                 false => { // desktop
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::desktop(theme, roots)) as Box<dyn PTSDNavigator>);
@@ -108,7 +115,7 @@ impl Page {
     /// Creates a new [`Page`] from an optional [`Header`], [`Content`], and optional [`Bumper`]
     pub fn new(header: Header, content: Content, bumper: Option<Bumper>) -> Self {
         Page {
-            layout: Column::new(12.0, Offset::Center, Size::Fill, Padding::default(), None),
+            layout: Column::new(12.0, Offset::Center, Size::Fill, Padding(24.0, 0.0, 24.0, 0.0), None),
             header,
             content,
             bumper,
@@ -278,7 +285,7 @@ impl Header {
             ctx.send(Request::event(NavigationEvent::Push(Some(info.clone()), vec![])))
         })); // this needs to navigate to info page
 
-        let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0));
+        let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0));
         Header {
             layout,
             left: l_icon,
@@ -294,14 +301,23 @@ impl Header {
         r_icon: Option<(Icons, Box<dyn Callback>)>,
         size: TextSize,
     ) -> Self {
-        let clean: String = title.chars().collect();
-        let title = clean[..1].to_uppercase() + &clean[1..].to_lowercase();
+        let title = title.split_whitespace().enumerate().map(|(i, w)| {
+            let upper = w.chars().filter(|c| c.is_uppercase()).count();
+            if upper > 1 && w.len() <= 3 {
+                w.to_string()
+            } else if i == 0 {
+                w[..1].to_uppercase() + &w[1..].to_lowercase()
+            } else {
+                w.to_lowercase()
+            }
+        }).collect::<Vec<_>>().join(" ");
+
         let text = ExpandableText::new(theme, &title, size, TextStyle::Heading, Align::Center, Some(1));
 
         let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(theme, n, c)).unwrap_or_default();
         let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(theme, n, c)).unwrap_or_default();
 
-        let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(24.0, 16.0, 24.0, 16.0));
+        let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0));
         Header {
             layout,
             left: l_icon,
@@ -398,6 +414,12 @@ impl Bumper {
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
         
         (layout, background)
+    }
+
+    pub fn on_click(&mut self) -> Vec<&mut Box<dyn ptsd::utils::Callback>> {
+        self.content.children.iter_mut().filter_map(|child| {
+            child.downcast_mut::<PrimaryButton>().map(|b| b.1.on_click())
+        }).collect::<Vec<_>>()
     }
 
     pub fn default(theme: &Theme) -> Self {

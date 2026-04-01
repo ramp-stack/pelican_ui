@@ -1,16 +1,12 @@
-#![allow(unused)]
-
-
-use prism::event::Key as WinitKey;
-// use roost_ui::maverick_os::hardware::ImageOrientation;
-use prism::event::{self, MouseState, KeyboardState, KeyboardEvent, MouseEvent, OnEvent, Event, NamedKey};
-use prism::canvas::{self, Align, Image};
-use prism::{Context, Request, Hardware};
-use prism::drawable::{Component, SizedTree};
-use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
-use prism::display::Bin;
+use prism::event::{self, KeyboardState, KeyboardEvent, OnEvent, Event, NamedKey};
+use prism::canvas::{Align, Image};
+use prism::{emitters, Context, Request, Hardware};
+use prism::drawable::{Drawable, Component, SizedTree};
+use prism::layout::{Stack, Column, Row, Offset, Size, Padding, Area};
+use prism::display::{Bin, Enum};
 
 use ptsd::interfaces::ShowKeyboard;
+use ptsd::interactions;
 
 use crate::theme::{Theme, Color, Icons};
 
@@ -18,61 +14,138 @@ use crate::components::text::{Text, TextStyle, TextSize};
 use crate::components::{Rectangle, Icon};
 use crate::components::button::GhostIconButton;
 
-use std::sync::mpsc::{self, Sender};
-
-#[derive(Copy, Clone, Debug, PartialEq)]
-enum ButtonState {Default, Pressed}
-
 #[derive(Component, Debug, Clone)]
 pub struct MobileKeyboard(Stack, Rectangle, KeyboardContent);
 impl OnEvent for MobileKeyboard {}
 
 impl MobileKeyboard {
-    pub fn new(theme: &Theme, actions: bool) -> Self {
+    pub fn new(theme: &Theme) -> Self {
         let height = Size::custom(|heights: Vec<(f32, f32)>| heights[1]);
         let color = theme.colors().get(ptsd::Background::Secondary);
         MobileKeyboard(
             Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default()), 
             Rectangle::new(color, 0.0, None),
-            KeyboardContent::new(theme, actions)
+            KeyboardContent::new(theme)
         )
     }
 }
+
+#[derive(Component, Debug, Clone)]
+struct KeyboardContent(Column, KeyboardHeader, KeyboardRow, KeyboardRow, KeyboardRow, KeyboardRow, #[skip] Theme);
+
+impl KeyboardContent {
+    fn new(theme: &Theme) -> Self {
+        KeyboardContent(
+            Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
+            KeyboardHeader::new(theme),
+            KeyboardRow::top(theme, 0, false),
+            KeyboardRow::middle(theme, 0, false),
+            KeyboardRow::bottom(theme, 0, false),
+            KeyboardRow::modifier(theme, false),
+            theme.clone()
+        )
+    }
+}
+
+impl OnEvent for KeyboardContent {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if let Some(e) = event.downcast_ref::<MobileKeyboardEvent>() {
+            match e {
+                MobileKeyboardEvent::Paginator(page) => {
+                    let theme = self.6.clone();
+                    let caps = self.4.capslock().as_ref().unwrap().status();
+                    self.2 = KeyboardRow::top(&theme, *page, caps);
+                    self.3 = KeyboardRow::middle(&theme, *page, caps);
+                    self.4 = KeyboardRow::bottom(&theme, *page, caps);
+                },
+                MobileKeyboardEvent::Capslock(caps) => {
+                    let theme = self.6.clone();
+                    let page = self.5.paginator().as_ref().unwrap().status();
+                    self.2 = KeyboardRow::top(&theme, page, *caps);
+                    self.3 = KeyboardRow::middle(&theme, page, *caps);
+                    self.4 = KeyboardRow::bottom(&theme, page, *caps);
+                    self.5 = KeyboardRow::modifier(&theme, *caps)
+                },
+            }
+        }
+
+        vec![event]
+    }
+}
+
+#[derive(Component, Debug, Clone)]
+struct KeyRow(Row, Vec<Key>);
+impl OnEvent for KeyRow {}
+
+impl KeyRow {
+    fn new(theme: &Theme, keys: Vec<&str>, caps_on: bool) -> Self {
+        let keys = keys.iter().map(|k| {
+            Key::character(theme, &match caps_on {
+                true => k.to_uppercase(),
+                false => k.to_lowercase(),
+            })
+        }).collect();
+        KeyRow(Row::center(0.0), keys)
+    }
+}
+
+#[derive(Component, Debug, Clone)]
+struct KeyboardRow(Row, Option<Capslock>, Option<Paginator>, Option<KeyRow>, Option<Key>, Option<Key>);
+// Capslock, Paginator, Character Row, Spacebar, Return
+impl OnEvent for KeyboardRow {}
+
+impl KeyboardRow {
+    fn top(theme: &Theme, num: usize, caps_on: bool) -> Self {
+        let key_row = KeyRow::new(theme, top_keys(&num), caps_on);
+        KeyboardRow(Row::center(0.0), None, None, Some(key_row), None, None)
+    }
+
+    fn middle(theme: &Theme, num: usize, caps_on: bool) -> Self {
+        let key_row = KeyRow::new(theme, mid_keys(&num), caps_on);
+        KeyboardRow(Row::center(0.0), None, None, Some(key_row), None, None)
+    }
+
+    fn bottom(theme: &Theme, num: usize, caps_on: bool) -> Self {
+        let capslock = Capslock::new(theme, caps_on);
+        let backspace = Key::backspace(theme);
+        let key_row = KeyRow::new(theme, bot_keys(&num), caps_on);
+        KeyboardRow(Row::center(6.0), Some(capslock), None, Some(key_row), None, Some(backspace))
+    }
+
+    fn modifier(theme: &Theme, caps_on: bool) -> Self {
+        let paginator = Paginator::new(theme);
+        let spacebar = Key::spacebar(theme, caps_on);
+        let newline = Key::newline(theme, caps_on);
+        KeyboardRow(Row::center(6.0), None, Some(paginator), None, Some(spacebar), Some(newline))
+    }
+
+    fn capslock(&mut self) -> &mut Option<Capslock> {&mut self.1}
+    fn paginator(&mut self) -> &mut Option<Paginator> {&mut self.2}
+}
+
 
 #[derive(Component, Debug, Clone)]
 struct KeyboardHeader(Column, KeyboardIcons, Bin<Stack, Rectangle>);
 impl OnEvent for KeyboardHeader {}
 
 impl KeyboardHeader {
-    fn new(theme: &Theme, actions: bool) -> Self {
+    fn new(theme: &Theme) -> Self {
         let layout = Stack(Offset::default(), Offset::default(), Size::Fit, Size::Static(1.0), Padding(0.0,0.0,0.0,2.0));
         KeyboardHeader(Column::start(0.0),
-            KeyboardIcons::new(theme, actions),
+            KeyboardIcons::new(theme),
             Bin(layout, Rectangle::new(theme.colors().get(ptsd::Outline::Secondary), 0.0, None))
         )
     }
 }
 
 #[derive(Component, Debug, Clone)]
-pub struct KeyboardActions(Stack, Vec<GhostIconButton>);
-impl OnEvent for KeyboardActions {}
-
-#[derive(Component, Debug, Clone)]
-struct KeyboardIcons(Row, Option<KeyboardActions>, Bin<Stack, Rectangle>, GhostIconButton);
-
+struct KeyboardIcons(Row, Bin<Stack, Rectangle>, GhostIconButton);
+impl OnEvent for KeyboardIcons {}
 impl KeyboardIcons {
-    fn new(theme: &Theme, icons: bool) -> Self {
-        // let (sender, _) = mpsc::channel();
-        let actions = vec![
-            // IconButton::keyboard(ctx, "emoji", |_ctx: &mut Context| ()),
-            // IconButton::keyboard(ctx, "gif", |_ctx: &mut Context| ()),
-            GhostIconButton::new(theme, Icons::Photos, |_ctx: &mut Context, _: &Theme| {}) //ctx.send(Request::Hardware(Hardware::PhotoPicker(sender.clone())))),
-            // IconButton::keyboard(ctx, "camera", |_ctx: &mut Context| ()),
-        ];
-
+    fn new(theme: &Theme) -> Self {
         KeyboardIcons(
             Row::new(16.0, Offset::Start, Size::Fit, Padding(12.0, 6.0, 12.0, 6.0)), 
-            icons.then(|| KeyboardActions(Stack::default(), actions)),
+            // icons.then(|| KeyboardActions(Stack::default(), actions)),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(1.0),  Padding::default()), 
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
@@ -85,327 +158,162 @@ impl KeyboardIcons {
     }
 }
 
-impl OnEvent for KeyboardIcons {
-    // fn on_event(&mut self, ctx: &mut Context, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-    //     if event.downcast_ref::<TickEvent>().is_some() {
-    //         if let Ok((bytes, orientation)) = self.4.try_recv() {
-    //             if let Some(s) = EncodedImage::encode(bytes, orientation) {ctx.trigger_event(AttachmentEvent(s));}
-    //         }
-    //     }
-    //     true
-    // }
-}
-
-
-// TODO: remove receiver use event instead, default impl for PartialEq
-#[derive(Component, Debug, Clone)]
-struct KeyboardContent(Column, KeyboardHeader, KeyboardRow, KeyboardRow, KeyboardRow, KeyboardRow);
-
-impl KeyboardContent {
-    fn new(theme: &Theme, actions: bool) -> Self {
-        let (sender, _receiver) = mpsc::channel();
-        KeyboardContent(
-            Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
-            KeyboardHeader::new(theme, actions),
-            KeyboardRow::top(theme),
-            KeyboardRow::middle(theme),
-            KeyboardRow::bottom(theme, sender.clone()),
-            KeyboardRow::modifier(theme, sender),
-        )
-    }
-
-    fn _update(&mut self) {
-        let caps = *self.4.capslock().as_mut().unwrap().status();
-        let page = *self.5.paginator().as_mut().unwrap().status();
-        self.2.update(top_keys(&page), caps);
-        self.3.update(mid_keys(&page), caps);
-        self.4.update(bot_keys(&page), caps);
-        self.5.update(vec![], caps);
-    }
-}
-
-impl OnEvent for KeyboardContent {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        // if let Some(TickEvent) = event.downcast_ref::<TickEvent>() {
-        //     match self.6.try_recv() {
-        //         Ok(0) => {println!("CAPSLOCK"); self.update();},
-        //         Ok(1) => {println!("PAGINATOR"); self.update();},
-        //         _ => {}
-        //     }
-        // }
-
-        vec![event]
-    }
-}
-
-#[derive(Component, Debug, Clone)]
-struct KeyRow(Row, Vec<Key>);
-impl OnEvent for KeyRow {}
-
-impl KeyRow {
-    fn new(theme: &Theme, keys: Vec<&str>) -> Self {
-        let keys = keys.iter().map(|k| Key::character(theme, k)).collect();
-        KeyRow(Row::center(0.0), keys)
-    }
-
-     fn keys(&mut self) -> &mut Vec<Key> {&mut self.1}
-}
-
-#[derive(Component, Debug, Clone)]
-struct KeyboardRow(Row, Option<Capslock>, Option<Paginator>, Option<KeyRow>, Option<Key>, Option<Key>);
-// Capslock, Paginator, Character Row, Spacebar, Return
-impl OnEvent for KeyboardRow {}
-
-impl KeyboardRow {
-    fn top(theme: &Theme) -> Self {
-        let key_row = KeyRow::new(theme, top_keys(&0));
-        KeyboardRow(Row::center(0.0), None, None, Some(key_row), None, None)
-    }
-
-    fn middle(theme: &Theme) -> Self {
-        let key_row = KeyRow::new(theme, mid_keys(&0));
-        KeyboardRow(Row::center(0.0), None, None, Some(key_row), None, None)
-    }
-
-    fn bottom(theme: &Theme, sender: Sender<u8>) -> Self {
-        let capslock = Capslock::new(theme, sender);
-        let backspace = Key::backspace(theme);
-        let key_row = KeyRow::new(theme, bot_keys(&0));
-        KeyboardRow(Row::center(6.0), Some(capslock), None, Some(key_row), None, Some(backspace))
-    }
-
-    fn modifier(theme: &Theme, sender: Sender<u8>) -> Self {
-        let paginator = Paginator::new(theme, sender);
-        let spacebar = Key::spacebar(theme);
-        let newline = Key::newline(theme);
-        KeyboardRow(Row::center(6.0), None, Some(paginator), None, Some(spacebar), Some(newline))
-    }
-
-    fn update(&mut self, new: Vec<&str>, caps_on: bool) {
-        let format_text = |text: &str| {
-            match caps_on {
-                true => text.to_uppercase(),
-                false => text.to_lowercase(),
-            }
-        };
-    
-        if let Some(spacebar) = &mut self.4 && let Some(text) = spacebar.1.character().get_text().as_mut() {
-            text.spans = vec![format_text("space")];
-        }
-    
-        if let Some(newline) = &mut self.5 && let Some(text) = newline.1.character().get_text().as_mut() {
-            text.spans = vec![format_text("return")];
-        }
-
-        if let Some(keys) = &mut self.3 {
-            keys.keys().iter_mut().enumerate().for_each(|(i, k)| {
-                if let Some(text) = k.1.character().get_text().as_mut() {
-                    text.spans = vec![format_text(new[i])];
-                }
-                let key = format_text(new[i]);
-                k.3 = WinitKey::Character(key.to_string());
-            });
-        }
-    }
-
-    fn capslock(&mut self) -> &mut Option<Capslock> {&mut self.1}
-    fn paginator(&mut self) -> &mut Option<Paginator> {&mut self.2}
-}
-
-#[derive(Component, Debug, Clone)]
-struct Key(Stack, KeyContent, #[skip] ButtonState, #[skip] WinitKey);
-
+#[derive(Debug, Component, Clone)]
+struct Key(Stack, interactions::Button);
+impl OnEvent for Key {}
 impl Key {
-    fn character(theme: &Theme, c: &str) -> Self {
-        let character = KeyCharacter::char(theme, c);
-        let content = KeyContent::new(33.0, Offset::End, character);
-        Key(Stack::default(), content, ButtonState::Default, WinitKey::Character(c.to_string()))
+    fn character(theme: &Theme, character: &str) -> Self {
+        let default = _Key::character(theme, character, ButtonState::Default);
+        let pressed = _Key::character(theme, character, ButtonState::Pressed);
+        let character = character.to_string();
+        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Character(character.to_string()), state: KeyboardState::Pressed}))); // emmit character
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
-    fn spacebar(theme: &Theme) -> Self {
-        let character = KeyCharacter::text(theme, "space");
-        let content = KeyContent::new(f32::MAX, Offset::Center, character);
-        Key(Stack::default(), content, ButtonState::Default, WinitKey::Named(NamedKey::Space))
+    fn spacebar(theme: &Theme, caps_on: bool) -> Self {
+        let default = _Key::spacebar(theme, caps_on, ButtonState::Default);
+        let pressed = _Key::spacebar(theme, caps_on, ButtonState::Pressed);
+        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Named(NamedKey::Space), state: KeyboardState::Pressed}))); // emmit space
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
+    }
+
+    fn newline(theme: &Theme, caps_on: bool) -> Self {
+        let default = _Key::newline(theme, caps_on, ButtonState::Default);
+        let pressed = _Key::newline(theme, caps_on, ButtonState::Pressed);
+        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Named(NamedKey::Enter), state: KeyboardState::Pressed}))); // emmit newline
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
     fn backspace(theme: &Theme) -> Self {
-        let character = KeyCharacter::icon(theme, Icons::Backspace);
-        let content = KeyContent::new(42.0, Offset::Center, character);
-        Key(Stack::default(), content, ButtonState::Default, WinitKey::Named(NamedKey::Delete))
+        let default = _Key::backspace(theme, ButtonState::Default);
+        let pressed = _Key::backspace(theme, ButtonState::Pressed);
+        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Named(NamedKey::Delete), state: KeyboardState::Pressed}))); // emmit delete
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
-    fn newline(theme: &Theme) -> Self {
-        let character = KeyCharacter::text(theme, "return");
-        let content = KeyContent::new(92.0, Offset::Center, character);
-        Key(Stack::default(), content, ButtonState::Default, WinitKey::Named(NamedKey::Enter))
-    }
-}
+    fn capslock(theme: &Theme, state: ButtonState) -> Self {
+        let default = _Key::capslock(theme, state);
+        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(MobileKeyboardEvent::Capslock(match state {
+            ButtonState::Pressed => false,
+            ButtonState::Default => true,
+        }))));
 
-impl OnEvent for Key {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            self.2 = handle_state(self.2, *event);
-
-            *self.1.background() = match self.2 {
-                ButtonState::Default => Color::from_hex("ffffff", 110).into(),
-                ButtonState::Pressed => Color::from_hex("ffffff", 180).into(),
-            };
-
-            if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
-                ctx.send(Request::Hardware(Hardware::Haptic));
-                ctx.send(Request::Event(Box::new(KeyboardEvent{state: KeyboardState::Pressed, key: self.3.clone()})))
-            }
-
-            return Vec::new();
-        }
-        vec![event]
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, callback, false))
     }
 }
 
-#[derive(Component, Clone)]
-struct Capslock(Stack, KeyContent, #[skip] ButtonState, #[skip] bool, #[skip] Sender<u8>);
-
+#[derive(Debug, Component, Clone)]
+struct Capslock(Stack, interactions::Selectable);
+impl OnEvent for Capslock {}
 impl Capslock {
-    fn new(theme: &Theme, sender: Sender<u8>) -> Self {
-        let character = KeyCharacter::icon(theme, Icons::Capslock);
-        let content = KeyContent::new(42.0, Offset::Center, character);
-        Capslock(Stack::default(), content, ButtonState::Default, false, sender)
+    fn new(theme: &Theme, is_on: bool) -> Self {
+        let selected = Key::capslock(theme, ButtonState::Pressed);
+        let default = Key::capslock(theme, ButtonState::Default);
+
+        let selectable = interactions::Selectable::new(default, selected, is_on, true, Box::new(|_: &mut Context| {}), uuid::Uuid::new_v4());
+
+        Capslock(Stack::default(), selectable)
     }
 
-    fn status(&mut self) -> &mut bool {&mut self.3}
+    fn status(&self) -> bool {self.1.is_selected()}
 }
 
-impl std::fmt::Debug for Capslock {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Capslock(...)")
-    }
-}
-
-impl OnEvent for Capslock {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            self.2 = handle_state(self.2, *event);
-
-            *self.1.background() = match self.2 {
-                ButtonState::Default => Color::from_hex("ffffff", 110).into(),
-                ButtonState::Pressed => Color::from_hex("ffffff", 180).into(),
-            };
-
-            // if event.state == MouseState::Pressed && event.position.is_some() {
-            //     self.3 = !self.3;
-            //     let icon = if self.3 { "capslock_on" } else { "capslock" };
-            //     *self.1.character() = KeyCharacter::icon(ctx, icon);
-            // }
-
-            if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
-                self.4.send(0).unwrap();
-            }
-
-            return Vec::new();
-        }
-        vec![event]
-    }
-}
-
-#[derive(Component, Clone)]
-struct Paginator(Stack, KeyContent, #[skip] ButtonState, #[skip] u32, #[skip] Sender<u8>);
-
-impl Paginator {
-    fn new(theme: &Theme, sender: Sender<u8>) -> Self {
-        let character = KeyCharacter::paginator(theme, 0);
-        let content = KeyContent::new(92.0, Offset::Center, character);
-        Paginator(Stack::default(), content, ButtonState::Default, 0, sender)
-    }
-
-    fn status(&mut self) -> &mut u32 {&mut self.3}
-}
-
-impl std::fmt::Debug for Paginator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Paginator(...)")
-    }
-}
-
-impl OnEvent for Paginator {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(event) = event.downcast_ref::<MouseEvent>() {
-            self.2 = handle_state(self.2, *event);
-
-            *self.1.background() = match self.2 {
-                ButtonState::Default => Color::from_hex("ffffff", 110).into(),
-                ButtonState::Pressed => Color::from_hex("ffffff", 180).into(),
-            };
-
-            if event.state == MouseState::Pressed && event.position.is_some() {
-                let highlight = TextStyle::Keyboard;
-                let dim = TextStyle::Secondary;
-                let next = if self.3 == 2 { 0 } else { self.3 + 1 };
-                self.3 = next;
-
-                let styles = match next {
-                    0 => (highlight, dim, dim),
-                    1 => (dim, highlight, dim),
-                    _ => (dim, dim, highlight),
-                };
-
-                self.1.character().2.as_mut().unwrap().style = styles.0;
-                self.1.character().3.as_mut().unwrap().style = styles.1;
-                self.1.character().4.as_mut().unwrap().style = styles.2;
-            }
-
-            if let MouseEvent{state: MouseState::Pressed, position: Some(_)} = event {
-                self.4.send(1).unwrap()
-            }
-
-            return Vec::new();
-        }
-
-        vec![event]
-    }
-}
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum ButtonState {Default, Pressed}
 
 #[derive(Component, Debug, Clone)]
-struct KeyContent(Stack, Rectangle, KeyCharacter);
-impl OnEvent for KeyContent {}
-
-impl KeyContent {
-    fn new(size: f32, offset: Offset, content: KeyCharacter) -> Self {
-        let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, size));
-        KeyContent(
-            Stack(Offset::Center, offset, width, Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
-            Rectangle::new(Color::from_hex("ffffff", 110), 4.0, None),
-            content
-        )
-    }
-
-    fn background(&mut self) -> &mut canvas::Color {self.1.background()}
-    fn character(&mut self) -> &mut KeyCharacter {&mut self.2}
+enum _Key {
+    Character {layout: Stack, background: Rectangle, text: Bin<Stack, Text>},
+    Spacebar {layout: Stack, background: Rectangle, text: Text},
+    Capslock {layout: Stack, background: Rectangle, icon: Image},
+    Backspace {layout: Stack, background: Rectangle, icon: Image},
+    Paginator {layout: Stack, background: Rectangle, content: Box<PaginatorContent>},
+    Newline {layout: Stack, background: Rectangle, text: Text,}
 }
 
-#[derive(Component, Debug, Clone)]
-struct KeyCharacter(Row, Option<Image>, Option<Text>, Option<Text>, Option<Text>);
-impl OnEvent for KeyCharacter {}
+impl OnEvent for _Key {}
 
-impl KeyCharacter {
-    fn char(theme: &Theme, key: &str) -> Self {
-        KeyCharacter(
-            Row::new(0.0, Offset::Center, Size::Fit, Padding(0.0, 0.0, 0.0, 10.0)),
-            None,
-            Some(Text::new(theme, key, TextSize::Xl, TextStyle::Keyboard, Align::Left, None)),
-            None, None
-        )
+impl _Key {
+    fn character(theme: &Theme, character: &str, state: ButtonState) -> Self {
+        _Key::Character {
+            layout: Stack(Offset::Center, Offset::End, Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 33.0)), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
+            background: Rectangle::new(match state {
+                ButtonState::Default => Color::from_hex("ffffff", 110),
+                ButtonState::Pressed => Color::from_hex("ffffff", 130)
+            }, 4.0, None),
+            text: Bin(
+                Stack(Offset::default(), Offset::default(), Size::default(), Size::default(), Padding(0.0, 0.0, 0.0, 10.0)),
+                Text::new(theme, character, TextSize::Xl, TextStyle::Keyboard, Align::Left, None)
+            )
+        }
     }
 
-    fn text(theme: &Theme, key: &str) -> Self {
-        KeyCharacter(Row::center(0.0), None, Some(Text::new(theme, key, TextSize::Md, TextStyle::Keyboard, Align::Left, None)), None, None)
+    fn spacebar(theme: &Theme, caps_on: bool, state: ButtonState) -> Self {
+        _Key::Spacebar {
+            layout: Stack(Offset::Center, Offset::Center, Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, f32::MAX)), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
+            background: Rectangle::new(match state {
+                ButtonState::Default => Color::from_hex("ffffff", 110),
+                ButtonState::Pressed => Color::from_hex("ffffff", 130)
+            }, 4.0, None),
+            text: Text::new(theme, match caps_on {
+                true => "SPACE",
+                false => "space",
+            }, TextSize::Md, TextStyle::Keyboard, Align::Left, None)
+        }
     }
 
-    fn icon(theme: &Theme, i: Icons) -> Self {
-        let c = theme.colors().get(ptsd::Text::Heading);
-        KeyCharacter(Row::center(0.0), Some(Icon::new(theme, i, Some(c), 36.0)), None, None, None)
+    fn newline(theme: &Theme, caps_on: bool, state: ButtonState) -> Self {
+        _Key::Newline {
+            layout: Stack(Offset::Center, Offset::Center, Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 92.0)), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
+            background: Rectangle::new(match state {
+                ButtonState::Default => Color::from_hex("ffffff", 110),
+                ButtonState::Pressed => Color::from_hex("ffffff", 130)
+            }, 4.0, None),
+            text: Text::new(theme, match caps_on {
+                true => "RETURN",
+                false => "return",
+            }, TextSize::Md, TextStyle::Keyboard, Align::Left, None)
+        }
     }
 
-    fn paginator(theme: &Theme, page: u32) -> Self {
+    fn capslock(theme: &Theme, state: ButtonState) -> Self {
+        let icon = match state {
+            ButtonState::Default => Icons::Capslock,
+            ButtonState::Pressed => Icons::CapslockOn
+        };
+
+        _Key::Capslock {
+            layout: Stack(Offset::Center, Offset::Center, Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 42.0)), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
+            background: Rectangle::new(Color::from_hex("ffffff", 110), 4.0, None),
+            icon: Icon::new(theme, icon, Some(Color::WHITE), 36.0),
+        }
+    }
+
+    fn backspace(theme: &Theme, state: ButtonState) -> Self {
+        _Key::Backspace {
+            layout: Stack(Offset::Center, Offset::Center, Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 42.0)), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
+            background: Rectangle::new(match state {
+                ButtonState::Default => Color::from_hex("ffffff", 110),
+                ButtonState::Pressed => Color::from_hex("ffffff", 130)
+            }, 4.0, None),
+            icon: Icon::new(theme, Icons::Backspace, Some(Color::WHITE), 36.0),
+        }
+    }
+
+    fn paginator(theme: &Theme, page: usize) -> Self {
+        _Key::Paginator {
+            layout: Stack(Offset::Center, Offset::Center, Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 92.0)), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
+            background: Rectangle::new(Color::from_hex("ffffff", 110), 4.0, None),
+            content: Box::new(PaginatorContent::new(theme, page))
+        }
+    }
+}
+
+#[derive(Debug, Component, Clone)]
+struct PaginatorContent(Row, Text, Text, Text);
+impl OnEvent for PaginatorContent {}
+impl PaginatorContent {
+    fn new(theme: &Theme, page: usize) -> Self {
         let (highlight, dim) = (TextStyle::Keyboard, TextStyle::Secondary);
 
         let styles = match page {
@@ -414,39 +322,87 @@ impl KeyCharacter {
             _ => (dim, dim, highlight),
         };
 
-        KeyCharacter(
+        PaginatorContent(
             Row::center(1.0),
-            None,
-            Some(Text::new(theme, "•", TextSize::H2, styles.0, Align::Left, None)),
-            Some(Text::new(theme, "•", TextSize::H2, styles.1, Align::Left, None)),
-            Some(Text::new(theme, "•", TextSize::H2, styles.2, Align::Left, None)),
+            Text::new(theme, "•", TextSize::H2, styles.0, Align::Left, None),
+            Text::new(theme, "•", TextSize::H2, styles.1, Align::Left, None),
+            Text::new(theme, "•", TextSize::H2, styles.2, Align::Left, None),
         )
     }
-
-    fn get_text(&mut self) -> &mut Option<Text> {&mut self.2}
 }
 
-fn handle_state(state: ButtonState, event: MouseEvent) -> ButtonState {
-    match state {
-        ButtonState::Default if event.position.is_some() => {
-            match event.state {
-                MouseState::Pressed => Some(ButtonState::Pressed),
-                MouseState::Released => Some(ButtonState::Default),
-                _ => None,
-            }
-        },
-        ButtonState::Pressed => {
-            match event.state {
-                MouseState::Released => Some(ButtonState::Default),
-                MouseState::Moved | MouseState::Scroll(..) if event.position.is_none() => Some(ButtonState::Default),
-                _ => None,
-            }
-        },
-        _ => None
-    }.unwrap_or(state)
+#[derive(Component, Debug, Clone)]
+struct Paginator(Stack, emitters::Selectable<_Paginator>);
+impl OnEvent for Paginator {}
+impl Paginator {
+    fn new(theme: &Theme) -> Self {
+        let first = _Key::paginator(theme, 0);
+        let second = _Key::paginator(theme, 1);
+        let third = _Key::paginator(theme, 2);
+
+        let selectable = _Paginator::new(first, second, third);
+        Self(Stack::default(), emitters::Selectable::new(selectable, uuid::Uuid::new_v4()))
+    }
+
+    fn status(&self) -> usize {self.1.1.current()}
 }
 
-fn top_keys(page: &u32) -> Vec<&str> {
+impl std::ops::Deref for Paginator {
+    type Target = _Paginator;
+    fn deref(&self) -> &Self::Target {&self.1.1}
+}
+
+impl std::ops::DerefMut for Paginator {
+    fn deref_mut(&mut self) -> &mut Self::Target {&mut self.1.1}
+}
+
+#[derive(Component, Clone)]
+struct _Paginator(Stack, Enum<Box<dyn Drawable>>, #[skip] usize);
+
+impl _Paginator {
+    fn new(
+        first: impl Drawable + 'static,
+        second: impl Drawable + 'static,
+        third: impl Drawable + 'static,
+    ) -> Self {
+        _Paginator(Stack::default(), Enum::new(vec![
+            ("first".to_string(), Box::new(first)),
+            ("second".to_string(), Box::new(second)),
+            ("third".to_string(), Box::new(third))
+        ], "first".to_string()), 0)
+    }
+
+    fn current(&self) -> usize {self.2}
+}
+
+impl OnEvent for _Paginator {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if let Some(event::Selectable::Selected(true)) = event.downcast_ref::<event::Selectable>() {
+            if &self.1.current() == "first" {
+                self.1.display("second");
+                self.2 = 1;
+            } else if &self.1.current() == "second" {
+                self.1.display("third");
+                self.2 = 2;
+            } else {
+                self.1.display("first");
+                self.2 = 0;
+            }
+
+            ctx.send(Request::Hardware(Hardware::Haptic));
+            ctx.send(Request::event(MobileKeyboardEvent::Paginator(self.2)));
+        }
+        vec![event]
+    }
+}
+
+impl std::fmt::Debug for _Paginator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "_Paginator")
+    }
+}
+
+fn top_keys(page: &usize) -> Vec<&str> {
     match page {
         0 => vec!["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
         1 => vec!["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
@@ -454,7 +410,7 @@ fn top_keys(page: &u32) -> Vec<&str> {
     }
 }
 
-fn mid_keys(page: &u32) -> Vec<&str> {
+fn mid_keys(page: &usize) -> Vec<&str> {
     match page {
         0 => vec!["a", "s", "d", "f", "g", "h", "j", "k", "l"],
         1 => vec!["/", "\\", "\"", "'", "~", ".", ",", "?", "!"],
@@ -462,10 +418,22 @@ fn mid_keys(page: &u32) -> Vec<&str> {
     }  
 }
 
-fn bot_keys(page: &u32) -> Vec<&str> {
+fn bot_keys(page: &usize) -> Vec<&str> {
     match page {
         0 => vec!["z", "x", "c", "v", "b", "n", "m"],
         1 => vec!["@", "|", "`", "˚", "€", "£", "¥"],
         _ => vec!["™", "©", "•", "¶", "€", "£", "¥"]
     }  
+}
+
+#[derive(Debug, Clone)]
+enum MobileKeyboardEvent {
+    Capslock(bool),
+    Paginator(usize),
+}
+
+impl Event for MobileKeyboardEvent {
+    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
+        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+    }
 }

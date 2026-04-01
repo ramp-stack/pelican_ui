@@ -11,8 +11,10 @@ use pelican_ui::theme::{Theme, Color, Icons};
 use pelican_ui::utils::TitleSubtitle;
 use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
 use pelican_ui::interface::general::{Interface, Page, Header, Bumper, Content};
-use pelican_ui::interface::navigation::{RootInfo, NavigationEvent, AppPage, Flow, FlowContainer};
+use pelican_ui::interface::navigation::{NavigatorSelectable, RootInfo, NavigationEvent, AppPage, Flow, FlowContainer};
 use pelican_ui::components::list_item::ListItemGroup;
+use pelican_ui::components::button::GhostIconButton;
+use pelican_ui::interface::keyboard::{MobileKeyboard};
 
 #[derive(Debug, Component, Clone)]
 pub struct Home(Stack, Page);
@@ -41,7 +43,10 @@ impl Home {
             ),
         ).collect::<Vec<_>>());
 
-        let content = Content::new(Offset::Start, drawables![list], Box::new(|_| true));
+        use pelican_ui::interface::keyboard::Key;
+        let test = MobileKeyboard::new(theme);
+
+        let content = Content::new(Offset::Start, drawables![test, list], Box::new(|_| true));
         let header = Header::home(theme, "My Tickets", None);
         let bumper = Bumper::home(theme, 
             ("Buy Ticket".to_string(), Box::new(|ctx: &mut Context, theme: &Theme| {

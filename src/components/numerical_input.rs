@@ -96,7 +96,7 @@ impl _NumericalInput {
         let layout = Column::new(24.0, Offset::Center, Size::Fit, Padding::new(64.0), None);
         let help = ExpandableText::new(theme, instructions, TextSize::Lg, TextStyle::Secondary, Align::Center, None);
         let error = NumericalInputError::new(theme);
-        _NumericalInput{ layout, inner: emitters::TextInput::new(input, false), _subtext: EitherOr::new(help, error), error: None, subtext: (None, instructions.to_string()) }
+        _NumericalInput{ layout, inner: emitters::TextInput::new(input, false).1, _subtext: EitherOr::new(help, error), error: None, subtext: (None, instructions.to_string()) }
     }
 
     pub fn error(&mut self, error: Result<String, String>) {
