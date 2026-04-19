@@ -1,4 +1,4 @@
-use prism::canvas::Align;
+use prism::canvas::{self, Align};
 use ramp::prism::{self, Context, layout::{Offset, Stack}, event::{OnEvent, Event}, drawable::Component, drawables};
 use pelican_ui::{colors, Request};
 use pelican_ui::components::QRCode;
@@ -14,14 +14,16 @@ use pelican_ui::interface::general::{Interface, Page, Header, Bumper, Content};
 use pelican_ui::interface::navigation::{NavigatorSelectable, RootInfo, NavigationEvent, AppPage, Flow, FlowContainer};
 use pelican_ui::components::list_item::ListItemGroup;
 use pelican_ui::components::button::GhostIconButton;
-use pelican_ui::interface::keyboard::{MobileKeyboard};
+
+use std::sync::Arc;
 
 #[derive(Debug, Component, Clone)]
 pub struct Home(Stack, Page);
 impl OnEvent for Home {}
 impl AppPage for Home {}
 impl Home {
-    pub fn new(_ctx: &mut Context, theme: &Theme) -> Self {
+    pub fn new(ctx: &mut Context, theme: &Theme, assets: &Assets) -> Self {
+        let font: Arc<canvas::Font> = canvas::Font::from_bytes(&assets.get_font("font.ttf").unwrap()).unwrap().into();
         let tickets = vec![
             Ticket::new("Daniel Vermeer", AgeGroup::Adult, Length::Season),
             Ticket::new("Amanda Vermeer", AgeGroup::Adult, Length::Season),
@@ -43,10 +45,14 @@ impl Home {
             ),
         ).collect::<Vec<_>>());
 
-        use pelican_ui::interface::keyboard::Key;
-        let test = MobileKeyboard::new(theme);
 
-        let content = Content::new(Offset::Start, drawables![test, list], Box::new(|_| true));
+        let spans = canvas::Text::new(vec![
+            canvas::Span::new("First".to_string(), 24.0, Some(30.0), font.clone(), Color::WHITE.into(), 1.0),
+            canvas::Span::new("Second".to_string(), 24.0, Some(30.0), font.clone(), Color::WHITE.into(), 1.0),
+            canvas::Span::new("Third".to_string(), 24.0, Some(30.0), font, Color::WHITE.into(), 1.0),
+        ], None, Align::Left, None);
+
+        let content = Content::new(Offset::Start, drawables![list, spans], Box::new(|_| true));
         let header = Header::home(theme, "My Tickets", None);
         let bumper = Bumper::home(theme, 
             ("Buy Ticket".to_string(), Box::new(|ctx: &mut Context, theme: &Theme| {
@@ -191,7 +197,7 @@ impl ViewTicket {
 
 ramp::run!{|ctx: &mut Context, assets: Assets| {
     let theme = Theme::dark(assets.all(), Color::from_hex("#8efe33", 255));
-    let home = RootInfo::icon(Icons::Explore, "My Tickets", Box::new(Home::new(ctx, &theme)));
+    let home = RootInfo::icon(Icons::Explore, "My Tickets", Box::new(Home::new(ctx, &theme, &assets)));
     Interface::new(&theme, vec![home], Box::new(|_page: &mut Box<dyn Drawable>, _ctx: &mut Context, e: Box<dyn Event>| {
         vec![e]
     }))

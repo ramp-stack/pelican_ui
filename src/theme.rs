@@ -5,6 +5,7 @@ use prism::Assets;
 
 use std::fmt;
 use std::fmt::Display;
+use std::collections::HashMap;
 
 use ptsd::{ColorResources, IconResources, FontResources};
 
@@ -54,25 +55,28 @@ pub struct BrandResources {
     pub app_icon: Arc<RgbaImage>,
     pub error: Arc<RgbaImage>,
     pub qr_code: Arc<RgbaImage>,
+    pub images: HashMap<String, Arc<RgbaImage>>,
 }
 
 impl Default for BrandResources {
     fn default() -> Self {
         let dir = include_dir!("resources/brand");
+
         BrandResources {
             logo: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "logo.svg").unwrap())),
             wordmark: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "wordmark.svg").unwrap())),
             app_icon: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "app_icon.svg").unwrap())),
             error: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "error.svg").unwrap())),
-            qr_code: Arc::new(Assets::load_png(&dir, "qr_code.png").unwrap())
+            qr_code: Arc::new(Assets::load_image(&dir, "qr_code.png").unwrap()),
+            images: HashMap::default(),
         }
     }
 }
 
 impl BrandResources {
-    fn new(dir: &Dir<'static>) -> Self {
+    fn new(directory: &Dir<'static>) -> Self {
         let defaults = BrandResources::default();
-        let dir = dir.entries().iter().find_map(|entry| {
+        let dir = directory.entries().iter().find_map(|entry| {
             match entry {
                 DirEntry::Dir(d) if d.path().file_name().and_then(|n| n.to_str()) == Some("brand") => {
                     Some(d.clone())
@@ -81,12 +85,30 @@ impl BrandResources {
             }
         }).unwrap_or(include_dir!("resources"));
 
+        let mut images = HashMap::new();
+
+        for file in directory.files() {
+            let path = file.path().to_string_lossy();
+            println!("PATH {:?}", path);
+
+            if path.ends_with(".svg") {
+                let name = path.trim_end_matches(".svg").to_string();
+                let image = Arc::new(Assets::load_svg(&Assets::load_file(&directory, file.path().to_str().unwrap()).unwrap()));
+                images.insert(name, image);
+            } else if path.ends_with(".png") {
+                let name = path.trim_end_matches(".png").to_string();
+                let image = Arc::new(Assets::load_image(&directory, file.path().to_str().unwrap()).unwrap());
+                images.insert(name, image);
+            }
+        }
+
         BrandResources {
             logo: Assets::load_file(&dir, "brand/logo.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.logo.clone()),
             wordmark: Assets::load_file(&dir, "brand/wordmark.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.wordmark.clone()),
             app_icon: Assets::load_file(&dir, "brand/app_icon.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.app_icon.clone()),
             error: Assets::load_file(&dir, "brand/error.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.error.clone()),
-            qr_code: defaults.qr_code.clone()
+            qr_code: defaults.qr_code.clone(),
+            images,
         }
     }
 }
