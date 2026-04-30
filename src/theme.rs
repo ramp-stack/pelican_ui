@@ -60,14 +60,14 @@ pub struct BrandResources {
 
 impl Default for BrandResources {
     fn default() -> Self {
-        let dir = include_dir!("resources/brand");
+        let dir = Assets(include_dir!("resources/brand"));
 
         BrandResources {
-            logo: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "logo.svg").unwrap())),
-            wordmark: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "wordmark.svg").unwrap())),
-            app_icon: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "app_icon.svg").unwrap())),
-            error: Arc::new(Assets::load_svg(&Assets::load_file(&dir, "error.svg").unwrap())),
-            qr_code: Arc::new(Assets::load_image(&dir, "qr_code.png").unwrap()),
+            logo: Arc::new(Assets::load_svg(&dir.load_file("logo.svg").unwrap())),
+            wordmark: Arc::new(Assets::load_svg(&dir.load_file("wordmark.svg").unwrap())),
+            app_icon: Arc::new(Assets::load_svg(&dir.load_file("app_icon.svg").unwrap())),
+            error: Arc::new(Assets::load_svg(&dir.load_file("error.svg").unwrap())),
+            qr_code: Arc::new(dir.load_image("qr_code.png").unwrap()),
             images: HashMap::default(),
         }
     }
@@ -76,37 +76,39 @@ impl Default for BrandResources {
 impl BrandResources {
     fn new(directory: &Dir<'static>) -> Self {
         let defaults = BrandResources::default();
-        let dir = directory.entries().iter().find_map(|entry| {
+        let dir = Assets(directory.entries().iter().find_map(|entry| {
             match entry {
                 DirEntry::Dir(d) if d.path().file_name().and_then(|n| n.to_str()) == Some("brand") => {
                     Some(d.clone())
                 }
                 _ => None,
             }
-        }).unwrap_or(include_dir!("resources"));
+        }).unwrap_or(include_dir!("resources")));
+
+        let directory = Assets(directory.clone());
 
         let mut images = HashMap::new();
 
-        for file in directory.files() {
+        for file in directory.0.files() {
             let path = file.path().to_string_lossy();
             println!("PATH {:?}", path);
 
             if path.ends_with(".svg") {
                 let name = path.trim_end_matches(".svg").to_string();
-                let image = Arc::new(Assets::load_svg(&Assets::load_file(&directory, file.path().to_str().unwrap()).unwrap()));
+                let image = Arc::new(Assets::load_svg(&directory.load_file(file.path().to_str().unwrap()).unwrap()));
                 images.insert(name, image);
             } else if path.ends_with(".png") {
                 let name = path.trim_end_matches(".png").to_string();
-                let image = Arc::new(Assets::load_image(&directory, file.path().to_str().unwrap()).unwrap());
+                let image = Arc::new(directory.load_image(file.path().to_str().unwrap()).unwrap());
                 images.insert(name, image);
             }
         }
 
         BrandResources {
-            logo: Assets::load_file(&dir, "brand/logo.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.logo.clone()),
-            wordmark: Assets::load_file(&dir, "brand/wordmark.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.wordmark.clone()),
-            app_icon: Assets::load_file(&dir, "brand/app_icon.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.app_icon.clone()),
-            error: Assets::load_file(&dir, "brand/error.svg").map(|f| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.error.clone()),
+            logo: dir.load_file("brand/logo.svg").map(|f: Vec<u8>| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.logo.clone()),
+            wordmark: dir.load_file("brand/wordmark.svg").map(|f: Vec<u8>| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.wordmark.clone()),
+            app_icon: dir.load_file("brand/app_icon.svg").map(|f: Vec<u8>| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.app_icon.clone()),
+            error: dir.load_file("brand/error.svg").map(|f: Vec<u8>| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.error.clone()),
             qr_code: defaults.qr_code.clone(),
             images,
         }

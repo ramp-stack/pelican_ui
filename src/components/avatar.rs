@@ -81,7 +81,7 @@ impl OnEvent for Avatar {
         // TODO: should be ina interactions button instead
         // if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.as_any_mut().downcast_mut::<MouseEvent>() {
         //     if let Some(on_click) = &mut self.on_click {
-        //         ctx.send(Request::Hardware(Hardware::Haptic));
+        //         ctx.trigger_haptic();
         //         (on_click)(ctx, )
         //     }
         // if event.as_any().downcast_ref::<TickEvent>().is_some() {
@@ -170,6 +170,12 @@ pub enum AvatarContent {
     Icon(Icons, AvatarIconStyle),
     /// Display a circular image .
     Image(Arc<RgbaImage>)
+}
+
+impl Default for AvatarContent {
+    fn default() -> Self {
+        AvatarContent::Icon(Icons::Profile, AvatarIconStyle::Secondary)
+    }
 }
 
 impl AvatarContent {

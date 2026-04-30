@@ -135,7 +135,7 @@ impl Navigator {
 
         navigation.into_iter().for_each(|info| {
             let root = info.label.to_string();
-            let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Root(root.clone()))));
+            let closure = move |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::Root(root.clone()));
 
             match info.avatar {
                 Some(a) => {
@@ -172,7 +172,7 @@ impl Navigator {
         let group_id = uuid::Uuid::new_v4();
         let mut tabs = Vec::new();
         for (i, info) in navigation.into_iter().enumerate() {
-            let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Root(info.label.to_string()))));
+            let closure = move |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::Root(info.label.to_string()));
             tabs.push(NavigatorSelectable::mobile(theme, info.icon, closure, 0 == i, group_id));
         }
 
@@ -190,7 +190,7 @@ impl Navigator {
 
         for (index, info) in navigation.into_iter().enumerate() {
             let root = info.label.to_string();
-            let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Root(root.clone()))));
+            let closure = move |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::Root(root.clone()));
             buttons.push(NavigatorSelectable::desktop_icon(theme, info.icon, &info.label, closure, 0 == index, group_id));
         }
 

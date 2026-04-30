@@ -1,6 +1,6 @@
 use prism::canvas::{self, Align};
 use ramp::prism::{self, Context, layout::{Offset, Stack}, event::{OnEvent, Event}, drawable::Component, drawables};
-use pelican_ui::{colors, Request};
+use pelican_ui::{colors, Request, Assets};
 use pelican_ui::components::QRCode;
 use pelican_ui::components::TextInput;
 use pelican_ui::components::RadioSelector;
@@ -23,7 +23,7 @@ impl OnEvent for Home {}
 impl AppPage for Home {}
 impl Home {
     pub fn new(ctx: &mut Context, theme: &Theme, assets: &Assets) -> Self {
-        let font: Arc<canvas::Font> = canvas::Font::from_bytes(&assets.get_font("font.ttf").unwrap()).unwrap().into();
+        let font: Arc<canvas::Font> = canvas::Font::from_bytes(&assets.load_file("font.ttf").unwrap()).unwrap().into();
         let tickets = vec![
             Ticket::new("Daniel Vermeer", AgeGroup::Adult, Length::Season),
             Ticket::new("Amanda Vermeer", AgeGroup::Adult, Length::Season),
@@ -40,9 +40,9 @@ impl Home {
                 Some(Icons::Forward),
                 move |ctx: &mut Context, theme: &Theme| {
                     let flow = ViewTicketFlow::new(theme, ticket.clone());
-                    ctx.send(Request::event(NavigationEvent::push(flow)));
+                    ctx.emit(NavigationEvent::push(flow));
                 }
-            ),
+            )
         ).collect::<Vec<_>>());
 
 
@@ -57,7 +57,7 @@ impl Home {
         let bumper = Bumper::home(theme, 
             ("Buy Ticket".to_string(), Box::new(|ctx: &mut Context, theme: &Theme| {
                 let flow = BuyTicketFlow::new(theme);
-                ctx.send(Request::event(NavigationEvent::push(flow)));
+                ctx.emit(NavigationEvent::push(flow));
             })),
             None,
         );
@@ -92,7 +92,7 @@ impl NameOnTicket {
         let content = Content::new(Offset::Start, drawables![input], Box::new(|_| true));
         let header = Header::stack(theme, "Ticket holder", None);
         let bumper = Bumper::stack(theme, None, Box::new(|ctx: &mut Context, _theme: &Theme| {
-            ctx.send(Request::event(NavigationEvent::Next));
+            ctx.emit(NavigationEvent::Next);
         }), None);
 
         let page = Page::new(header, content, Some(bumper));
@@ -115,7 +115,7 @@ impl AgeOnTicket {
         let content = Content::new(Offset::Start, drawables![input], Box::new(|_| true));
         let header = Header::stack(theme, "Holder's age", None);
         let bumper = Bumper::stack(theme, None, Box::new(|ctx: &mut Context, _theme: &Theme| {
-            ctx.send(Request::event(NavigationEvent::Next));
+            ctx.emit(NavigationEvent::Next);
         }), None);
 
         let page = Page::new(header, content, Some(bumper));
@@ -138,7 +138,7 @@ impl ExpirationOnTicket {
         let content = Content::new(Offset::Start, drawables![input], Box::new(|_| true));
         let header = Header::stack(theme, "Ticket expiration", None);
         let bumper = Bumper::stack(theme, Some("Complete Purchase"), Box::new(|ctx: &mut Context, _theme: &Theme| {
-            ctx.send(Request::event(NavigationEvent::Next));
+            ctx.emit(NavigationEvent::Next);
         }), None);
 
         let page = Page::new(header, content, Some(bumper));
@@ -196,9 +196,9 @@ impl ViewTicket {
 }
 
 ramp::run!{|ctx: &mut Context, assets: Assets| {
-    let theme = Theme::dark(assets.all(), Color::from_hex("#8efe33", 255));
+    let theme = Theme::dark(&assets.0, Color::from_hex("#8efe33", 255));
     let home = RootInfo::icon(Icons::Explore, "My Tickets", Box::new(Home::new(ctx, &theme, &assets)));
-    Interface::new(&theme, vec![home], Box::new(|_page: &mut Box<dyn Drawable>, _ctx: &mut Context, e: Box<dyn Event>| {
+    Interface::new(ctx, &theme, vec![home], Box::new(|_page: &mut Box<dyn Drawable>, _ctx: &mut Context, e: Box<dyn Event>| {
         vec![e]
     }))
 }}

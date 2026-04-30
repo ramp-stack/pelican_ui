@@ -11,6 +11,8 @@ use crate::components::TextInput;
 use crate::components::list_item::ListItem;
 use crate::components::button::SecondaryButton;
 
+use air::names::Name;
+
 #[derive(Debug, Component, Clone)]
 pub struct SearchBar(Column, TextInput, SelectedItems, SearchableItems);
 impl OnEvent for SearchBar {
@@ -21,13 +23,13 @@ impl OnEvent for SearchBar {
 }
 
 impl SearchBar {
-    pub fn new(theme: &Theme, items: Vec<ListItem>) -> Self {
-        SearchBar(Column::start(12.0), TextInput::default(theme), SelectedItems::new(theme, vec![]), SearchableItems::new(theme, items))
+    pub fn new(theme: &Theme, items: Vec<(ListItem, Name)>) -> Self {
+        let input = TextInput::new(theme, None, None, None, None, None);
+        SearchBar(Column::start(12.0), input, SelectedItems::new(theme, vec![]), SearchableItems::new(theme, items))
     }
 
-    pub fn results(&self) -> Vec<ListItem> {
-        // println!("{:?}", self.2.1);
-        self.2.1.iter().map(|p| p.3.clone()).collect::<Vec<_>>()
+    pub fn results(&self) -> Vec<Name> {
+        self.2.1.iter().map(|p| p.2).collect::<Vec<_>>()
     }
 }
 
@@ -37,16 +39,19 @@ impl OnEvent for SelectedItems {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<SearchbarEvent>() {
             match event {
-                SearchbarEvent::Remove(i) => if let Some(pos) = self.1.iter().position(|item| item.2 == *i) {
-                    let removed = self.1.remove(pos);
-                    ctx.send(Request::event(SearchbarEvent::Store(removed.3)))
+                SearchbarEvent::Remove(id) => {
+                    let id = id.clone();
+                    if let Some(pos) = self.1.iter().position(|l| l.2 == id) {
+                        let removed = self.1.remove(pos);
+                        ctx.emit(SearchbarEvent::Store(removed.3, id));
+                    }
                 },
-                SearchbarEvent::Relist(item) => {
-                    let i = self.1.len();
+                SearchbarEvent::Relist(item, id) => {
+                    let id = id.clone();
                     self.1.push(SearchPill::new(
                         SecondaryButton::medium(&self.2, Icons::Close, &item.title().clone(), None, move |ctx: &mut Context, _theme: &Theme| {
-                            ctx.send(Request::event(SearchbarEvent::Remove(i)))
-                        }), i, item.clone()
+                            ctx.emit(SearchbarEvent::Remove(id))
+                        }), item.clone(), id
                     ))
                 },
                 _ => {}
@@ -58,11 +63,12 @@ impl OnEvent for SelectedItems {
 
 impl SelectedItems {
     pub fn new(theme: &Theme, items: Vec<SearchBarListItem>) -> Self {
-        SelectedItems(Wrap::start(8.0, 8.0), items.into_iter().enumerate().map(|(i, item)| 
+        SelectedItems(Wrap::start(8.0, 8.0), items.into_iter().map(|item| {
+            let id = item.id();
             SearchPill::new(SecondaryButton::medium(theme, Icons::Close, &item.3.clone(), None, move |ctx: &mut Context, _theme: &Theme| {
-                ctx.send(Request::event(SearchbarEvent::Remove(i)))
-            }), i, item.4.clone())).collect::<Vec<_>>(), theme.clone()
-        )
+                ctx.emit(SearchbarEvent::Remove(id))
+            }), item.4.clone(), item.id())
+        }).collect::<Vec<_>>(), theme.clone())
     }
 }
 
@@ -72,15 +78,18 @@ impl OnEvent for SearchableItems {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(event) = event.downcast_ref::<SearchbarEvent>() {
             match event {
-                SearchbarEvent::Select(i) => if let Some(pos) = self.1.iter().position(|item| item.2 == *i) {
-                    let removed = self.1.remove(pos);
-                    ctx.send(Request::event(SearchbarEvent::Relist(removed.4)))
+                SearchbarEvent::Select(id) => {
+                    let id = id.clone();
+                    if let Some(pos) = self.1.iter().position(|l| l.2 == id) {
+                        let removed = self.1.remove(pos);
+                        ctx.emit(SearchbarEvent::Relist(removed.4, id))
+                    }
                 },
-                SearchbarEvent::Store(item) => {
-                    let i = self.1.len();
+                SearchbarEvent::Store(item, id) => {
+                    let id = id.clone();
                     self.1.push(SearchBarListItem::new(&self.2, item.clone(), Box::new(move |ctx: &mut Context, _theme: &Theme| {
-                        ctx.send(Request::event(SearchbarEvent::Select(i)))
-                    }), i))
+                        ctx.emit(SearchbarEvent::Select(id))
+                    }), id))
                 },
                 _ => {}
             }
@@ -90,11 +99,11 @@ impl OnEvent for SearchableItems {
 }
 
 impl SearchableItems {
-    pub fn new(theme: &Theme, items: Vec<ListItem>) -> Self {
-        SearchableItems(Column::default(), items.into_iter().enumerate().map(|(i, item)| 
+    pub fn new(theme: &Theme, items: Vec<(ListItem, Name)>) -> Self {
+        SearchableItems(Column::default(), items.into_iter().map(|(item, id)| 
             SearchBarListItem::new(theme, item, Box::new(move |ctx: &mut Context, _theme: &Theme| {
-                ctx.send(Request::event(SearchbarEvent::Select(i)))
-            }), i)).collect::<Vec<_>>(), theme.clone()
+                ctx.emit(SearchbarEvent::Select(id))
+            }), id)).collect::<Vec<_>>(), theme.clone()
         )
     }
 
@@ -114,20 +123,20 @@ impl SearchableItems {
 }
 
 #[derive(Debug, Component, Clone)]
-pub struct SearchPill(Stack, SecondaryButton, #[skip] usize, #[skip] ListItem);
+pub struct SearchPill(Stack, SecondaryButton, #[skip] Name, #[skip] ListItem);
 impl OnEvent for SearchPill {}
 impl SearchPill {
-    pub fn new(button: SecondaryButton, i: usize, item: ListItem) -> Self {
-        SearchPill(Stack::default(), button, i, item)
+    pub fn new(button: SecondaryButton, item: ListItem, id: Name) -> Self {
+        SearchPill(Stack::default(), button, id, item)
     }
 }
 
 #[derive(Clone, Debug)]
 pub enum SearchbarEvent {
-    Remove(usize),
-    Select(usize),
-    Relist(ListItem),
-    Store(ListItem),
+    Remove(Name),
+    Select(Name),
+    Relist(ListItem, Name),
+    Store(ListItem, Name),
 }
 
 impl Event for SearchbarEvent {
@@ -137,14 +146,16 @@ impl Event for SearchbarEvent {
 }
 
 #[derive(Component, Debug, Clone)]
-pub struct SearchBarListItem(Stack, pub interactions::Button, #[skip] usize, #[skip] String, #[skip] ListItem);
+pub struct SearchBarListItem(Stack, pub interactions::Button, #[skip] Name, #[skip] String, #[skip] ListItem);
 impl OnEvent for SearchBarListItem {}
 impl SearchBarListItem {
-    pub fn new(theme: &Theme, item: ListItem, mut callback: Box<dyn Callback>, i: usize) -> Self {
+    pub fn new(theme: &Theme, item: ListItem, mut callback: Box<dyn Callback>, id: Name) -> Self {
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (callback)(ctx, &theme));
         let button = interactions::Button::new(item.clone(), None::<ListItem>, None::<ListItem>, None::<ListItem>, callback, false);
-        SearchBarListItem(Stack::default(), button, i, item.title().to_string(), item)
+        SearchBarListItem(Stack::default(), button, id, item.title().to_string(), item)
     }
+
+    pub fn id(&self) -> Name {self.2}
 }
 

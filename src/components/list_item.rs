@@ -1,7 +1,8 @@
-use prism::event::OnEvent;
+use prism::event::{OnEvent, Event, TickEvent};
 use prism::canvas::{Align, Image};
 use prism::layout::{Column, Stack, Row, Padding, Offset, Size};
-use prism::drawable::Component;
+use prism::drawable::{Component, SizedTree};
+use prism::display::EitherOr;
 use prism::Context;
 
 use ptsd::interactions;
@@ -11,6 +12,8 @@ use crate::theme::{Theme, Color, Icons};
 use crate::components::text::{Text, TextSize, ExpandableText, TextStyle};
 use crate::components::Icon;
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
+
+use std::sync::Arc;
 
 
 /// ## List Item
@@ -154,25 +157,55 @@ impl ListItemInfoLeft {
 }
 
 #[derive(Debug, Component, Clone)]
-pub struct ListItemGroup(Column, Vec<ListItem>);
+pub struct ListItemGroup(Column, Option<ExpandableText>, Vec<ListItem>);
 impl OnEvent for ListItemGroup {}
 
 impl ListItemGroup {
-    pub fn new(items: Vec<ListItem>) -> Self {
-        ListItemGroup(Column::start(0.0), items)
+    pub fn new(theme: &Theme, label: Option<String>, items: Vec<ListItem>) -> Self {
+        let text = label.as_ref().map(|l| ExpandableText::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None));
+        ListItemGroup(Column::start(16.0), text, items)
     }
 }
 
 
 #[derive(Debug, Component, Clone)]
-pub struct ListItemSection(Column, Option<ExpandableText>, ListItemGroup);
-impl OnEvent for ListItemSection {}
-impl ListItemSection {
-    pub fn new(theme: &Theme, label: Option<String>, items: Vec<ListItem>) -> Self {
-        let text = label.as_ref().map(|l| ExpandableText::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None));
-        ListItemSection(Column::center(16.0), text, ListItemGroup::new(items))
+pub struct ListItemSection(Stack, EitherOr<ExpandableText, ListItemGroup>, #[skip] Arc<Box<dyn ListItemGetter>>);
+impl OnEvent for ListItemSection {
+    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            let new_items = (self.2)(ctx);
+            self.1.display_left(new_items.is_empty());
+            self.0 = match new_items.is_empty() {
+                true => Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default()),
+                false => Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fill, Padding::default()),
+            };
+            self.1.right().2 = new_items;
+        }
+        vec![event]
     }
-
-    pub fn group(&mut self) -> &mut ListItemGroup { &mut self.2 }
 }
 
+impl ListItemSection {
+    pub fn new(theme: &Theme, label: Option<String>, instructions: Option<String>, item_getter: impl ListItemGetter + 'static) -> Self {
+        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default());
+        let instructions = ExpandableText::new(theme, &instructions.unwrap_or_default(), TextSize::Md, TextStyle::Secondary, Align::Center, None);
+        ListItemSection(layout, EitherOr::new(instructions, ListItemGroup::new(theme, label, vec![])), Arc::new(Box::new(item_getter)))
+    }
+
+    // pub fn group(&mut self) -> &mut ListItemGroup { &mut self.2.left() }
+}
+
+pub trait ListItemGetter: Fn(&mut Context) -> Vec<ListItem> + 'static {
+}
+
+impl<F> ListItemGetter for F where F: Fn(&mut Context) -> Vec<ListItem> + Clone + 'static {
+
+}
+
+
+
+impl std::fmt::Debug for dyn ListItemGetter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ListItemGetter")
+    }
+}

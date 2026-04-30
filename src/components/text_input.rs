@@ -1,4 +1,4 @@
-use prism::event::{OnEvent, TickEvent, Event, HardwareEvent, self};
+use prism::event::{OnEvent, TickEvent, Event, self};
 use prism::canvas::Align;
 use prism::drawable::{Component, SizedTree};
 use prism::{Context, Request};
@@ -133,7 +133,7 @@ impl _InputContent {
         button: Option<(Icons, InputCallback)>,
     ) -> Self {
         let (button, on_submit) = button.map(|(icon, cb)| {
-            let btn = SecondaryIconButton::medium(theme, icon, |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(TextInputEvent::Submit))));
+            let btn = SecondaryIconButton::medium(theme, icon, |ctx: &mut Context, _: &Theme| ctx.emit(TextInputEvent::Submit));
             (Some(btn), Some(cb))
         }).unwrap_or((None, None));
         
@@ -155,8 +155,8 @@ impl OnEvent for _InputContent {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
             self.default.inner().inner().1.0.spans[0] = data.to_string();
-        } else if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
-            self.default.inner().inner().1.0.spans[0] = data.to_string();
+        // } else if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
+        //     self.default.inner().inner().1.0.spans[0] = data.to_string();
         } else if let Some(QRCodeScannedEvent(data)) = event.downcast_ref::<QRCodeScannedEvent>() {
             self.default.inner().inner().1.0.spans[0] = data.to_string();
         } else if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {

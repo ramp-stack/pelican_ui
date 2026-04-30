@@ -1,6 +1,6 @@
 use prism::event::{self, KeyboardState, KeyboardEvent, OnEvent, Event, NamedKey};
 use prism::canvas::{Align, Image};
-use prism::{emitters, Context, Request, Hardware};
+use prism::{emitters, Context, Request};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding, Area};
 use prism::display::{Bin, Enum};
@@ -151,8 +151,8 @@ impl KeyboardIcons {
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
             GhostIconButton::new(theme, Icons::DownArrow, |ctx: &mut Context, _: &Theme| {
-                ctx.send(Request::Event(Box::new(ShowKeyboard(false))));
-                ctx.send(Request::Event(Box::new(event::TextInput::Focused(false))));
+                ctx.emit(ShowKeyboard(false));
+                ctx.emit(event::TextInput::Focused(false));
             }),
         )
     }
@@ -166,37 +166,37 @@ impl Key {
         let default = _Key::character(theme, character, ButtonState::Default);
         let pressed = _Key::character(theme, character, ButtonState::Pressed);
         let character = character.to_string();
-        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Character(character.to_string()), state: KeyboardState::Pressed}))); // emmit character
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Character(character.to_string()), state: KeyboardState::Pressed})); // emmit character
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
     fn spacebar(theme: &Theme, caps_on: bool) -> Self {
         let default = _Key::spacebar(theme, caps_on, ButtonState::Default);
         let pressed = _Key::spacebar(theme, caps_on, ButtonState::Pressed);
-        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Named(NamedKey::Space), state: KeyboardState::Pressed}))); // emmit space
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Named(NamedKey::Space), state: KeyboardState::Pressed})); // emmit space
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
     fn newline(theme: &Theme, caps_on: bool) -> Self {
         let default = _Key::newline(theme, caps_on, ButtonState::Default);
         let pressed = _Key::newline(theme, caps_on, ButtonState::Pressed);
-        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Named(NamedKey::Enter), state: KeyboardState::Pressed}))); // emmit newline
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Named(NamedKey::Enter), state: KeyboardState::Pressed})); // emmit newline
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
     fn backspace(theme: &Theme) -> Self {
         let default = _Key::backspace(theme, ButtonState::Default);
         let pressed = _Key::backspace(theme, ButtonState::Pressed);
-        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Named(NamedKey::Delete), state: KeyboardState::Pressed}))); // emmit delete
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Named(NamedKey::Delete), state: KeyboardState::Pressed})); // emmit delete
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
     fn capslock(theme: &Theme, state: ButtonState) -> Self {
         let default = _Key::capslock(theme, state);
-        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(MobileKeyboardEvent::Capslock(match state {
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(MobileKeyboardEvent::Capslock(match state {
             ButtonState::Pressed => false,
             ButtonState::Default => true,
-        }))));
+        })));
 
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, callback, false))
     }
@@ -389,8 +389,8 @@ impl OnEvent for _Paginator {
                 self.2 = 0;
             }
 
-            ctx.send(Request::Hardware(Hardware::Haptic));
-            ctx.send(Request::event(MobileKeyboardEvent::Paginator(self.2)));
+            ctx.trigger_haptic();
+            ctx.emit(MobileKeyboardEvent::Paginator(self.2));
         }
         vec![event]
     }

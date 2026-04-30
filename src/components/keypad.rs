@@ -48,7 +48,7 @@ impl GhostButtonRow {
         GhostButtonRow(Row::center(16.0), data.into_iter().map(|(c, i, key)| {
             let label = c.map(|character| character.to_string());
             GhostButton::new(theme, label.as_deref(), i, move |ctx: &mut Context, _: &Theme| {
-                ctx.send(Request::Event(Box::new(KeyboardEvent{state: KeyboardState::Pressed, key: key.clone()})));
+                ctx.emit(KeyboardEvent{state: KeyboardState::Pressed, key: key.clone()});
             })
         }).collect::<Vec<GhostButton>>())
     }

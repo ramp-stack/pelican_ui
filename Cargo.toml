@@ -25,3 +25,4 @@ nsvg = "0.5.1"
 ptsd = {path="../ptsd", package = "ptsd2"}
 #prism = {version="0.1.5", package = "prism2"}
 prism = {package = 'prism2', path = "../prism"}
+air = {path = "../air"}
