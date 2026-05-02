@@ -151,6 +151,11 @@ pub struct AvatarGroup(Row, Vec<Avatar>);
 impl OnEvent for AvatarGroup {}
 impl AvatarGroup {
     pub fn new(theme: &Theme, images: Vec<Option<Arc<RgbaImage>>>) -> Self {
+        if images.is_empty() {
+            let content = AvatarContent::default();
+            return AvatarGroup(Row::center(-8.0), vec![Avatar::new(theme, content, None, true, AvatarSize::Sm, None)]);
+        }
+
         let avatars = images.into_iter().map(|i| {
             let content = match i {
                 Some(img) => AvatarContent::image(img),

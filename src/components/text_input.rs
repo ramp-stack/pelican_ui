@@ -52,7 +52,7 @@ impl TextInput {
         value: Option<&str>,
         label: Option<&str>,
         placeholder: Option<&str>,
-        help_text: Option<&str>,
+        mut help_text: Option<&str>,
         icon_button: Option<(Icons, InputCallback)>,
         // on_edit: impl FnMut(&mut Context, &mut String) + 'static,
     ) -> Self {
@@ -67,6 +67,7 @@ impl TextInput {
             48.0,
         );
 
+        if let Some(h) = help_text {if h.is_empty() {help_text = None}};
         let error = ExpandableText::new(theme, "", TextSize::Sm, TextStyle::Error, Align::Left, None); 
         let help = help_text.map(|t| ExpandableText::new(theme, t, TextSize::Sm, TextStyle::Secondary, Align::Left, None));
 
@@ -100,8 +101,8 @@ impl OnEvent for TextInput {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
             self.hint.display_left(self.error.is_none()); 
-            if let Some(e) = &self.error {
-                self.hint.right().0.spans[0] = e.to_string(); 
+            if let Some(e) = &self.error && !e.is_empty() {
+                self.hint.right().0.spans[0] = e.to_string();
             } 
         } 
         vec![event] 

@@ -10,7 +10,7 @@ use crate::theme::{Theme, Icons};
 use crate::components::{Rectangle, TextInput, Profile};
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
-use crate::components::avatar::AvatarGroup;
+use crate::components::avatar::{AvatarGroup, AvatarContent};
 use crate::interface::system::MobileKeyboard;
 use crate::interface::navigation::{RootInfo, Navigator};
 use crate::interface::navigation::FlowContainer;
@@ -197,7 +197,8 @@ impl Content {
 impl OnEvent for Content {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            ctx.emit(InterfaceEvent::Disable(!(self.validation)(self.children.inner())));
+            let event = InterfaceEvent::Disable(!(self.validation)(ctx, self.children.inner().iter_mut().map(|c| c).collect()));
+            ctx.emit(event);
         } else if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.children.column().adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
@@ -278,8 +279,7 @@ impl Header {
         Self::_new(theme, title, Some((Icons::Close, Box::new(closure))), None, TextSize::H4)
     }
 
-    pub fn messaging(theme: &Theme, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn FlowContainer>) -> Self {
-        let profiles: Vec<Profile> = profiles.into_iter().filter(|p| *p != Profile::me()).collect();
+    pub fn messaging(ctx: &mut Context, theme: &Theme, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn FlowContainer>) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| (0..exact_len).for_each(|_| ctx.emit(NavigationEvent::Pop));
         let l_icon = HeaderIcon::new(theme, Icons::Left, closure);
         let r_icon = HeaderIcon::new(theme, Icons::Info, Box::new(move |ctx: &mut Context, _theme: &Theme| {
@@ -302,17 +302,6 @@ impl Header {
         r_icon: Option<(Icons, Box<dyn Callback>)>,
         size: TextSize,
     ) -> Self {
-        let title = title.split_whitespace().enumerate().map(|(i, w)| {
-            let upper = w.chars().filter(|c| c.is_uppercase()).count();
-            if upper > 1 && w.len() <= 3 {
-                w.to_string()
-            } else if i == 0 {
-                w[..1].to_uppercase() + &w[1..].to_lowercase()
-            } else {
-                w.to_lowercase()
-            }
-        }).collect::<Vec<_>>().join(" ");
-
         let text = ExpandableText::new(theme, &title, size, TextStyle::Heading, Align::Center, Some(1));
 
         let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(theme, n, c)).unwrap_or_default();
@@ -333,10 +322,16 @@ pub struct MessageHeader(Column, AvatarGroup, ExpandableText);
 impl OnEvent for MessageHeader {}
 impl MessageHeader {
     pub fn new(theme: &Theme, profiles: Vec<Profile>) -> Self {
-        let title = if profiles.len() > 1 {"Group Message".to_string()} else {profiles[0].name.to_string()};
+        let title = match profiles.len() > 1 {
+            true => "Group Message".to_string(),
+            false => match profiles.get(0) {
+                Some(first) => first.name.to_string(),
+                None => "New Message".to_string(),
+            },
+        };
         let text = ExpandableText::new(theme, &title, TextSize::H4, TextStyle::Heading, Align::Center, Some(1));
-        let avatars = AvatarGroup::new(theme, profiles.iter().map(|p| p.pfp.clone()).collect::<Vec<_>>());
-        MessageHeader(Column::center(8.0), avatars, text)
+        let avatars = profiles.iter().map(|p| p.pfp.clone()).collect::<Vec<_>>();
+        MessageHeader(Column::center(8.0), AvatarGroup::new(theme, avatars), text)
     }
 }
 
@@ -370,8 +365,9 @@ impl OnEvent for Bumper {}
 
 impl Bumper {
     /// A `Bumper` preset used for home pages.
-    pub fn home(theme: &Theme, first: (String, Box<dyn Callback>), second: Option<(String, Box<dyn Callback>)>) -> Self {
-        let mut content = drawables![PrimaryButton::new(theme, &first.0, Box::new(first.1))];
+    pub fn home(theme: &Theme, first: Option<(String, Box<dyn Callback>)>, second: Option<(String, Box<dyn Callback>)>) -> Self {
+        let mut content: Vec<Box<dyn Drawable>> = vec![];
+        if let Some((l, c)) = first {content.push(Box::new(PrimaryButton::new(theme, &l, c))); }
         if let Some((l, c)) = second { content.push(Box::new(PrimaryButton::new(theme, &l, c))); }
         let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(content) }
@@ -425,7 +421,7 @@ impl Bumper {
 
     pub fn default(theme: &Theme) -> Self {
         Self::home(theme, 
-            ("Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed...."))), 
+            Some(("Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed....")))), 
             Some(("No Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed....")))), 
         )
     }
@@ -436,7 +432,8 @@ pub struct BumperContent { layout: Row, children: Vec<Box<dyn Drawable>> }
 impl OnEvent for BumperContent {}
 impl BumperContent {
     fn new(children: Vec<Box<dyn Drawable>>) -> Self {
-        BumperContent{ layout: Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0)), children }
+        let padding = if children.is_empty() {Padding::default()} else {Padding(0.0, 16.0, 0.0, 16.0)};
+        BumperContent{ layout: Row::new(16.0, Offset::Center, Size::Fit, padding), children }
     }
 }
 

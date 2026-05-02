@@ -20,11 +20,17 @@ pub struct QuickActions{
 
 impl OnEvent for QuickActions {}
 impl QuickActions {
-    pub fn new(theme: &Theme, actions: Vec<(String, Icons, Box<dyn Callback>)>) -> Self {
-        let buttons = actions.into_iter().map(|(l, o, mut a)| {
-            SecondaryButton::medium(theme, o, &l, None, move |ctx: &mut Context, theme: &Theme| (a)(ctx, theme))
-        }).collect();
-        QuickActions{layout: Wrap::start(8.0, 8.0), buttons}
+    pub fn new(theme: &Theme, offset: Offset, actions: Vec<(String, Icons, Box<dyn Callback>)>) -> Self {
+        QuickActions{
+            layout: match offset {
+                Offset::Center => Wrap::center(8.0, 8.0),
+                Offset::Start => Wrap::start(8.0, 8.0),
+                _ => Wrap::end(8.0, 8.0),
+            },
+            buttons: actions.into_iter().map(|(l, o, mut a)| {
+                SecondaryButton::medium(theme, o, &l, None, move |ctx: &mut Context, theme: &Theme| (a)(ctx, theme))
+            }).collect()
+        }
     }
 }
 
