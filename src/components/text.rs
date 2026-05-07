@@ -101,11 +101,6 @@ impl ExpandableText {
 impl Drawable for ExpandableText {
     fn request_size(&self) -> RequestTree {
         let size = self.0.inner.size();
-
-        // println!("LINES {:?}, size: {:?}", self.0.inner.len(), size);
-        // request needs to be max so that larger texts can know when to wrap
-        // but the max should also just be the width of the text itself so that there's not a bunch of extra length
-        
         RequestTree(SizeRequest::new(0.0, size.1, f32::MAX, size.1), vec![])
     }
 
@@ -152,14 +147,14 @@ impl OnEvent for TextEditor {
             *self.2.y_offset() = Offset::Static(cursor_pos.1+2.0);
         } else if let Some(event) = event.downcast_ref::<MouseEvent>() && let Some(pos) = event.position && event.state == MouseState::Pressed {
             self.1.0.inner.cursor_click(pos.0, pos.1) 
-        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key}) = event.downcast_ref() {
+        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key, ..}) = event.downcast_ref() {
             let index = self.1.0.inner.cursor.unwrap();
             
             let character = match key {
                 Key::Character(c) => Some(c.chars().next().unwrap_or_default()),
                 Key::Named(NamedKey::Enter) => Some('\n'),
                 Key::Named(NamedKey::Space) => Some(' '),
-                Key::Named(NamedKey::Delete) => None,
+                Key::Named(NamedKey::Delete | NamedKey::Backspace) => None,
                 _ => {return vec![event];}
             };
 

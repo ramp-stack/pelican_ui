@@ -1,13 +1,12 @@
 use std::sync::Arc;
 use image::RgbaImage;
 use include_dir::{include_dir, Dir, DirEntry};
-use prism::Assets;
 
 use std::fmt;
 use std::fmt::Display;
 use std::collections::HashMap;
 
-use ptsd::{ColorResources, IconResources, FontResources};
+use ptsd::{ColorResources, IconResources, FontResources, utils::Assets};
 
 pub use ptsd::Color;
 
@@ -60,14 +59,14 @@ pub struct BrandResources {
 
 impl Default for BrandResources {
     fn default() -> Self {
-        let dir = Assets(include_dir!("resources/brand"));
+        let dir = Assets::new(include_dir!("resources/brand"));
 
         BrandResources {
             logo: Arc::new(Assets::load_svg(&dir.load_file("logo.svg").unwrap())),
             wordmark: Arc::new(Assets::load_svg(&dir.load_file("wordmark.svg").unwrap())),
             app_icon: Arc::new(Assets::load_svg(&dir.load_file("app_icon.svg").unwrap())),
             error: Arc::new(Assets::load_svg(&dir.load_file("error.svg").unwrap())),
-            qr_code: Arc::new(dir.load_image("qr_code.png").unwrap()),
+            qr_code: Arc::new(dir.load_png("qr_code.png").unwrap()),
             images: HashMap::default(),
         }
     }
@@ -76,7 +75,7 @@ impl Default for BrandResources {
 impl BrandResources {
     fn new(directory: &Dir<'static>) -> Self {
         let defaults = BrandResources::default();
-        let dir = Assets(directory.entries().iter().find_map(|entry| {
+        let dir = Assets::new(directory.entries().iter().find_map(|entry| {
             match entry {
                 DirEntry::Dir(d) if d.path().file_name().and_then(|n| n.to_str()) == Some("brand") => {
                     Some(d.clone())
@@ -85,11 +84,11 @@ impl BrandResources {
             }
         }).unwrap_or(include_dir!("resources")));
 
-        let directory = Assets(directory.clone());
+        let directory = Assets::new(directory.clone());
 
         let mut images = HashMap::new();
 
-        for file in directory.0.files() {
+        for file in directory.inner.files() {
             let path = file.path().to_string_lossy();
             println!("PATH {:?}", path);
 
@@ -99,7 +98,7 @@ impl BrandResources {
                 images.insert(name, image);
             } else if path.ends_with(".png") {
                 let name = path.trim_end_matches(".png").to_string();
-                let image = Arc::new(directory.load_image(file.path().to_str().unwrap()).unwrap());
+                let image = Arc::new(directory.load_png(file.path().to_str().unwrap()).unwrap());
                 images.insert(name, image);
             }
         }

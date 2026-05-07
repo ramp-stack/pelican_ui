@@ -1,4 +1,4 @@
-use prism::event::{OnEvent, KeyboardState, KeyboardEvent, NamedKey, Key};
+use prism::event::{OnEvent, KeyboardState, KeyboardEvent, NamedKey, Key, Modifiers};
 use prism::layout::{Stack, Column, Row, Offset};
 use prism::drawable::{Drawable, Component};
 use prism::canvas::Align;
@@ -48,7 +48,7 @@ impl GhostButtonRow {
         GhostButtonRow(Row::center(16.0), data.into_iter().map(|(c, i, key)| {
             let label = c.map(|character| character.to_string());
             GhostButton::new(theme, label.as_deref(), i, move |ctx: &mut Context, _: &Theme| {
-                ctx.emit(KeyboardEvent{state: KeyboardState::Pressed, key: key.clone()});
+                ctx.emit(KeyboardEvent{state: KeyboardState::Pressed, key: key.clone(), modifiers: Modifiers::default()});
             })
         }).collect::<Vec<GhostButton>>())
     }

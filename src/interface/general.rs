@@ -279,12 +279,10 @@ impl Header {
         Self::_new(theme, title, Some((Icons::Close, Box::new(closure))), None, TextSize::H4)
     }
 
-    pub fn messaging(ctx: &mut Context, theme: &Theme, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn FlowContainer>) -> Self {
+    pub fn messaging(ctx: &mut Context, theme: &Theme, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn Callback>) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| (0..exact_len).for_each(|_| ctx.emit(NavigationEvent::Pop));
         let l_icon = HeaderIcon::new(theme, Icons::Left, closure);
-        let r_icon = HeaderIcon::new(theme, Icons::Info, Box::new(move |ctx: &mut Context, _theme: &Theme| {
-            ctx.emit(NavigationEvent::Push(Some(info.clone()), vec![]))
-        })); // this needs to navigate to info page
+        let r_icon = HeaderIcon::new(theme, Icons::Info, info); // this needs to navigate to info page
 
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0));
         Header {
@@ -325,7 +323,7 @@ impl MessageHeader {
         let title = match profiles.len() > 1 {
             true => "Group Message".to_string(),
             false => match profiles.get(0) {
-                Some(first) => first.name.to_string(),
+                Some(first) => first.username.to_string(),
                 None => "New Message".to_string(),
             },
         };

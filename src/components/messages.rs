@@ -1,6 +1,6 @@
-use prism::event::OnEvent;
+use prism::event::{OnEvent, Event, TickEvent};
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
-use prism::drawable::Component;
+use prism::drawable::{Component, SizedTree};
 use prism::canvas::Align;
 use prism::display::Bin;
 use ptsd::colors;
@@ -20,11 +20,11 @@ use air::names::Name;
 use crate::components::avatar::{AvatarSize, AvatarContent, AvatarIconStyle, Avatar};
 use crate::components::text::{Text, ExpandableText, TextSize, TextStyle};
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Profile {
     pub username: String,
     pub name: Name,
-    pub pfp: Option<Arc<RgbaImage>>,
+    pub pfp: AvatarContent,
 }
 
 impl Profile {
@@ -32,14 +32,7 @@ impl Profile {
         Profile {
             username: username.to_string(),
             name,
-            pfp: None, //Some(Arc::new(image::open(&format!("./{}", pfp.to_string())).unwrap().into()))
-        }
-    }
-
-    pub fn avatar(&self) -> AvatarContent {
-        match &self.pfp {
-            Some(img) => AvatarContent::image(img.clone()),
-            None => AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary)
+            pfp: AvatarContent::default(), //Some(Arc::new(image::open(&format!("./{}", pfp.to_string())).unwrap().into()))
         }
     }
 
@@ -48,7 +41,7 @@ impl Profile {
 
 
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Message {
     pub message: String,
     pub timestamp: Timestamp,
@@ -118,11 +111,7 @@ pub struct MessageGroup(Row, Option<Bin<Stack, Avatar>>, _MessageGroup);
 impl OnEvent for MessageGroup {}
 impl MessageGroup {
     pub fn new(theme: &Theme, messages: Vec<&str>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
-        let avatar = Avatar::new(theme, match profile.pfp {
-                Some(ref pfp) => AvatarContent::image(pfp.clone()),
-                None => AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary),
-            }, None, false, AvatarSize::Xs, None
-        );
+        let avatar = Avatar::new(theme, profile.pfp.clone(), None, false, AvatarSize::Xs, None);
 
         let (layout, avatar) = match room {
             Room::Room => (Row::start(12.0), Some(Bin(Stack::default(), avatar))),
@@ -181,7 +170,7 @@ impl MessageInfo {
             Room::Direct(_) => None,
         };
 
-        let timestamp = Text::new(theme, &timestamp.friendly(), TextSize::Sm, TextStyle::Secondary, Align::Left, None);
+        let timestamp = Text::new(theme, &timestamp.precise(), TextSize::Sm, TextStyle::Secondary, Align::Left, None);
         let divider = name.is_some().then_some(Text::new(theme, "·", TextSize::Sm, TextStyle::Secondary, Align::Left, None));
 
         MessageInfo(Row::center(4.0), name, divider, timestamp)
@@ -205,7 +194,16 @@ impl _TextMessages {
 
 #[derive(Debug, Clone, Component)]
 pub struct _TextMessage(Stack, Option<Rectangle>, Bin<Stack, ExpandableText>);
-impl OnEvent for _TextMessage {}
+impl OnEvent for _TextMessage {
+    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            let w = self.2.inner().0.inner().size().0.min(250.0) + 4.0;
+            *self.2.get_layout() = Stack::new(Offset::Center, Offset::Center, Size::Static(w), Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));
+        }
+        vec![event]
+    }
+}
+
 impl _TextMessage {
     pub fn new(theme: &Theme, message: &str, style: Room) -> Self {
         let text = ExpandableText::new(theme, message, TextSize::Md, TextStyle::Primary, Align::Left, None);
@@ -215,13 +213,10 @@ impl _TextMessage {
             Room::Room => None,
         };
 
-        let padding = if background.is_some() {12.0} else {0.0};
-        let width = Size::custom(move |h: Vec<(f32, f32)>| (h[1].0.max(32.0), h[1].1.max(32.0)));
-        let height = Size::custom(move |h: Vec<(f32, f32)>| (h[1].0, h[1].1));
+        let width = Size::custom(move |h: Vec<(f32, f32)>| (h.last().unwrap().0, (h.last().unwrap().1 + 24.0).max(42.0)));
+        let height = Size::custom(move |h: Vec<(f32, f32)>| (h.last().unwrap().0, h.last().unwrap().1));
         let layout = Stack::new(Offset::Center, Offset::Center, width, height, Padding::default());
-        let width = Size::custom(|w| (w[0].0, w[0].1.min(250.0)));
-        let bin = Stack::new(Offset::Start, Offset::Start, width, Size::Fit, Padding::new(padding));
-        _TextMessage(layout, background.map(|c| Rectangle::new(c, 16.0, None)), Bin(bin, text))
+        _TextMessage(layout, background.map(|c| Rectangle::new(c, 18.0, None)), Bin(Stack::default(), text))
     }
 }
 

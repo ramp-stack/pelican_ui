@@ -1,4 +1,4 @@
-use prism::event::{OnEvent, Event};
+use prism::event::{OnEvent, Event, PickedPhoto, MouseState, MouseEvent, TickEvent};
 use prism::canvas::{Image, Shape, ShapeType};
 use prism::layout::{Stack, Offset, Size, Padding, Row};
 use prism::Context;
@@ -42,6 +42,7 @@ pub struct Avatar {
     #[skip] pub content: AvatarContent,
     #[skip] pub flair: Option<(Icons, AvatarIconStyle)>,
     #[skip] pub outline: bool,
+    #[skip] waiting_on_photo: bool,
 }
 
 impl std::fmt::Debug for Avatar {
@@ -68,6 +69,7 @@ impl Avatar {
             content,
             flair,
             outline,
+            waiting_on_photo: false,
         }
     }
 
@@ -77,25 +79,22 @@ impl Avatar {
 }
 
 impl OnEvent for Avatar {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        // TODO: should be ina interactions button instead
-        // if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.as_any_mut().downcast_mut::<MouseEvent>() {
-        //     if let Some(on_click) = &mut self.on_click {
-        //         ctx.trigger_haptic();
-        //         (on_click)(ctx, )
-        //     }
-        // if event.as_any().downcast_ref::<TickEvent>().is_some() {
-        //     // TODO: allow this
-        //     // let (circle_icon, image) = match &self.content {
-        //     //     AvatarContent::Image(image) => (None, Some(Image{shape: ShapeType::Ellipse(0.0, (self._size.get(), self._size.get()), 0.0), image: image.clone(), color: None})),
-        //     //     AvatarContent::Icon(name, style) => (Some(AvatarIcon::new(theme, name, *style, self._size.get())), None)
-        //     // };
-            
-        //     // self._avatar.1 = circle_icon;
-        //     // self._avatar.2 = image;
-        //     // self._avatar.3 = self.outline.then(|| Circle::new(self._size.get(), Color::BLACK, true));
-        //     // self._flair = self.flair.clone().map(|(name, style)| Flair::new(theme, &name, style, self._size));
-        // }
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if let Some(PickedPhoto(img)) = event.downcast_ref::<PickedPhoto>() && self.waiting_on_photo {
+            self.waiting_on_photo = false;
+            self.content = AvatarContent::image(Arc::new(img.clone()));
+        } else if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.downcast_ref::<MouseEvent>() {
+            if let Some(on_click) = &mut self._on_click {
+                ctx.trigger_haptic();
+                ctx.pick_photo();
+                self.waiting_on_photo = true;
+            }
+        }
+
+        if event.as_any().downcast_ref::<TickEvent>().is_some() {
+            self._avatar.update(self.content.clone(), self._size);
+        }
+
         vec![event]
     }
 }
@@ -115,6 +114,17 @@ impl PrimaryAvatar {
             Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding::default()),
             circle_icon, image, outline.then(|| Circle::new(size.get(), Color::BLACK, true)),
         )
+    }
+
+    fn update(&mut self, content: AvatarContent, size: AvatarSize) {
+        match content {
+            AvatarContent::Image(image) => {
+                self.1 = None;
+                self.3 = None;
+                self.2 = Some(Image{shape: ShapeType::Ellipse(0.0, (size.get(), size.get()), 0.0), image, color: None});
+            },
+            AvatarContent::Icon(icon, style) => {}
+        }
     }
 }
 
@@ -150,18 +160,13 @@ impl Flair {
 pub struct AvatarGroup(Row, Vec<Avatar>);
 impl OnEvent for AvatarGroup {}
 impl AvatarGroup {
-    pub fn new(theme: &Theme, images: Vec<Option<Arc<RgbaImage>>>) -> Self {
-        if images.is_empty() {
+    pub fn new(theme: &Theme, contents: Vec<AvatarContent>) -> Self {
+        if contents.is_empty() {
             let content = AvatarContent::default();
             return AvatarGroup(Row::center(-8.0), vec![Avatar::new(theme, content, None, true, AvatarSize::Sm, None)]);
         }
 
-        let avatars = images.into_iter().map(|i| {
-            let content = match i {
-                Some(img) => AvatarContent::image(img),
-                None => AvatarContent::icon(Icons::Profile, AvatarIconStyle::Secondary),
-            };
-
+        let avatars = contents.into_iter().map(|content| {
             Avatar::new(theme, content, None, true, AvatarSize::Sm, None)
         }).collect::<Vec<_>>();
         AvatarGroup(Row::center(-8.0), avatars)
@@ -190,6 +195,40 @@ impl AvatarContent {
 
     pub fn image(image: Arc<RgbaImage>) -> Self {
         AvatarContent::Image(image)
+    }
+
+    pub fn from_string(s: &str) -> Self {
+        use std::sync::Arc;
+        use base64::{engine::general_purpose, Engine as _};
+
+        let bytes = match general_purpose::STANDARD.decode(s) {
+            Ok(bytes) => bytes,
+            Err(_) => return AvatarContent::default(),
+        };
+
+        let mut img = match image::load_from_memory(&bytes) {
+            Ok(img) => img.to_rgba8(),
+            Err(_) => return AvatarContent::default(),
+        };
+
+        AvatarContent::image(Arc::new(img))
+    }
+
+    pub fn get_image(&self) -> Option<String> {
+        use std::io::Cursor;
+        use image::{DynamicImage, ImageFormat, RgbaImage};
+        use base64::{engine::general_purpose, Engine as _};
+        match &self {
+            AvatarContent::Image(img) => {
+                let mut bytes: Vec<u8> = Vec::new();
+                let img = if img.width() > 256 || img.height() > 256 {
+                    image::imageops::thumbnail(&(**img), 256, 256)
+                } else { (**img).clone() };
+                DynamicImage::ImageRgba8(img).write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png).ok()?;
+                Some(general_purpose::STANDARD.encode(bytes))
+            }
+            _ => None
+        }
     }
 }
 
