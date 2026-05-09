@@ -1,4 +1,4 @@
-use prism::{Context, drawables, Request};
+use prism::{Context, drawables};
 use prism::event::OnEvent;
 use prism::drawable::Component;
 use prism::canvas::{Align, Image};

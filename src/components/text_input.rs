@@ -1,7 +1,7 @@
 use prism::event::{OnEvent, TickEvent, Event, self};
 use prism::canvas::Align;
 use prism::drawable::{Component, SizedTree};
-use prism::{Context, Request};
+use prism::Context;
 use prism::layout::{Padding, Column, Offset, Size, Row, Stack, Area};
 use prism::display::{EitherOr, Opt, Bin};
 
@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::theme::{Theme, Color, Icons};
 
+use crate::navigation::FlowCompleted;
 use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableText};
 use crate::components::Rectangle;
 use crate::components::button::SecondaryIconButton;
@@ -67,7 +68,7 @@ impl TextInput {
             48.0,
         );
 
-        if let Some(h) = help_text {if h.is_empty() {help_text = None}};
+        if let Some(h) = help_text && h.is_empty() {help_text = None};
         let error = ExpandableText::new(theme, "", TextSize::Sm, TextStyle::Error, Align::Left, None); 
         let help = help_text.map(|t| ExpandableText::new(theme, t, TextSize::Sm, TextStyle::Secondary, Align::Left, None));
 
@@ -154,7 +155,9 @@ impl _InputContent {
 
 impl OnEvent for _InputContent { 
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
+        if let Some(FlowCompleted(Some(data))) = event.downcast_ref::<FlowCompleted>() {
+            self.default.inner().inner().1.0.spans[0] = data.to_string();
+        } else if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
             self.default.inner().inner().1.0.spans[0] = data.to_string();
         // } else if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
         //     self.default.inner().inner().1.0.spans[0] = data.to_string();

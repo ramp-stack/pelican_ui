@@ -83,12 +83,11 @@ impl OnEvent for Avatar {
         if let Some(PickedPhoto(img)) = event.downcast_ref::<PickedPhoto>() && self.waiting_on_photo {
             self.waiting_on_photo = false;
             self.content = AvatarContent::image(Arc::new(img.clone()));
-        } else if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.downcast_ref::<MouseEvent>() {
-            if let Some(on_click) = &mut self._on_click {
-                ctx.trigger_haptic();
-                ctx.pick_photo();
-                self.waiting_on_photo = true;
-            }
+        } else if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.downcast_ref::<MouseEvent>() 
+        && self._on_click.is_some() {
+            ctx.trigger_haptic();
+            ctx.pick_photo();
+            self.waiting_on_photo = true;
         }
 
         if event.as_any().downcast_ref::<TickEvent>().is_some() {
@@ -123,7 +122,7 @@ impl PrimaryAvatar {
                 self.3 = None;
                 self.2 = Some(Image{shape: ShapeType::Ellipse(0.0, (size.get(), size.get()), 0.0), image, color: None});
             },
-            AvatarContent::Icon(icon, style) => {}
+            AvatarContent::Icon(..) => {}
         }
     }
 }
@@ -206,7 +205,7 @@ impl AvatarContent {
             Err(_) => return AvatarContent::default(),
         };
 
-        let mut img = match image::load_from_memory(&bytes) {
+        let img = match image::load_from_memory(&bytes) {
             Ok(img) => img.to_rgba8(),
             Err(_) => return AvatarContent::default(),
         };
@@ -216,7 +215,7 @@ impl AvatarContent {
 
     pub fn get_image(&self) -> Option<String> {
         use std::io::Cursor;
-        use image::{DynamicImage, ImageFormat, RgbaImage};
+        use image::{DynamicImage, ImageFormat};
         use base64::{engine::general_purpose, Engine as _};
         match &self {
             AvatarContent::Image(img) => {

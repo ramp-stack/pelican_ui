@@ -7,17 +7,12 @@ use ptsd::colors;
 use ptsd::utils::Timestamp;
 use prism::Context;
 
-use chrono::{Local, Duration};
-
-use std::sync::Arc;
-use image::RgbaImage;
-
-use crate::theme::{Theme, Icons};
+use crate::theme::Theme;
 use crate::components::Rectangle;
 
 use air::names::Name;
 
-use crate::components::avatar::{AvatarSize, AvatarContent, AvatarIconStyle, Avatar};
+use crate::components::avatar::{AvatarSize, AvatarContent, Avatar};
 use crate::components::text::{Text, ExpandableText, TextSize, TextStyle};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -195,7 +190,7 @@ impl _TextMessages {
 #[derive(Debug, Clone, Component)]
 pub struct _TextMessage(Stack, Option<Rectangle>, Bin<Stack, ExpandableText>);
 impl OnEvent for _TextMessage {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             let w = self.2.inner().0.inner().size().0.min(250.0) + 4.0;
             *self.2.get_layout() = Stack::new(Offset::Center, Offset::Center, Size::Static(w), Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));

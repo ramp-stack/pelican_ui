@@ -1,5 +1,5 @@
 use prism::event::{Event, TickEvent, OnEvent};
-use prism::{Request, Context};
+use prism::Context;
 use prism::drawable::{Component, SizedTree};
 use prism::layout::{Area, Wrap, Stack, Column};
 
@@ -43,14 +43,14 @@ impl OnEvent for SelectedItems {
         if let Some(event) = event.downcast_ref::<SearchbarEvent>() {
             match event {
                 SearchbarEvent::Remove(id) => {
-                    let id = id.clone();
+                    let id = *id;
                     if let Some(pos) = self.1.iter().position(|l| l.2 == id) {
                         let removed = self.1.remove(pos);
                         ctx.emit(SearchbarEvent::Store(removed.3, id));
                     }
                 },
                 SearchbarEvent::Relist(item, id) => {
-                    let id = id.clone();
+                    let id = *id;
                     self.1.push(SearchPill::new(
                         SecondaryButton::medium(&self.2, Icons::Close, &item.title().clone(), None, move |ctx: &mut Context, _theme: &Theme| {
                             ctx.emit(SearchbarEvent::Remove(id))
@@ -82,14 +82,14 @@ impl OnEvent for SearchableItems {
         if let Some(event) = event.downcast_ref::<SearchbarEvent>() {
             match event {
                 SearchbarEvent::Select(id) => {
-                    let id = id.clone();
+                    let id = *id;
                     if let Some(pos) = self.1.iter().position(|l| l.2 == id) {
                         let removed = self.1.remove(pos);
                         ctx.emit(SearchbarEvent::Relist(removed.4, id))
                     }
                 },
                 SearchbarEvent::Store(item, id) => {
-                    let id = id.clone();
+                    let id = *id;
                     self.1.push(SearchBarListItem::new(&self.2, item.clone(), Box::new(move |ctx: &mut Context, _theme: &Theme| {
                         ctx.emit(SearchbarEvent::Select(id))
                     }), id))

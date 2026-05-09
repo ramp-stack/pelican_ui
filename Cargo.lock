@@ -1519,6 +1519,7 @@ name = "pelican_ui"
 version = "2.2.0"
 dependencies = [
  "air",
+ "base64",
  "chrono",
  "hex",
  "image 0.25.9",
