@@ -1,6 +1,6 @@
-use prism::event::{OnEvent, Event, HardwareEvent, TickEvent};
+use prism::event::{OnEvent, Event, TickEvent, CameraFrame};
 use prism::canvas::{ShapeType, Image, Align};
-use prism::{Context, Request, Hardware};
+use prism::{Context, Camera};
 use prism::drawable::{Component, SizedTree};
 use prism::layout::{Area, Column, Padding, Size, Offset, Stack};
 
@@ -23,6 +23,7 @@ pub struct QRCodeScanner(
     #[skip] Option<String>,
     #[skip] Box<dyn QrCodeFound>,
     #[skip] Option<String>,
+    #[skip] Option<Box<dyn Camera>>,
 );
 
 impl QRCodeScanner {
@@ -35,6 +36,7 @@ impl QRCodeScanner {
             Arc::new(Mutex::new(false)),
             None,
             on_find,
+            None,
             None,
         )
     }
@@ -58,32 +60,33 @@ impl QRCodeScanner {
 impl OnEvent for QRCodeScanner {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            ctx.send(Request::Hardware(Hardware::GetCamera));
-            
+            if self.8.is_none() {
+                self.8 = Some(ctx.start_camera());
+            }
             if let Some(new_code) = &self.5 {
                 if let Some(old_code) = &mut self.7 {
                     if old_code != new_code {
                         (self.6)(ctx, new_code.to_string());
                         *old_code = new_code.to_string();
-                        ctx.send(Request::event(QRCodeScannedEvent(new_code.to_string())));
+                        ctx.emit(QRCodeScannedEvent(new_code.to_string()));
                     }
                 } else {
                     self.7 = Some(new_code.to_string());
                     (self.6)(ctx, new_code.to_string());
-                    ctx.send(Request::event(QRCodeScannedEvent(new_code.to_string())));
+                    ctx.emit(QRCodeScannedEvent(new_code.to_string()));
                 }
             }
         }
 
-        if let Some(HardwareEvent::Camera(image)) = event.downcast_ref::<HardwareEvent>() {
-            self.find_code(image.clone());
+        if let Some(CameraFrame(image)) = event.downcast_ref::<CameraFrame>() {
+            self.find_code(image.clone().into());
             self.5 = self.3.lock().unwrap().clone();
             
             *self.2.message() = None; 
             *self.2.background() = None;
             self.1 = Some(Image{
                 shape: ShapeType::Rectangle(0.0, (300.0, 300.0), 0.0), 
-                image: image.clone(), 
+                image: image.clone().into(), 
                 color: None
             });
             //else {

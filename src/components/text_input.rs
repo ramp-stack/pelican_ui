@@ -1,7 +1,7 @@
-use prism::event::{OnEvent, TickEvent, Event, HardwareEvent, self};
+use prism::event::{OnEvent, TickEvent, Event, self};
 use prism::canvas::Align;
 use prism::drawable::{Component, SizedTree};
-use prism::{Context, Request};
+use prism::Context;
 use prism::layout::{Padding, Column, Offset, Size, Row, Stack, Area};
 use prism::display::{EitherOr, Opt, Bin};
 
@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::theme::{Theme, Color, Icons};
 
+use crate::navigation::FlowCompleted;
 use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableText};
 use crate::components::Rectangle;
 use crate::components::button::SecondaryIconButton;
@@ -52,7 +53,7 @@ impl TextInput {
         value: Option<&str>,
         label: Option<&str>,
         placeholder: Option<&str>,
-        help_text: Option<&str>,
+        mut help_text: Option<&str>,
         icon_button: Option<(Icons, InputCallback)>,
         // on_edit: impl FnMut(&mut Context, &mut String) + 'static,
     ) -> Self {
@@ -67,6 +68,7 @@ impl TextInput {
             48.0,
         );
 
+        if let Some(h) = help_text && h.is_empty() {help_text = None};
         let error = ExpandableText::new(theme, "", TextSize::Sm, TextStyle::Error, Align::Left, None); 
         let help = help_text.map(|t| ExpandableText::new(theme, t, TextSize::Sm, TextStyle::Secondary, Align::Left, None));
 
@@ -100,8 +102,8 @@ impl OnEvent for TextInput {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
             self.hint.display_left(self.error.is_none()); 
-            if let Some(e) = &self.error {
-                self.hint.right().0.spans[0] = e.to_string(); 
+            if let Some(e) = &self.error && !e.is_empty() {
+                self.hint.right().0.spans[0] = e.to_string();
             } 
         } 
         vec![event] 
@@ -133,7 +135,7 @@ impl _InputContent {
         button: Option<(Icons, InputCallback)>,
     ) -> Self {
         let (button, on_submit) = button.map(|(icon, cb)| {
-            let btn = SecondaryIconButton::medium(theme, icon, |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(TextInputEvent::Submit))));
+            let btn = SecondaryIconButton::medium(theme, icon, |ctx: &mut Context, _: &Theme| ctx.emit(TextInputEvent::Submit));
             (Some(btn), Some(cb))
         }).unwrap_or((None, None));
         
@@ -153,10 +155,12 @@ impl _InputContent {
 
 impl OnEvent for _InputContent { 
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
+        if let Some(FlowCompleted(Some(data))) = event.downcast_ref::<FlowCompleted>() {
             self.default.inner().inner().1.0.spans[0] = data.to_string();
-        } else if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
+        } else if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
             self.default.inner().inner().1.0.spans[0] = data.to_string();
+        // } else if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
+        //     self.default.inner().inner().1.0.spans[0] = data.to_string();
         } else if let Some(QRCodeScannedEvent(data)) = event.downcast_ref::<QRCodeScannedEvent>() {
             self.default.inner().inner().1.0.spans[0] = data.to_string();
         } else if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {

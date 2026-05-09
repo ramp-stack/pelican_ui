@@ -1,5 +1,5 @@
-use prism::{drawables, Hardware, Context, IS_MOBILE, IS_WEB, Request};
-use prism::event::{self, Event, OnEvent, MouseEvent, MouseState, TickEvent, HardwareEvent};
+use prism::{drawables, Context, IS_MOBILE, IS_WEB};
+use prism::event::{self, Event, OnEvent, MouseEvent, MouseState, TickEvent};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
 use prism::display::Bin;
@@ -13,7 +13,6 @@ use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton}
 use crate::components::avatar::AvatarGroup;
 use crate::interface::system::MobileKeyboard;
 use crate::interface::navigation::{RootInfo, Navigator};
-use crate::interface::navigation::FlowContainer;
 
 use ptsd::interfaces::{Body, Navigator as PTSDNavigator};
 use ptsd::navigation::{NavigationEvent, AppPage};
@@ -37,23 +36,12 @@ pub struct Interface {
 
 impl OnEvent for Interface {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if IS_MOBILE && self.layout.4 == Padding(0.0, 0.0, 0.0, 0.0) {
-            ctx.send(Request::Hardware(Hardware::GetSafeArea));
-        }
 
         if let Some(InterfaceEvent::Disable(disable)) = event.downcast_ref::<InterfaceEvent>() {
-            ctx.send(Request::event(event::Button::Disable(*disable)));
-        } else if let Some(HardwareEvent::SafeArea(b, l, t, r)) = event.downcast_ref::<HardwareEvent>() {
-            self.layout = Stack::new(Offset::default(), Offset::default(), Size::default(), Size::default(), Padding(*l, *t, *r, *b));
-            println!("Setting padding to {:?}", self.layout.4);
+            ctx.emit(event::Button::Disable(*disable));
         }
 
         if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![0];}
-
-        // let mut closure = self.on_event.take().expect("on_event missing");
-        // let result = (closure)(self.inner(), ctx, event);
-        // self.on_event = Some(closure);
-        // result
 
         vec![event]
     }
@@ -66,10 +54,10 @@ impl std::fmt::Debug for Interface {
 }
 
 impl Interface {
-    pub fn new(theme: &Theme, mut roots: Vec<RootInfo>, _on_event: OnEventFn) -> Self {
+    pub fn new(ctx: &mut Context, theme: &Theme, mut roots: Vec<RootInfo>, _on_event: OnEventFn) -> Self {
         let pages: Vec<(String, Box<dyn AppPage>)> = roots.iter_mut().map(|r| (r.label.to_string(), r.page.take().unwrap() as Box<dyn AppPage>)).collect();
         Interface {
-            layout: Stack::default(),
+            layout: Stack::fill(),
             background: Rectangle::new(theme.colors().get(ptsd::Background::Primary), 0.0, None),
             inner: match IS_WEB {
                 true => { // web
@@ -77,8 +65,11 @@ impl Interface {
                     ptsd::interfaces::Interface::web(navigator, Screen::web(Pages::new(pages)))
                 },
                 false if IS_MOBILE => { // mobile
+                    let (_b, _l, t, _r) = ctx.get_safe_area();
+                    let layout = Stack::new(Offset::default(), Offset::default(), Size::default(), Size::Static(t), Padding::default());
+                    let padding = Bin(layout, Rectangle::new(theme.colors().get(ptsd::Background::Primary), 0.0, None));
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::mobile(theme, roots)) as Box<dyn PTSDNavigator>);
-                    ptsd::interfaces::Interface::mobile(navigator, Screen::mobile(Pages::new(pages)), MobileKeyboard::new(theme))
+                    ptsd::interfaces::Interface::mobile(padding, navigator, Screen::mobile(Pages::new(pages)), MobileKeyboard::new(theme))
                 },
                 false => { // desktop
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::desktop(theme, roots)) as Box<dyn PTSDNavigator>);
@@ -196,7 +187,8 @@ impl Content {
 impl OnEvent for Content {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            ctx.send(Request::event(InterfaceEvent::Disable(!(self.validation)(self.children.inner()))));
+            let event = InterfaceEvent::Disable(!(self.validation)(ctx, self.children.inner().iter_mut().collect()));
+            ctx.emit(event);
         } else if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
             self.children.column().adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
@@ -267,23 +259,20 @@ impl Header {
 
     /// A `Header` preset used for in-flow pages.
     pub fn stack(theme: &Theme, title: &str, icon: Option<(Icons, Box<dyn Callback>)>) -> Self {
-        let closure = |ctx: &mut Context, _: &Theme| ctx.send(Request::event(NavigationEvent::Pop));
+        let closure = |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::Pop);
         Self::_new(theme, title, Some((Icons::Left, Box::new(closure))), icon, TextSize::H4)
     }
 
     /// A `Header` preset used for end-of-flow pages.
     pub fn stack_end(theme: &Theme, title: &str) -> Self {
-        let closure = move |ctx: &mut Context, _: &Theme| ctx.send(Request::Event(Box::new(NavigationEvent::Reset)));
+        let closure = move |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::Reset(None));
         Self::_new(theme, title, Some((Icons::Close, Box::new(closure))), None, TextSize::H4)
     }
 
-    pub fn messaging(theme: &Theme, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn FlowContainer>) -> Self {
-        let profiles: Vec<Profile> = profiles.into_iter().filter(|p| *p != Profile::me()).collect();
-        let closure = move |ctx: &mut Context, _: &Theme| (0..exact_len).for_each(|_| ctx.send(Request::Event(Box::new(NavigationEvent::Pop))));
+    pub fn messaging(theme: &Theme, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn Callback>) -> Self {
+        let closure = move |ctx: &mut Context, _: &Theme| (0..exact_len).for_each(|_| ctx.emit(NavigationEvent::Pop));
         let l_icon = HeaderIcon::new(theme, Icons::Left, closure);
-        let r_icon = HeaderIcon::new(theme, Icons::Info, Box::new(move |ctx: &mut Context, _theme: &Theme| {
-            ctx.send(Request::event(NavigationEvent::Push(Some(info.clone()), vec![])))
-        })); // this needs to navigate to info page
+        let r_icon = HeaderIcon::new(theme, Icons::Info, info); // this needs to navigate to info page
 
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0));
         Header {
@@ -301,18 +290,7 @@ impl Header {
         r_icon: Option<(Icons, Box<dyn Callback>)>,
         size: TextSize,
     ) -> Self {
-        let title = title.split_whitespace().enumerate().map(|(i, w)| {
-            let upper = w.chars().filter(|c| c.is_uppercase()).count();
-            if upper > 1 && w.len() <= 3 {
-                w.to_string()
-            } else if i == 0 {
-                w[..1].to_uppercase() + &w[1..].to_lowercase()
-            } else {
-                w.to_lowercase()
-            }
-        }).collect::<Vec<_>>().join(" ");
-
-        let text = ExpandableText::new(theme, &title, size, TextStyle::Heading, Align::Center, Some(1));
+        let text = ExpandableText::new(theme, title, size, TextStyle::Heading, Align::Center, Some(1));
 
         let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(theme, n, c)).unwrap_or_default();
         let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(theme, n, c)).unwrap_or_default();
@@ -332,10 +310,16 @@ pub struct MessageHeader(Column, AvatarGroup, ExpandableText);
 impl OnEvent for MessageHeader {}
 impl MessageHeader {
     pub fn new(theme: &Theme, profiles: Vec<Profile>) -> Self {
-        let title = if profiles.len() > 1 {"Group Message".to_string()} else {profiles[0].name.to_string()};
+        let title = match profiles.len() > 1 {
+            true => "Group Message".to_string(),
+            false => match profiles.first() {
+                Some(first) => first.username.to_string(),
+                None => "New Message".to_string(),
+            },
+        };
         let text = ExpandableText::new(theme, &title, TextSize::H4, TextStyle::Heading, Align::Center, Some(1));
-        let avatars = AvatarGroup::new(theme, profiles.iter().map(|p| p.pfp.clone()).collect::<Vec<_>>());
-        MessageHeader(Column::center(8.0), avatars, text)
+        let avatars = profiles.iter().map(|p| p.pfp.clone()).collect::<Vec<_>>();
+        MessageHeader(Column::center(8.0), AvatarGroup::new(theme, avatars), text)
     }
 }
 
@@ -369,8 +353,9 @@ impl OnEvent for Bumper {}
 
 impl Bumper {
     /// A `Bumper` preset used for home pages.
-    pub fn home(theme: &Theme, first: (String, Box<dyn Callback>), second: Option<(String, Box<dyn Callback>)>) -> Self {
-        let mut content = drawables![PrimaryButton::new(theme, &first.0, Box::new(first.1))];
+    pub fn home(theme: &Theme, first: Option<(String, Box<dyn Callback>)>, second: Option<(String, Box<dyn Callback>)>) -> Self {
+        let mut content: Vec<Box<dyn Drawable>> = vec![];
+        if let Some((l, c)) = first {content.push(Box::new(PrimaryButton::new(theme, &l, c))); }
         if let Some((l, c)) = second { content.push(Box::new(PrimaryButton::new(theme, &l, c))); }
         let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(content) }
@@ -392,8 +377,8 @@ impl Bumper {
     /// A `Bumper` preset used for end-of-flow pages.
     pub fn stack_end(theme: &Theme, exact_pages: Option<usize>) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| match exact_pages {
-            Some(num) => (0..num).for_each(|_| ctx.send(Request::Event(Box::new(NavigationEvent::Pop)))),
-            None => ctx.send(Request::Event(Box::new(NavigationEvent::Reset)))
+            Some(num) => (0..num).for_each(|_| ctx.emit(NavigationEvent::Pop)),
+            None => ctx.emit(NavigationEvent::Reset(None)),
         };
         
         let content = SecondaryButton::large(theme, "Done", Box::new(closure));
@@ -424,7 +409,7 @@ impl Bumper {
 
     pub fn default(theme: &Theme) -> Self {
         Self::home(theme, 
-            ("Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed...."))), 
+            Some(("Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed....")))), 
             Some(("No Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed....")))), 
         )
     }
@@ -435,7 +420,8 @@ pub struct BumperContent { layout: Row, children: Vec<Box<dyn Drawable>> }
 impl OnEvent for BumperContent {}
 impl BumperContent {
     fn new(children: Vec<Box<dyn Drawable>>) -> Self {
-        BumperContent{ layout: Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0)), children }
+        let padding = if children.is_empty() {Padding::default()} else {Padding(0.0, 16.0, 0.0, 16.0)};
+        BumperContent{ layout: Row::new(16.0, Offset::Center, Size::Fit, padding), children }
     }
 }
 

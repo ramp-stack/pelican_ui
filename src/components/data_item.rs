@@ -45,13 +45,13 @@ pub struct DataItem(Column, Text, Option<ExpandableText>, Option<ExpandableText>
 impl OnEvent for DataItem {}
 
 impl DataItem {
-    pub fn text(theme: &Theme, label: &str, secondary: &str, description: &str, quick_actions: Option<Vec<(String, Icons, Box<dyn Callback>)>>) -> Self {
+    pub fn text(theme: &Theme, label: &str, secondary: Option<&str>, description: &str, quick_actions: Option<Vec<(String, Icons, Box<dyn Callback>)>>) -> Self {
         DataItem(
             Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
             Text::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
-            Some(ExpandableText::new(theme, secondary, TextSize::Md, TextStyle::Primary, Align::Left, None)),
+            secondary.map(|s| ExpandableText::new(theme, s, TextSize::Md, TextStyle::Primary, Align::Left, None)),
             Some(ExpandableText::new(theme, description, TextSize::Sm, TextStyle::Secondary, Align::Left, None)),
-            None, quick_actions.map(|actions| QuickActions::new(theme, actions))
+            None, quick_actions.map(|actions| QuickActions::new(theme, Offset::Start, actions))
         )
     }
 
@@ -60,7 +60,7 @@ impl DataItem {
             Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
             Text::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
             None, None, Some(Table::new(theme, table)),
-            quick_actions.map(|actions| QuickActions::new(theme, actions))
+            quick_actions.map(|actions| QuickActions::new(theme, Offset::Start, actions))
         )
     }
 }

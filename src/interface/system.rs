@@ -1,6 +1,6 @@
-use prism::event::{self, KeyboardState, KeyboardEvent, OnEvent, Event, NamedKey};
+use prism::event::{self, KeyboardState, KeyboardEvent, OnEvent, Event, NamedKey, Modifiers};
 use prism::canvas::{Align, Image};
-use prism::{emitters, Context, Request, Hardware};
+use prism::{emitters, Context};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding, Area};
 use prism::display::{Bin, Enum};
@@ -41,7 +41,7 @@ impl KeyboardContent {
             KeyboardRow::top(theme, 0, false),
             KeyboardRow::middle(theme, 0, false),
             KeyboardRow::bottom(theme, 0, false),
-            KeyboardRow::modifier(theme, false),
+            KeyboardRow::modifier(theme, 0, false),
             theme.clone()
         )
     }
@@ -57,6 +57,7 @@ impl OnEvent for KeyboardContent {
                     self.2 = KeyboardRow::top(&theme, *page, caps);
                     self.3 = KeyboardRow::middle(&theme, *page, caps);
                     self.4 = KeyboardRow::bottom(&theme, *page, caps);
+                    self.5 = KeyboardRow::modifier(&theme, *page, caps);
                 },
                 MobileKeyboardEvent::Capslock(caps) => {
                     let theme = self.6.clone();
@@ -64,7 +65,7 @@ impl OnEvent for KeyboardContent {
                     self.2 = KeyboardRow::top(&theme, page, *caps);
                     self.3 = KeyboardRow::middle(&theme, page, *caps);
                     self.4 = KeyboardRow::bottom(&theme, page, *caps);
-                    self.5 = KeyboardRow::modifier(&theme, *caps)
+                    self.5 = KeyboardRow::modifier(&theme, page, *caps)
                 },
             }
         }
@@ -91,7 +92,6 @@ impl KeyRow {
 
 #[derive(Component, Debug, Clone)]
 struct KeyboardRow(Row, Option<Capslock>, Option<Paginator>, Option<KeyRow>, Option<Key>, Option<Key>);
-// Capslock, Paginator, Character Row, Spacebar, Return
 impl OnEvent for KeyboardRow {}
 
 impl KeyboardRow {
@@ -112,8 +112,8 @@ impl KeyboardRow {
         KeyboardRow(Row::center(6.0), Some(capslock), None, Some(key_row), None, Some(backspace))
     }
 
-    fn modifier(theme: &Theme, caps_on: bool) -> Self {
-        let paginator = Paginator::new(theme);
+    fn modifier(theme: &Theme, num: usize, caps_on: bool) -> Self {
+        let paginator = Paginator::new(theme, num);
         let spacebar = Key::spacebar(theme, caps_on);
         let newline = Key::newline(theme, caps_on);
         KeyboardRow(Row::center(6.0), None, Some(paginator), None, Some(spacebar), Some(newline))
@@ -151,8 +151,8 @@ impl KeyboardIcons {
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
             ),
             GhostIconButton::new(theme, Icons::DownArrow, |ctx: &mut Context, _: &Theme| {
-                ctx.send(Request::Event(Box::new(ShowKeyboard(false))));
-                ctx.send(Request::Event(Box::new(event::TextInput::Focused(false))));
+                ctx.emit(ShowKeyboard(false));
+                ctx.emit(event::TextInput::Focused(false));
             }),
         )
     }
@@ -166,37 +166,37 @@ impl Key {
         let default = _Key::character(theme, character, ButtonState::Default);
         let pressed = _Key::character(theme, character, ButtonState::Pressed);
         let character = character.to_string();
-        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Character(character.to_string()), state: KeyboardState::Pressed}))); // emmit character
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Character(character.to_string()), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit character
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
     fn spacebar(theme: &Theme, caps_on: bool) -> Self {
         let default = _Key::spacebar(theme, caps_on, ButtonState::Default);
         let pressed = _Key::spacebar(theme, caps_on, ButtonState::Pressed);
-        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Named(NamedKey::Space), state: KeyboardState::Pressed}))); // emmit space
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Named(NamedKey::Space), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit space
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
     fn newline(theme: &Theme, caps_on: bool) -> Self {
         let default = _Key::newline(theme, caps_on, ButtonState::Default);
         let pressed = _Key::newline(theme, caps_on, ButtonState::Pressed);
-        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Named(NamedKey::Enter), state: KeyboardState::Pressed}))); // emmit newline
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Named(NamedKey::Enter), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit newline
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
     fn backspace(theme: &Theme) -> Self {
         let default = _Key::backspace(theme, ButtonState::Default);
         let pressed = _Key::backspace(theme, ButtonState::Pressed);
-        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(KeyboardEvent{key: event::Key::Named(NamedKey::Delete), state: KeyboardState::Pressed}))); // emmit delete
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Named(NamedKey::Delete), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit delete
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
     }
 
     fn capslock(theme: &Theme, state: ButtonState) -> Self {
         let default = _Key::capslock(theme, state);
-        let callback = Box::new(move |ctx: &mut Context| ctx.send(Request::event(MobileKeyboardEvent::Capslock(match state {
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(MobileKeyboardEvent::Capslock(match state {
             ButtonState::Pressed => false,
             ButtonState::Default => true,
-        }))));
+        })));
 
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, callback, false))
     }
@@ -204,7 +204,15 @@ impl Key {
 
 #[derive(Debug, Component, Clone)]
 struct Capslock(Stack, interactions::Selectable);
-impl OnEvent for Capslock {}
+impl OnEvent for Capslock {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if let Some(KeyboardEvent{state: KeyboardState::Pressed, ..}) = event.downcast_ref::<KeyboardEvent>() {
+            self.1.deselect();
+            ctx.emit(MobileKeyboardEvent::Capslock(false));
+        }
+        vec![event]
+    }
+}
 impl Capslock {
     fn new(theme: &Theme, is_on: bool) -> Self {
         let selected = Key::capslock(theme, ButtonState::Pressed);
@@ -335,12 +343,12 @@ impl PaginatorContent {
 struct Paginator(Stack, emitters::Selectable<_Paginator>);
 impl OnEvent for Paginator {}
 impl Paginator {
-    fn new(theme: &Theme) -> Self {
+    fn new(theme: &Theme, num: usize) -> Self {
         let first = _Key::paginator(theme, 0);
         let second = _Key::paginator(theme, 1);
         let third = _Key::paginator(theme, 2);
 
-        let selectable = _Paginator::new(first, second, third);
+        let selectable = _Paginator::new(first, second, third, num);
         Self(Stack::default(), emitters::Selectable::new(selectable, uuid::Uuid::new_v4()))
     }
 
@@ -364,12 +372,14 @@ impl _Paginator {
         first: impl Drawable + 'static,
         second: impl Drawable + 'static,
         third: impl Drawable + 'static,
+        num: usize,
     ) -> Self {
+        let start = match num {0 => "first", 1 => "second", _ => "third"}.to_string();
         _Paginator(Stack::default(), Enum::new(vec![
             ("first".to_string(), Box::new(first)),
             ("second".to_string(), Box::new(second)),
             ("third".to_string(), Box::new(third))
-        ], "first".to_string()), 0)
+        ], start), 0)
     }
 
     fn current(&self) -> usize {self.2}
@@ -389,8 +399,8 @@ impl OnEvent for _Paginator {
                 self.2 = 0;
             }
 
-            ctx.send(Request::Hardware(Hardware::Haptic));
-            ctx.send(Request::event(MobileKeyboardEvent::Paginator(self.2)));
+            ctx.trigger_haptic();
+            ctx.emit(MobileKeyboardEvent::Paginator(self.2));
         }
         vec![event]
     }

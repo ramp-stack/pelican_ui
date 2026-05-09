@@ -1,3 +1,3 @@
 fn main() {
-    demo::maverick_main()
+    tickets::maverick_main()
 }
