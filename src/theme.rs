@@ -266,7 +266,9 @@ impl Button {
 macro_rules! icons {
     ($($variant:ident => $name:expr),* $(,)?) => {
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        use serde::{Serialize, Deserialize};
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
         pub enum Icons {
             $($variant),*
         }

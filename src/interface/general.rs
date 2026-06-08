@@ -1,4 +1,4 @@
-use prism::{drawables, Context, IS_MOBILE, IS_WEB, Request};
+use prism::{drawables, Context, IS_MOBILE, IS_WEB};
 use prism::event::{self, Event, OnEvent, MouseEvent, MouseState, TickEvent};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
@@ -22,7 +22,29 @@ pub use ptsd::navigation::Pages;
 
 use std::sync::{Arc, Mutex};
 
-type OnEventFn = Box<dyn FnMut(&mut Box<dyn Drawable>, &mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>>;
+pub trait OnEventFn: FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>> + 'static {
+    fn clone_box(&self) -> Box<dyn OnEventFn>;
+}
+
+impl PartialEq for dyn OnEventFn{fn eq(&self, _: &Self) -> bool {true}}
+
+impl<F> OnEventFn for F where F: FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>> + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn OnEventFn> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn OnEventFn> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone_box()
+    }
+}
+
+impl std::fmt::Debug for dyn OnEventFn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "OnEventFn Closure")
+    }
+}
 
 /// The top-level interface of an app built with Pelican.
 ///
@@ -32,7 +54,7 @@ pub struct Interface {
     layout: Stack,
     background: Rectangle,
     inner: ptsd::interfaces::Interface,
-    // #[skip] pub on_event: Option<OnEventFn>
+    #[skip] pub on_event: Option<Box<dyn OnEventFn>>
 }
 
 impl OnEvent for Interface {
@@ -50,12 +72,10 @@ impl OnEvent for Interface {
 
         if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![0];}
 
-        // let mut closure = self.on_event.take().expect("on_event missing");
-        // let result = (closure)(self.inner(), ctx, event);
-        // self.on_event = Some(closure);
-        // result
-
-        vec![event]
+        let mut closure = self.on_event.take().expect("on_event missing");
+        let result = (closure)(ctx, event);
+        self.on_event = Some(closure);
+        result
     }
 }
 
@@ -66,7 +86,7 @@ impl std::fmt::Debug for Interface {
 }
 
 impl Interface {
-    pub fn new(ctx: &mut Context, theme: &Theme, mut roots: Vec<RootInfo>, _on_event: OnEventFn) -> Self {
+    pub fn new(ctx: &mut Context, theme: &Theme, mut roots: Vec<RootInfo>, on_event: Box<dyn OnEventFn>) -> Self {
         let pages: Vec<(String, Box<dyn AppPage>)> = roots.iter_mut().map(|r| (r.label.to_string(), r.page.take().unwrap() as Box<dyn AppPage>)).collect();
         let (b, l, t, r) = ctx.get_safe_area();
         Interface {
@@ -86,7 +106,7 @@ impl Interface {
                     ptsd::interfaces::Interface::desktop(navigator, Screen::desktop(theme, Pages::new(pages)))
                 }
             },
-            // on_event: Some(on_event),
+            on_event: Some(on_event),
         }
     }
 

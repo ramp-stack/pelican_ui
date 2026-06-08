@@ -1,6 +1,6 @@
 use prism::event::{self, KeyboardState, KeyboardEvent, OnEvent, Event, NamedKey, Modifiers};
 use prism::canvas::{Align, Image};
-use prism::{emitters, Context, Request};
+use prism::{emitters, Context};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding, Area};
 use prism::display::{Bin, Enum};

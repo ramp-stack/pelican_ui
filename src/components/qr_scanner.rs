@@ -1,6 +1,6 @@
 use prism::event::{OnEvent, Event, TickEvent};
 use prism::canvas::{ShapeType, Image, Align};
-use prism::{Context, Request};
+use prism::{Context};
 use prism::drawable::{Component, SizedTree};
 use prism::layout::{Area, Column, Padding, Size, Offset, Stack};
 

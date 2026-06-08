@@ -13,6 +13,12 @@ use image::RgbaImage;
 use std::sync::Arc;
 use crate::theme::Icons;
 
+use serde::{
+    de::{self, MapAccess, Visitor},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
+use std::fmt;
+
 /// ## Avatar
 ///
 /// Displays a user avatar.  
@@ -174,7 +180,7 @@ impl AvatarGroup {
 }
 
 /// Variations of avatar content.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AvatarContent {
     /// Display an icon on a circle background.
     Icon(Icons, AvatarIconStyle),
@@ -232,8 +238,75 @@ impl AvatarContent {
     }
 }
 
+
+impl Serialize for AvatarContent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        use serde::ser::SerializeMap;
+
+        let mut map = serializer.serialize_map(Some(1))?;
+
+        match self {
+            AvatarContent::Icon(icon, style) => {
+                map.serialize_entry("Icon", &(icon, style))?;
+            }
+            AvatarContent::Image(_) => {
+                let image = self.get_image().unwrap_or_default();
+                map.serialize_entry("Image", &image)?;
+            }
+        }
+
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for AvatarContent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct AvatarContentVisitor;
+
+        impl<'de> Visitor<'de> for AvatarContentVisitor {
+            type Value = AvatarContent;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("AvatarContent")
+            }
+
+            fn visit_map<M>(self, mut map: M) -> Result<AvatarContent, M::Error>
+            where
+                M: MapAccess<'de>,
+            {
+                let key: Option<String> = map.next_key()?;
+
+                match key.as_deref() {
+                    Some("Icon") => {
+                        let (icon, style): (Icons, AvatarIconStyle) =
+                            map.next_value()?;
+                        Ok(AvatarContent::Icon(icon, style))
+                    }
+                    Some("Image") => {
+                        let encoded: String = map.next_value()?;
+                        Ok(AvatarContent::from_string(&encoded))
+                    }
+                    Some(other) => Err(de::Error::unknown_field(
+                        other,
+                        &["Icon", "Image"],
+                    )),
+                    None => Err(de::Error::custom("empty AvatarContent")),
+                }
+            }
+        }
+
+        deserializer.deserialize_map(AvatarContentVisitor)
+    }
+}
+
 /// Style presets for avatar icons and backgrounds.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AvatarIconStyle {
     Primary,
     Secondary,

@@ -1,7 +1,7 @@
 use prism::event::{OnEvent, TickEvent, Event, self};
 use prism::canvas::Align;
 use prism::drawable::{Component, SizedTree};
-use prism::{Context, Request};
+use prism::{Context};
 use prism::layout::{Padding, Column, Offset, Size, Row, Stack, Area};
 use prism::display::{EitherOr, Opt, Bin};
 

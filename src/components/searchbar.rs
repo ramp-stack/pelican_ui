@@ -1,5 +1,5 @@
 use prism::event::{Event, TickEvent, OnEvent};
-use prism::{Request, Context};
+use prism::{Context};
 use prism::drawable::{Component, SizedTree};
 use prism::layout::{Area, Wrap, Stack, Column};
 

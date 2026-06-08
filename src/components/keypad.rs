@@ -2,7 +2,7 @@ use prism::event::{OnEvent, KeyboardState, KeyboardEvent, NamedKey, Key, Modifie
 use prism::layout::{Stack, Column, Row, Offset};
 use prism::drawable::{Drawable, Component};
 use prism::canvas::Align;
-use prism::{Context, Request};
+use prism::{Context};
 
 use ptsd::interactions;
 
