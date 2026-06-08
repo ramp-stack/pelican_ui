@@ -89,7 +89,7 @@ impl OnEvent for Avatar {
         if let Some(PickedPhoto(img)) = event.downcast_ref::<PickedPhoto>() && self.waiting_on_photo {
             self.waiting_on_photo = false;
             self.content = AvatarContent::image(Arc::new(img.clone()));
-        } else if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_)}) = event.downcast_ref::<MouseEvent>() {
+        } else if let Some(MouseEvent{state: MouseState::Pressed, position: Some(_), button}) = event.downcast_ref::<MouseEvent>() {
             if let Some(on_click) = &mut self._on_click {
                 ctx.trigger_haptic();
                 ctx.pick_photo();

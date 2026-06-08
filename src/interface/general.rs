@@ -237,7 +237,7 @@ impl OnEvent for Content {
         //             }
         //         }
         //     }
-        } else if let Some(MouseEvent { state: MouseState::Scroll(_, y), position: Some(_) }) = event.downcast_ref::<MouseEvent>() {
+        } else if let Some(MouseEvent { state: MouseState::Scroll(_, y), position: Some(_), button }) = event.downcast_ref::<MouseEvent>() {
             self.children.column().adjust_scroll(*y);
         }
         vec![event]
