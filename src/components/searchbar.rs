@@ -9,30 +9,30 @@ use crate::Callback;
 use crate::theme::{Theme, Icons};
 use crate::components::TextInput;
 use crate::components::list_item::ListItem;
-use crate::components::button::SecondaryButton;
+use crate::components::button::{SecondaryButton, QuickActions};
 
 use air::names::Name;
 
 #[derive(Debug, Component, Clone)]
-pub struct SearchBar(Column, TextInput, SelectedItems, SearchableItems, #[skip] String);
+pub struct SearchBar(Column, TextInput, Option<QuickActions>, SelectedItems, SearchableItems, #[skip] String);
 impl OnEvent for SearchBar {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() && self.1.value() != self.4 { 
-            self.4 = self.1.value().to_string();
-            self.3.sort(&self.4); 
+        if event.downcast_ref::<TickEvent>().is_some() && self.1.value() != self.5 { 
+            self.5 = self.1.value().to_string();
+            self.4.sort(&self.5); 
         }
         vec![event]
     }
 }
 
 impl SearchBar {
-    pub fn new(theme: &Theme, items: Vec<(ListItem, Name)>) -> Self {
+    pub fn new(theme: &Theme, items: Vec<(ListItem, Name)>, actions: Option<QuickActions>) -> Self {
         let input = TextInput::new(theme, None, None, None, None, None);
-        SearchBar(Column::start(12.0), input, SelectedItems::new(theme, vec![]), SearchableItems::new(theme, items), String::new())
+        SearchBar(Column::start(12.0), input, actions, SelectedItems::new(theme, vec![]), SearchableItems::new(theme, items), String::new())
     }
 
     pub fn results(&self) -> Vec<Name> {
-        self.2.1.iter().map(|p| p.2).collect::<Vec<_>>()
+        self.3.1.iter().map(|p| p.2).collect::<Vec<_>>()
     }
 }
 
