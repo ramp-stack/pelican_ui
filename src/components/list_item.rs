@@ -171,7 +171,7 @@ impl ListItemGroup {
 #[derive(Debug, Component, Clone)]
 pub struct ListItemSection(Stack, EitherOr<ExpandableText, ListItemGroup>, #[skip] Arc<Box<dyn ListItemGetter>>);
 impl OnEvent for ListItemSection {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             let new_items = (self.2)(ctx);
             self.1.display_left(new_items.is_empty());

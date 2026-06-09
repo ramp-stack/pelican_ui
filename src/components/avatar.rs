@@ -129,7 +129,7 @@ impl PrimaryAvatar {
                 self.3 = None;
                 self.2 = Some(Image{shape: ShapeType::Ellipse(0.0, (size.get(), size.get()), 0.0), image, color: None});
             },
-            AvatarContent::Icon(icon, style) => {}
+            AvatarContent::Icon(..) => {}
         }
     }
 }
@@ -212,7 +212,7 @@ impl AvatarContent {
             Err(_) => return AvatarContent::default(),
         };
 
-        let mut img = match image::load_from_memory(&bytes) {
+        let img = match image::load_from_memory(&bytes) {
             Ok(img) => img.to_rgba8(),
             Err(_) => return AvatarContent::default(),
         };
@@ -222,7 +222,7 @@ impl AvatarContent {
 
     pub fn get_image(&self) -> Option<String> {
         use std::io::Cursor;
-        use image::{DynamicImage, ImageFormat, RgbaImage};
+        use image::{DynamicImage, ImageFormat};
         use base64::{engine::general_purpose, Engine as _};
         match &self {
             AvatarContent::Image(img) => {
