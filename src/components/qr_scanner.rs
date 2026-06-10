@@ -1,4 +1,4 @@
-use prism::event::{OnEvent, Event, TickEvent};
+use prism::event::{OnEvent, Event, TickEvent, CameraFrame};
 use prism::canvas::{ShapeType, Image, Align};
 use prism::{Context};
 use prism::drawable::{Component, SizedTree};
@@ -23,6 +23,7 @@ pub struct QRCodeScanner(
     #[skip] Option<String>,
     #[skip] Box<dyn QrCodeFound>,
     #[skip] Option<String>,
+    #[skip] Option<Box<dyn prism::Camera>>,
 );
 
 impl QRCodeScanner {
@@ -36,6 +37,7 @@ impl QRCodeScanner {
             None,
             on_find,
             None,
+            None
         )
     }
 
@@ -57,9 +59,10 @@ impl QRCodeScanner {
 
 impl OnEvent for QRCodeScanner {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() {
-            ctx.start_camera();
-            
+        if event.downcast_ref::<TickEvent>().is_some() {        
+            if self.8.is_none() {
+                self.8 = Some(ctx.start_camera());
+            }    
             if let Some(new_code) = &self.5 {
                 if let Some(old_code) = &mut self.7 {
                     if old_code != new_code {
@@ -75,24 +78,24 @@ impl OnEvent for QRCodeScanner {
             }
         }
 
-        // if let Some(HardwareEvent::Camera(image)) = event.downcast_ref::<HardwareEvent>() {
-        //     self.find_code(image.clone());
-        //     self.5 = self.3.lock().unwrap().clone();
+        if let Some(CameraFrame(image)) = event.downcast_ref::<CameraFrame>() {
+            self.find_code(image.clone().into());
+            self.5 = self.3.lock().unwrap().clone();
             
-        //     *self.2.message() = None; 
-        //     *self.2.background() = None;
-        //     self.1 = Some(Image{
-        //         shape: ShapeType::Rectangle(0.0, (300.0, 300.0), 0.0), 
-        //         image: image.clone(), 
-        //         color: None
-        //     });
-        //     //else {
-        //         //TODO: fix this 
-        //         // let background = ctx.state.get_or_default::<Theme>().colors.background.secondary;
-        //         // *self.2.background() = Some(Rectangle::new(background, 8.0, None));
-        //         // *self.2.message() = Some(Message::new(ctx, "settings", "Camera not available."));
-        //     //}
-        // }
+            *self.2.message() = None; 
+            *self.2.background() = None;
+            self.1 = Some(Image{
+                shape: ShapeType::Rectangle(0.0, (300.0, 300.0), 0.0), 
+                image: image.clone().into(), 
+                color: None
+            });
+            //else {
+                //TODO: fix this 
+                // let background = ctx.state.get_or_default::<Theme>().colors.background.secondary;
+                // *self.2.background() = Some(Rectangle::new(background, 8.0, None));
+                // *self.2.message() = Some(Message::new(ctx, "settings", "Camera not available."));
+            //}
+        }
         vec![event]
     }
 }
@@ -131,21 +134,11 @@ impl Message {
 }
 
 // use zxingcpp::BarcodeFormat;
-pub fn decode_image(img: Arc<RgbaImage>) -> Option<String> {
-    let dyn_img: DynamicImage = DynamicImage::ImageRgba8((*img).clone()); 
-    let reader = zxingcpp::read().formats([zxingcpp::BarcodeFormat::QRCode]);
-    let barcodes = match reader.from(&dyn_img) {
-        Ok(b) => b,
-        Err(_) => return None,
-    };
 
-    barcodes.into_iter().find(|b| b.format() == zxingcpp::BarcodeFormat::QRCode).and_then(|b| {
-        let text = b.text();
-        if text.is_empty() {
-            None
-        } else {
-            Some(text)
-        }
+fn decode_image(img: Arc<RgbaImage>) -> Option<String> {
+    let gray = DynamicImage::ImageRgba8((*img).clone()).to_luma8();
+    rqrr::PreparedImage::prepare(gray).detect_grids().into_iter().find_map(|grid| {
+        grid.decode().ok().map(|(_, text)| text).filter(|s| !s.is_empty())
     })
 }
 
