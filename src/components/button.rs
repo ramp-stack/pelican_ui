@@ -34,6 +34,18 @@ impl QuickActions {
     }
 }
 
+#[derive(Debug, Component, Clone)]
+pub struct IconButtonGroup(Row, Vec<SecondaryIconButton>);
+impl OnEvent for IconButtonGroup {}
+impl IconButtonGroup {
+    pub fn new(theme: &Theme, actions: Vec<(Icons, Box<dyn Callback>)>) -> Self {
+        IconButtonGroup(Row::center(24.0), actions.into_iter().map(|(i, mut a)| {
+            SecondaryIconButton::large(theme, i, move |ctx: &mut Context, theme: &Theme| (a)(ctx, theme))
+        }).collect())
+    }
+}
+
+
 /// ## Primary Button
 ///
 /// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/primary_buttons.png"
