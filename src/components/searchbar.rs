@@ -68,7 +68,7 @@ impl SelectedItems {
     pub fn new(theme: &Theme, items: Vec<SearchBarListItem>) -> Self {
         SelectedItems(Wrap::start(8.0, 8.0), items.into_iter().map(|item| {
             let id = item.id();
-            SearchPill::new(SecondaryButton::medium(theme, Icons::Close, &item.3.clone(), None, move |ctx: &mut Context, _theme: &Theme| {
+            SearchPill::new(SecondaryButton::medium(theme, Icons::Close, &item.3.0.clone(), None, move |ctx: &mut Context, _theme: &Theme| {
                 ctx.emit(SearchbarEvent::Remove(id))
             }), item.4.clone(), item.id())
         }).collect::<Vec<_>>(), theme.clone())
@@ -85,9 +85,25 @@ impl OnEvent for SearchableItems {
                     let id = id.clone();
                     if let Some(pos) = self.1.iter().position(|l| l.2 == id) {
                         let removed = self.1.remove(pos);
-                        ctx.emit(SearchbarEvent::Relist(removed.4, id))
+                        ctx.emit(SearchbarEvent::Relist(removed.4, id));
+                    } else {
+                        let mut title = id.to_string();
+                        let len = title.chars().count();
+
+                        if len >= 20 {
+                            let chars: Vec<char> = title.chars().collect();
+
+                            let start: String = chars.iter().take(7).collect();
+                            let end: String = chars.iter().rev().take(3).collect::<Vec<_>>()
+                                .iter().rev().copied().collect();
+
+                            title = format!("{}...{}", start, end);
+                        }
+                        
+                        let fallback_item = ListItem::default(&self.2, title.clone());
+                        ctx.emit(SearchbarEvent::Relist(fallback_item, id));
                     }
-                },
+                }
                 SearchbarEvent::Store(item, id) => {
                     let id = id.clone();
                     self.1.push(SearchBarListItem::new(&self.2, item.clone(), Box::new(move |ctx: &mut Context, _theme: &Theme| {
@@ -113,13 +129,19 @@ impl SearchableItems {
     pub fn sort(&mut self, val: &str) {
         let val = &val.to_lowercase();
         self.1.sort_by_key(|item| {
-            let s = &item.3.to_lowercase();
+            let title = &item.3.0.to_lowercase();
+            let subtitle = &item.3.1.to_lowercase();
 
-            match s == val {
+            match title == val {
                 true => 0,
-                false if s.starts_with(val) => 1,
-                false if s.contains(val) => 2,
-                false => 3
+                false if title.starts_with(val) => 1,
+                false if title.contains(val) => 2,
+                false => match subtitle == val {
+                    true => 0,
+                    false if subtitle.starts_with(val) => 1,
+                    false if subtitle.contains(val) => 2,
+                    false => 3
+                }
             }
         });
     }
@@ -149,14 +171,14 @@ impl Event for SearchbarEvent {
 }
 
 #[derive(Component, Debug, Clone)]
-pub struct SearchBarListItem(Stack, pub interactions::Button, #[skip] Name, #[skip] String, #[skip] ListItem);
+pub struct SearchBarListItem(Stack, pub interactions::Button, #[skip] Name, #[skip] (String, String), #[skip] ListItem);
 impl OnEvent for SearchBarListItem {}
 impl SearchBarListItem {
     pub fn new(theme: &Theme, item: ListItem, mut callback: Box<dyn Callback>, id: Name) -> Self {
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (callback)(ctx, &theme));
         let button = interactions::Button::new(item.clone(), None::<ListItem>, None::<ListItem>, None::<ListItem>, callback, false);
-        SearchBarListItem(Stack::default(), button, id, item.title().to_string(), item)
+        SearchBarListItem(Stack::default(), button, id, (item.title().to_string(), item.subtitle().to_string()), item)
     }
 
     pub fn id(&self) -> Name {self.2}

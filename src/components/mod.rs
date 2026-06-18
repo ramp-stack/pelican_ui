@@ -40,4 +40,4 @@ mod messages;
 pub use messages::*;
 
 mod searchbar;
-pub use searchbar::SearchBar;
+pub use searchbar::{SearchBar, SearchbarEvent};

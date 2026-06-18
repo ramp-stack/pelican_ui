@@ -5,6 +5,7 @@ use prism::drawable::{Component, SizedTree};
 use prism::layout::{Area, Column, Padding, Size, Offset, Stack};
 
 use ptsd::theme::TextSize;
+use ptsd::navigation::NavigationEvent;
 
 use crate::theme::{Theme, Icons, Color};
 use crate::components::text::{TextStyle, Text};
@@ -66,21 +67,35 @@ impl OnEvent for QRCodeScanner {
             if let Some(new_code) = &self.5 {
                 if let Some(old_code) = &mut self.7 {
                     if old_code != new_code {
-                        (self.6)(ctx, new_code.to_string());
                         *old_code = new_code.to_string();
-                        ctx.emit(QRCodeScannedEvent(new_code.to_string()));
+                        let mut on_scan = self.6.clone();
+                        let c = new_code.clone();
+                        self.1 = None;
+                        self.5 = None;
+                        self.8 = None;
+                        ctx.emit(NavigationEvent::reset_with_fn(move |ctx: &mut Context| {
+                            (on_scan)(ctx, c.to_string());
+                            ctx.emit(QRCodeScannedEvent(c.to_string()));
+                        }));
                     }
                 } else {
                     self.7 = Some(new_code.to_string());
-                    (self.6)(ctx, new_code.to_string());
-                    ctx.emit(QRCodeScannedEvent(new_code.to_string()));
+                    let mut on_scan = self.6.clone();
+                    let c = new_code.clone();
+                    self.1 = None;
+                    self.5 = None;
+                    self.8 = None;
+                    ctx.emit(NavigationEvent::reset_with_fn(move |ctx: &mut Context| {
+                        (on_scan)(ctx, c.to_string());
+                        ctx.emit(QRCodeScannedEvent(c.to_string()));
+                    }));
                 }
             }
         }
 
         if let Some(CameraFrame(image)) = event.downcast_ref::<CameraFrame>() {
             self.find_code(image.clone().into());
-            self.5 = self.3.lock().unwrap().clone();
+            self.5 = self.3.lock().unwrap().take();
             
             *self.2.message() = None; 
             *self.2.background() = None;
@@ -135,11 +150,25 @@ impl Message {
 
 // use zxingcpp::BarcodeFormat;
 
+// fn decode_image(img: Arc<RgbaImage>) -> Option<String> {
+//     let mirrored = image::imageops::flip_horizontal(&*img);
+//     let gray = DynamicImage::ImageRgba8(mirrored).to_luma8();
+//     rqrr::PreparedImage::prepare(gray).detect_grids().into_iter().find_map(|grid| {
+//         grid.decode().ok().map(|(_, text)| text).filter(|s| !s.is_empty())
+//     })
+// }
+
+
 fn decode_image(img: Arc<RgbaImage>) -> Option<String> {
-    let gray = DynamicImage::ImageRgba8((*img).clone()).to_luma8();
-    rqrr::PreparedImage::prepare(gray).detect_grids().into_iter().find_map(|grid| {
-        grid.decode().ok().map(|(_, text)| text).filter(|s| !s.is_empty())
-    })
+    let mirrored = image::imageops::flip_horizontal(&*img);
+
+    let decoder = bardecoder::default_decoder();
+
+    decoder
+        .decode(&DynamicImage::ImageRgba8(mirrored))
+        .into_iter()
+        .flatten()
+        .find(|s| !s.is_empty())
 }
 
 #[derive(Debug, Clone, PartialEq)]
