@@ -7,7 +7,7 @@ use prism::layout::{Column, Row, Padding, Offset, Size};
 use ptsd::theme::TextSize;
 use crate::Callback;
 use crate::components::text::{Text, ExpandableText, TextStyle};
-use crate::components::button::{QuickActions};
+use crate::components::button::{QuickActions, ActionData};
 use crate::theme::{Theme, Icons};
 
 /// ## Data Item
@@ -45,7 +45,7 @@ pub struct DataItem(Column, Text, Option<ExpandableText>, Option<ExpandableText>
 impl OnEvent for DataItem {}
 
 impl DataItem {
-    pub fn text(theme: &Theme, label: &str, secondary: Option<&str>, description: &str, quick_actions: Option<Vec<(String, Icons, Box<dyn Callback>)>>) -> Self {
+    pub fn text(theme: &Theme, label: &str, secondary: Option<&str>, description: &str, quick_actions: Option<Vec<ActionData>>) -> Self {
         DataItem(
             Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
             Text::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None),
@@ -55,7 +55,7 @@ impl DataItem {
         )
     }
 
-    pub fn table(theme: &Theme, label: &str, table: Vec<(String, String)>, quick_actions: Option<Vec<(String, Icons, Box<dyn Callback>)>>) -> Self {
+    pub fn table(theme: &Theme, label: &str, table: Vec<(String, String)>, quick_actions: Option<Vec<ActionData>>) -> Self {
         DataItem(
             Column::new(16.0, Offset::Start, Size::Fill, Padding::default(), None),
             Text::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None),

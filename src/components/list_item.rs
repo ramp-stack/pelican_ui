@@ -58,7 +58,7 @@ impl ListItem {
 
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
-        ListItem(Stack::default(), interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, callback, false), label, subtitle)
+        ListItem(Stack::default(), interactions::Button::new_triggers_on_release(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, callback, false), label, subtitle)
     }
 
     pub fn default(theme: &Theme, title: String) -> Self {

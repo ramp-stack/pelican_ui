@@ -167,28 +167,28 @@ impl Key {
         let pressed = _Key::character(theme, character, ButtonState::Pressed);
         let character = character.to_string();
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Character(character.to_string()), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit character
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false))
     }
 
     fn spacebar(theme: &Theme, caps_on: bool) -> Self {
         let default = _Key::spacebar(theme, caps_on, ButtonState::Default);
         let pressed = _Key::spacebar(theme, caps_on, ButtonState::Pressed);
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Named(NamedKey::Space), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit space
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false))
     }
 
     fn newline(theme: &Theme, caps_on: bool) -> Self {
         let default = _Key::newline(theme, caps_on, ButtonState::Default);
         let pressed = _Key::newline(theme, caps_on, ButtonState::Pressed);
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Named(NamedKey::Enter), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit newline
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false))
     }
 
     fn backspace(theme: &Theme) -> Self {
         let default = _Key::backspace(theme, ButtonState::Default);
         let pressed = _Key::backspace(theme, ButtonState::Pressed);
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Named(NamedKey::Delete), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit delete
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false))
     }
 
     fn capslock(theme: &Theme, state: ButtonState) -> Self {
@@ -198,7 +198,7 @@ impl Key {
             ButtonState::Default => true,
         })));
 
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false))
     }
 }
 
