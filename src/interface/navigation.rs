@@ -80,7 +80,8 @@ impl NavigatorSelectable {
     pub fn mobile(theme: &Theme, icon: Icons, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
-            IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label)
+            let layout = Stack::new(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding(24.0, 0.0, 24.0, 0.0));
+            Bin(layout, IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Medium, colors.background, colors.outline, colors.label))
         });
 
         let theme = theme.clone();
@@ -213,7 +214,7 @@ impl OnEvent for MobileNavigatorContent {}
 
 impl MobileNavigatorContent {
     fn new(tabs: Vec<NavigatorSelectable>) -> Self {
-        let layout = Row::new(48.0, Offset::Center, Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));
+        let layout = Row::new(0.0, Offset::Center, Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));
         MobileNavigatorContent(layout, tabs)
     }
 }

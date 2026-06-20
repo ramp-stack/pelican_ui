@@ -121,7 +121,7 @@ impl SecondaryButton {
         let colors = theme::Button::get(theme.colors(), Variant::Secondary);
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| Self::_medium(theme, icon, label, colors));
-        let feedback = active_label.map(|al| Self::_medium(theme, icon, al, colors.pressed));
+        let feedback = active_label.map(|al| Self::_medium(theme, icon, al, colors.default));
 
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
