@@ -126,7 +126,6 @@ impl PrimaryAvatar {
         match content {
             AvatarContent::Image(image) => {
                 self.1 = None;
-                self.3 = None;
                 self.2 = Some(Image{shape: ShapeType::Ellipse(0.0, (size.get(), size.get()), 0.0), image, color: None});
             },
             AvatarContent::Icon(icon, style) => {}

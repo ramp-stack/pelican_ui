@@ -69,7 +69,7 @@ impl NavigatorSelectable {
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
             let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-            let avatar = Avatar::new(theme, avatar.clone(), None, false, AvatarSize::Xs, None);
+            let avatar = (theme, avatar.clone(), None, false, AvatarSize::Xs, None);
             Button::new(drawables![avatar, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
         let theme = theme.clone();
