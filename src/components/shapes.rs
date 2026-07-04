@@ -1,5 +1,5 @@
 use prism::drawable::{Drawable, Component, RequestTree, SizedTree, Offset, Rect};
-use prism::canvas::{ShapeType, Shape, Area as CanvasArea, Item as CanvasItem, self};
+use prism::canvas::{ShapeType, Shape, Area as CanvasArea, Item as CanvasItem, Instruction, self};
 use prism::event::OnEvent;
 use prism::layout::SizeRequest;
 use prism::layout::Stack;
@@ -46,14 +46,14 @@ impl ExpandableShape {
 impl Drawable for ExpandableShape {
     fn request_size(&self) -> RequestTree {RequestTree(SizeRequest::fill(), vec![])}
 
-    fn draw(&self, sized: &SizedTree, offset: Offset, bound: Rect) -> Vec<(CanvasArea, CanvasItem)> {
+    fn draw(&self, sized: &SizedTree, offset: Offset, bound: Rect) -> Vec<Instruction> {
         let shape = match self.0.shape {
             ShapeType::RoundedRectangle(s, _, a, r) => ShapeType::RoundedRectangle(s, sized.0, a, r),
             ShapeType::Rectangle(s, _, a) => ShapeType::Rectangle(s, sized.0, a),
             ShapeType::Ellipse(s, _, a) => ShapeType::Ellipse(s, sized.0, a),
         };
 
-        vec![(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Shape(Shape{shape, color: self.0.color}))]
+        vec![Instruction(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Shape(Shape{shape, color: self.0.color}))]
     }
 }
 

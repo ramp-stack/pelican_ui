@@ -1,4 +1,4 @@
-use prism::event::{OnEvent, KeyboardState, KeyboardEvent, NamedKey, Key, Modifiers};
+use prism::event::{OnEvent, KeyboardState, KeyboardEvent, Key, Modifiers};
 use prism::layout::{Stack, Column, Row, Offset};
 use prism::drawable::{Drawable, Component};
 use prism::canvas::Align;
@@ -31,11 +31,11 @@ struct KeypadButton;
 
 impl KeypadButton {
     pub fn char(c: char) -> (Option<char>, Option<Icons>, Key) {
-        (Some(c), None, Key::Character(c.to_string().as_str().into()))
+        (Some(c), None, Key::Character(c))
     }
 
     pub fn delete() -> (Option<char>, Option<Icons>, Key) {
-        (None, Some(Icons::Back), Key::Named(NamedKey::Delete))
+        (None, Some(Icons::Back), Key::Delete)
     }
 }
 

@@ -1,6 +1,6 @@
 use prism::layout::SizeRequest;
 use prism::drawable::{Drawable, SizedTree, RequestTree, Rect}; 
-use prism::canvas::{ShapeType, Image, Area as CanvasArea, Item as CanvasItem};
+use prism::canvas::{ShapeType, Image, Area as CanvasArea, Item as CanvasItem, Instruction};
 
 use crate::theme::{Theme, Color, Icons};
 
@@ -127,7 +127,7 @@ impl Drawable for ExpandableImage {
         }, vec![]) 
     }
 
-    fn draw(&self, sized: &SizedTree, offset: (f32, f32), bound: Rect) -> Vec<(CanvasArea, CanvasItem)> {
+    fn draw(&self, sized: &SizedTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
         if let Some((orig_w, orig_h)) = self.1 {
             let width = sized.0.0;
             let height = width * (orig_h / orig_w);
@@ -138,7 +138,7 @@ impl Drawable for ExpandableImage {
                 ShapeType::Ellipse(s, _, a) => ShapeType::Ellipse(s, (width, height), a),
             };
 
-            vec![(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Image(Image{shape, image: self.0.image.clone(), color: self.0.color }))]
+            vec![Instruction(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Image(Image{shape, image: self.0.image.clone(), color: self.0.color }))]
         } else {
             let shape = match self.0.shape {
                 ShapeType::RoundedRectangle(s, _, a, r) => ShapeType::RoundedRectangle(s, sized.0, a, r),
@@ -146,7 +146,7 @@ impl Drawable for ExpandableImage {
                 ShapeType::Ellipse(s, _, a) => ShapeType::Ellipse(s, sized.0, a),
             };
 
-            vec![(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Image(Image{shape, image: self.0.image.clone(), color: self.0.color }))]
+            vec![Instruction(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Image(Image{shape, image: self.0.image.clone(), color: self.0.color }))]
         }
     }
 }

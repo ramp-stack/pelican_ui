@@ -1,4 +1,4 @@
-use prism::{event, event::{Event, OnEvent, Key, NamedKey, TickEvent}, display::{Opt, EitherOr}, Context, canvas::{Align, Image}, layout::{Stack, Row, Padding, Size, Offset, Column}, drawable::{Component, SizedTree}, emitters};
+use prism::{event, event::{Event, OnEvent, Key, TickEvent}, display::{Opt, EitherOr}, Context, canvas::{Align, Image}, layout::{Stack, Row, Padding, Size, Offset, Column}, drawable::{Component, SizedTree}, emitters};
 use crate::components::text::{Text, ExpandableText, TextStyle};
 use crate::components::Icon;
 use crate::theme::{Theme, Icons};
@@ -9,7 +9,7 @@ pub struct NumericalInput(Stack, _NumericalInput);
 impl OnEvent for NumericalInput {}
 impl NumericalInput {
     pub fn numerical(theme: &Theme, instructions: &str) -> Self {
-        NumericalInput::new(theme, instructions, SlotDisplay::numerical(theme))
+        NumericalInput::new(theme, instructions, SlotDisplay::currency(theme))
     }
 
     pub fn date(theme: &Theme, instructions: &str) -> Self {
@@ -20,8 +20,18 @@ impl NumericalInput {
         NumericalInput::new(theme, instructions, SlotDisplay::time(theme))
     }
 
-    pub fn display(theme: &Theme, amount: f32, instructions: &str) -> Self {
-        let input = _NumericalInput::new(theme, instructions, SlotDisplay::display(theme, amount));
+    pub fn number(theme: &Theme, instructions: &str) -> Self {
+        NumericalInput::new(theme, instructions, SlotDisplay::number(theme))
+    }
+
+    pub fn display_currency(theme: &Theme, amount: Box<dyn NumberGetter>, instructions: &str) -> Self {
+        let input = _NumericalInput::new(theme, instructions, SlotDisplay::display_currency(theme, amount));
+        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fit, Padding::default());
+        NumericalInput(layout, input)
+    }
+
+    pub fn display_number(theme: &Theme, amount: Box<dyn NumberGetter>, instructions: &str) -> Self {
+        let input = _NumericalInput::new(theme, instructions, SlotDisplay::display_number(theme, amount));
         let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fit, Padding::default());
         NumericalInput(layout, input)
     }
@@ -120,9 +130,9 @@ impl NumericalInputError {
 }
 
 #[derive(Clone, Debug, Component)]
-pub struct SlotDisplay(Row, Vec<Slot>, #[skip] bool);
+pub struct SlotDisplay(Row, Vec<Slot>, #[skip] bool, #[skip] Option<(Box<dyn NumberGetter>, bool)>, #[skip] f64, #[skip] Theme);
 impl SlotDisplay {
-    pub fn numerical(theme: &Theme) -> Self {
+    pub fn currency(theme: &Theme) -> Self {
         let slots = vec![
             Slot::new(theme, SlotType::Fixed('$')),
             Slot::new(theme, SlotType::InputWithDefault(String::new(), 6, '0', InputFormat::Numerical)), 
@@ -131,14 +141,33 @@ impl SlotDisplay {
             Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
         ];
 
-        SlotDisplay(Row::center(0.0), slots, true)
+        SlotDisplay(Row::center(0.0), slots, true, None, 0.0, theme.clone())
     }
 
-    pub fn display(theme: &Theme, amount: f32) -> Self {
-        let chars = format!("{:.2}", amount).chars().collect::<Vec<char>>();
+    pub fn number(theme: &Theme) -> Self {
+        let slots = vec![
+            Slot::new(theme, SlotType::InputWithDefault(String::new(), 6, '0', InputFormat::Numerical)), 
+            Slot::new(theme, SlotType::TriggersGhost('.', false)), 
+            Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
+            Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
+        ];
+
+        SlotDisplay(Row::center(0.0), slots, true, None, 0.0, theme.clone())
+    }
+
+    pub fn display_currency(theme: &Theme, mut amount: Box<dyn NumberGetter>) -> Self {
+        let a = amount();
+        let chars = format!("{:.2}", a).chars().collect::<Vec<char>>();
         let mut slots = vec![Slot::new(theme, SlotType::Fixed('$'))];
         chars.into_iter().for_each(|c| slots.push(Slot::new(theme, SlotType::Fixed(c))));
-        SlotDisplay(Row::center(0.0), slots, false)
+        SlotDisplay(Row::center(0.0), slots, false, Some((amount, true)), a, theme.clone())
+    }
+
+    pub fn display_number(theme: &Theme, mut number: Box<dyn NumberGetter>) -> Self {
+        let a = number();
+        let mut slots: Vec<Slot> = Vec::new();
+        a.to_string().chars().into_iter().for_each(|c| slots.push(Slot::new(theme, SlotType::Fixed(c))));
+        SlotDisplay(Row::center(0.0), slots, false, Some((number, false)), a, theme.clone())
     }
 
     pub fn date(theme: &Theme) -> Self {
@@ -150,7 +179,7 @@ impl SlotDisplay {
             Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, 'M')),
         ];
 
-        SlotDisplay(Row::center(0.0), slots, true)
+        SlotDisplay(Row::center(0.0), slots, true, None, 0.0, theme.clone())
     }
 
     pub fn time(theme: &Theme) -> Self {
@@ -162,19 +191,29 @@ impl SlotDisplay {
             Slot::new(theme, SlotType::GhostInputWithDefault(String::new(), 1, '0')),
         ];
 
-        SlotDisplay(Row::center(0.0), slots, true)
+        SlotDisplay(Row::center(0.0), slots, true, None, 0.0, theme.clone())
     }
 }
 
 impl OnEvent for SlotDisplay { 
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
-        if let Some(e) = event.downcast_ref::<event::TextInput>() && self.2 && let event::TextInput::Edited(key) = e {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            if let Some((mut getter, is_currency)) = self.3.clone() {
+                if self.4 != getter() {
+                    let theme = self.5.clone();
+                    match is_currency {
+                        true => *self = Self::display_currency(&theme, getter.clone()),
+                        false => *self = Self::display_number(&theme, getter.clone()),
+                    }
+                }
+            }
+        } else if let Some(e) = event.downcast_ref::<event::TextInput>() && self.2 && let event::TextInput::Edited(key) = e {
             let mut reversed = false;
             let mut slots: Vec<Slot> = vec![];
             let mut start = 0;
 
             match key {
-                Key::Named(NamedKey::Delete) => {
+                Key::Delete => {
                     reversed = true;
                     slots = self.1.clone().into_iter().rev().collect::<Vec<_>>();
                 },
@@ -192,7 +231,7 @@ impl OnEvent for SlotDisplay {
                 if start != 0 && i < start {continue;}
                 let mut edited = false;
                 match key {
-                    Key::Named(NamedKey::Delete) => {
+                    Key::Delete | Key::Backspace => {
                         match &mut slot.2 {
                             SlotType::TriggersGhost(_, is_on) if *is_on => {
                                 *is_on = false;
@@ -205,7 +244,7 @@ impl OnEvent for SlotDisplay {
                         }
                     },
                     Key::Character(character) => {
-                        let character = character.chars().next().unwrap();
+                        let character = *character;
                         if matches!(character, '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9') {
                             match &mut slot.2 {
                                 SlotType::InputWithDefault(inputs, limit, default, _) => {
@@ -374,4 +413,26 @@ pub enum InputFormat {
     Numerical,
     Date,
     Time,
+}
+
+pub trait NumberGetter: FnMut() -> f64 + 'static {
+    fn clone_box(&self) -> Box<dyn NumberGetter>;
+}
+
+impl<F> NumberGetter for F where F: FnMut() -> f64 + Clone + 'static {
+    fn clone_box(&self) -> Box<dyn NumberGetter> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn NumberGetter> {
+    fn clone(&self) -> Self {
+        self.as_ref().clone_box()
+    }
+}
+
+impl std::fmt::Debug for dyn NumberGetter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NumberGetter")
+    }
 }

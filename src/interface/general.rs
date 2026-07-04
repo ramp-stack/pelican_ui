@@ -4,6 +4,7 @@ use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
 use prism::display::Bin;
 use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
+use prism::emitters::Scrollable;
 
 use crate::Callback;
 use crate::theme::{Theme, Icons};
@@ -162,7 +163,7 @@ impl Page {
 #[derive(Debug, Component, Clone)]
 pub struct Content {
     layout: Stack,
-    pub children: ContentChildren,
+    pub children: Scrollable<ContentChildren>,
     #[skip] validation: Box<dyn ValidationFn>
 }
 
@@ -171,9 +172,10 @@ impl Content {
     pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>, validation: Box<dyn ValidationFn>) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
+        let layout = Column::new(0.0, Offset::Start, Size::Fit, Padding::default(), Some(anchor));
         Content {
             layout: Stack::new(Offset::Center, offset, width, Size::Fill, Padding::default()),
-            children: ContentChildren::new(children, anchor),
+            children: Scrollable(layout, ContentChildren::new(children, anchor)),
             validation,
         }
     }
@@ -184,7 +186,7 @@ impl Content {
     /// let text = content.find::<Text>().expect("Could not find text in content");
     /// ```
     pub fn find<T: std::any::Any>(&mut self) -> Option<&mut T> {
-        self.children.inner().iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
+        self.children.1.inner().iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Find an item in the bumper at a specific index.
@@ -193,7 +195,7 @@ impl Content {
     /// let text_input = content.find_at::<TextInput>(0).expect("Could not find text input at first index in content");
     /// ```
     pub fn find_at<T: std::any::Any>(&mut self, i: usize) -> Option<&mut T> {
-        self.children.inner().get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
+        self.children.1.inner().get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
     /// Remove an item from the content. Will remove the first instance of the type.
@@ -202,25 +204,25 @@ impl Content {
     /// let text = content.remove::<Text>().expect("Could not remove text from content");
     /// ```
     pub fn remove<T: std::any::Any>(&mut self) -> Option<T> {
-        if let Some(pos) = self.children.inner().iter().position(|item| (**item).as_any().is::<T>()) {
-            let boxed = self.children.inner().remove(pos);
+        if let Some(pos) = self.children.1.inner().iter().position(|item| (**item).as_any().is::<T>()) {
+            let boxed = self.children.1.inner().remove(pos);
             boxed.into_any().downcast::<T>().ok().map(|b| *b)
         } else {
             None
         }
     }
 
-    pub fn children(&self) -> &Vec<Box<dyn Drawable>> {&self.children.1}
-    pub fn children_mut(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.children.1}
+    pub fn children(&self) -> &Vec<Box<dyn Drawable>> {&self.children.1.1}
+    pub fn children_mut(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.children.1.1}
 }
 
 impl OnEvent for Content {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            let event = InterfaceEvent::Disable(!(self.validation)(ctx, self.children.inner().iter_mut().map(|c| c).collect()));
+            let event = InterfaceEvent::Disable(!(self.validation)(ctx, self.children.1.inner().iter_mut().map(|c| c).collect()));
             ctx.emit(event);
-        } else if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
-            self.children.column().adjust_scroll(*a);
+        // } else if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
+        //     self.children.column().adjust_scroll(*a);
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
         //     if roost_ui::IS_MOBILE {
         //         let mut total_height = 0.0;
@@ -237,9 +239,7 @@ impl OnEvent for Content {
         //             }
         //         }
         //     }
-        } else if let Some(MouseEvent { state: MouseState::Scroll(_, y), position: Some(_), button }) = event.downcast_ref::<MouseEvent>() {
-            self.children.column().adjust_scroll(*y);
-        }
+        } 
         vec![event]
     }
 }

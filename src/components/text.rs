@@ -1,8 +1,8 @@
-use prism::event::{OnEvent, MouseState, MouseEvent, Event, TickEvent, Key, NamedKey, KeyboardEvent, KeyboardState};
+use prism::event::{OnEvent, MouseState, MouseEvent, Event, TickEvent, Key, KeyboardEvent, KeyboardState};
 use prism::layout::{Stack, Size, Offset, Padding, SizeRequest};
 use prism::display::Opt;
 use prism::drawable::{Drawable, Component, SizedTree, RequestTree, Rect}; 
-use prism::canvas::{self, Align, Span, Text as BasicText, Area as CanvasArea, Item as CanvasItem};
+use prism::canvas::{self, Align, Span, Text as BasicText, Area as CanvasArea, Item as CanvasItem, Instruction};
 use prism::Context;
 
 use pelican_ui::components::Rectangle;
@@ -46,7 +46,13 @@ impl Text {
     pub fn new(theme: &Theme, text: &str, text_size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         let (color, font) = style.get(theme);
         let size = theme.fonts().get_size(text_size);
-        let inner = BasicText::new(vec![Span::new(text.to_string(), size, Some(size*1.25), font.into(), color.into(), 0.0)], None, align, max_lines);
+        let inner = BasicText{
+            spans: vec![Span::new(text.to_string(), size, Some(size*1.25), font.into(), color.into(), 0.0)], 
+            align,
+            max_lines,
+            cursor: None,
+            width: None,
+        };
         Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size: text_size, style, align, max_lines, kerning: 0.0}
     }
 
@@ -104,9 +110,9 @@ impl Drawable for ExpandableText {
         RequestTree(SizeRequest::new(0.0, size.1, f32::MAX, size.1), vec![])
     }
 
-    fn draw(&self, sized: &SizedTree, offset: (f32, f32), bound: Rect) -> Vec<(CanvasArea, CanvasItem)> {
+    fn draw(&self, sized: &SizedTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
         let text = BasicText {spans: self.0.inner.spans.clone(), width: Some(sized.0.0), align: self.0.inner.align, cursor: self.0.inner.cursor, max_lines: self.0.inner.max_lines};
-        vec![(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Text(text))]
+        vec![Instruction(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Text(text))]
     }
 
     fn event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) {
@@ -145,16 +151,19 @@ impl OnEvent for TextEditor {
             let cursor_pos = self.1.0.inner.cursor_position();
             *self.2.x_offset() = Offset::Static(cursor_pos.0);
             *self.2.y_offset() = Offset::Static(cursor_pos.1+2.0);
-        } else if let Some(event) = event.downcast_ref::<MouseEvent>() && let Some(pos) = event.position && event.state == MouseState::Pressed {
-            self.1.0.inner.cursor_click(pos.0, pos.1) 
+        } else if let Some(event) = event.downcast_ref::<MouseEvent>() && let Some(pos) = event.position {
+            match event.state {
+                MouseState::Pressed(_) => self.1.0.inner.cursor_click(pos.0, pos.1),
+                _ => {}
+            }
         } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key, ..}) = event.downcast_ref() {
             let index = self.1.0.inner.cursor.unwrap();
             
             let character = match key {
-                Key::Character(c) => Some(c.chars().next().unwrap_or_default()),
-                Key::Named(NamedKey::Enter) => Some('\n'),
-                Key::Named(NamedKey::Space) => Some(' '),
-                Key::Named(NamedKey::Delete | NamedKey::Backspace) => None,
+                Key::Character(c) => Some(c.clone()),
+                Key::Enter => Some('\n'),
+                Key::Space => Some(' '),
+                Key::Delete | Key::Backspace => None,
                 _ => {return vec![event];}
             };
 
