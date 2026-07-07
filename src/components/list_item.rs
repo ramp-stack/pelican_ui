@@ -171,43 +171,20 @@ impl ListItemGroup {
 
 
 #[derive(Debug, Component, Clone)]
-pub struct ListItemSection(Stack, EitherOr<ExpandableText, ListItemGroup>, #[skip] Arc<Box<dyn ListItemGetter>>);
-impl OnEvent for ListItemSection {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() {
-            let new_items = (self.2)(ctx);
-            self.1.display_left(new_items.is_empty());
-            self.0 = match new_items.is_empty() {
-                true => Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default()),
-                false => Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fill, Padding::default()),
-            };
-            self.1.right().2 = new_items;
-        }
-        vec![event]
-    }
-}
+pub struct ListItemSection(Stack, Option<ExpandableText>, Option<ListItemGroup>);
+impl OnEvent for ListItemSection {}
 
 impl ListItemSection {
-    pub fn new(theme: &Theme, label: Option<String>, instructions: Option<String>, item_getter: impl ListItemGetter + 'static) -> Self {
-        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default());
-        let instructions = ExpandableText::new(theme, &instructions.unwrap_or_default(), TextSize::Md, TextStyle::Secondary, Align::Center, None);
-        ListItemSection(layout, EitherOr::new(instructions, ListItemGroup::new(theme, label, vec![])), Arc::new(Box::new(item_getter)))
+    pub fn new(theme: &Theme, label: Option<String>, instructions: Option<String>, items: Vec<ListItem>) -> Self {
+        let layout = match items.is_empty() {
+            true => Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default()),
+            false => Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fill, Padding::default()),
+        };
+
+        let instructions = items.is_empty().then_some(ExpandableText::new(theme, &instructions.unwrap_or_default(), TextSize::Md, TextStyle::Secondary, Align::Center, None));
+        let group = (!items.is_empty()).then_some(ListItemGroup::new(theme, label, items));
+        ListItemSection(layout, instructions, group)
     }
 
     // pub fn group(&mut self) -> &mut ListItemGroup { &mut self.2.left() }
-}
-
-pub trait ListItemGetter: Fn(&mut Context) -> Vec<ListItem> + 'static {
-}
-
-impl<F> ListItemGetter for F where F: Fn(&mut Context) -> Vec<ListItem> + Clone + 'static {
-
-}
-
-
-
-impl std::fmt::Debug for dyn ListItemGetter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ListItemGetter")
-    }
 }

@@ -172,10 +172,9 @@ impl Content {
     pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>, validation: Box<dyn ValidationFn>) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
-        let layout = Column::new(0.0, Offset::Start, Size::Fit, Padding::default(), Some(anchor));
         Content {
             layout: Stack::new(Offset::Center, offset, width, Size::Fill, Padding::default()),
-            children: Scrollable(layout, ContentChildren::new(children, anchor)),
+            children: Scrollable::new(ContentChildren::new(children, anchor)),
             validation,
         }
     }
