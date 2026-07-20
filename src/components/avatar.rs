@@ -116,9 +116,10 @@ impl PrimaryAvatar {
             AvatarContent::Icon(icon, style) => (Some(AvatarIcon::new(theme, icon, style, size.get())), None)
         };
 
+        let background = theme.colors().get(ptsd::Background::Primary);
         PrimaryAvatar(
             Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding::default()),
-            circle_icon, image, outline.then(|| Circle::new(size.get(), Color::BLACK, true)),
+            circle_icon, image, outline.then(|| Circle::new(size.get(), background, true)),
         )
     }
 
@@ -153,10 +154,11 @@ struct Flair(Stack, AvatarIcon, Shape);
 impl OnEvent for Flair {}
 impl Flair {
     fn new(theme: &Theme, name: Icons, style: AvatarIconStyle, size: AvatarSize) -> Self {
+        let background = theme.colors().get(ptsd::Background::Primary);
         Flair(
             Stack::center(),
             AvatarIcon::new(theme, name, style, size.get() / 3.0),
-            Circle::new(size.get() / 3.0,  Color::BLACK, true)
+            Circle::new(size.get() / 3.0, background, true)
         )
     }
 }

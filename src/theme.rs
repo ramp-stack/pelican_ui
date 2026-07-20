@@ -13,15 +13,15 @@ pub use ptsd::Color;
 #[derive(Debug, Clone)]
 pub struct Theme(ptsd::Theme, BrandResources);
 impl Theme {
-    pub fn from(assets: &Dir<'static>, color: Color) -> Self { 
+    pub fn from(assets: &Vec<Dir<'static>>, color: Color) -> Self { 
         let (theme, is_dark) = ptsd::Theme::from(assets, color);
         Theme::new(assets, theme, is_dark, color) 
     }
 
-    pub fn dark(assets: &Dir<'static>, color: Color) -> Self { Theme::new(assets, ptsd::Theme::dark(assets, color), true, color) }
-    pub fn light(assets: &Dir<'static>, color: Color) -> Self { Theme::new(assets, ptsd::Theme::light(assets, color), false, color) }
+    pub fn dark(assets: &Vec<Dir<'static>>, color: Color) -> Self { Theme::new(assets, ptsd::Theme::dark(assets, color), true, color) }
+    pub fn light(assets: &Vec<Dir<'static>>, color: Color) -> Self { Theme::new(assets, ptsd::Theme::light(assets, color), false, color) }
 
-    fn new(assets: &Dir<'static>, mut inner: ptsd::Theme, is_dark: bool, color: Color) -> Self {
+    fn new(assets: &Vec<Dir<'static>>, mut inner: ptsd::Theme, is_dark: bool, color: Color) -> Self {
         Icons::map(&mut inner.icons);
         Button::map(&mut inner.colors, is_dark, color);
         Theme(inner, BrandResources::new(assets))
@@ -40,7 +40,7 @@ impl Theme {
 
 impl Default for Theme {
     fn default() -> Theme {
-        let assets = include_dir!("resources");
+        let assets = vec![include_dir!("resources")];
         let color = Color::from_hex("#00a2ff", 255);
         let inner = ptsd::Theme::dark(&assets, color);
         Theme::new(&assets, inner, true, color)
@@ -57,58 +57,70 @@ pub struct BrandResources {
     pub images: HashMap<String, Arc<RgbaImage>>,
 }
 
-impl Default for BrandResources {
-    fn default() -> Self {
-        let dir = Assets::new(include_dir!("resources/brand"));
+// impl Default for BrandResources {
+//     fn default() -> Self {
+//         let dir = Assets::new(include_dir!("resources/brand"));
 
-        BrandResources {
-            logo: Arc::new(Assets::load_svg(&dir.load_file("logo.svg").unwrap())),
-            wordmark: Arc::new(Assets::load_svg(&dir.load_file("wordmark.svg").unwrap())),
-            app_icon: Arc::new(Assets::load_svg(&dir.load_file("app_icon.svg").unwrap())),
-            error: Arc::new(Assets::load_svg(&dir.load_file("error.svg").unwrap())),
-            qr_code: Arc::new(dir.load_png("qr_code.png").unwrap()),
-            images: HashMap::default(),
-        }
-    }
-}
+        // BrandResources {
+        //     logo: dir.get_asset_image("logo").unwrap(),
+        //     wordmark: dir.get_asset_image("wordmark").unwrap(),
+        //     app_icon: dir.get_asset_image("app_icon").unwrap(),
+        //     error: dir.get_asset_image("error").unwrap(),
+        //     qr_code: Arc::new(dir.load_png("qr_code.png").unwrap()),
+        //     images: HashMap::default(),
+        // }
+//     }
+// }
 
 impl BrandResources {
-    fn new(directory: &Dir<'static>) -> Self {
-        let defaults = BrandResources::default();
-        let dir = Assets::new(directory.entries().iter().find_map(|entry| {
-            match entry {
-                DirEntry::Dir(d) if d.path().file_name().and_then(|n| n.to_str()) == Some("brand") => {
-                    Some(d.clone())
-                }
-                _ => None,
-            }
-        }).unwrap_or(include_dir!("resources")));
+    fn new(directory: &Vec<Dir<'static>>) -> Self {
+        let mut directory = directory.clone();
+        directory.push(include_dir!("resources"));
+        let assets = Assets::new(directory);
 
-        let directory = Assets::new(directory.clone());
+        println!("Assets {:?}", assets);
+
+        let defaults = BrandResources {
+            logo: assets.get_asset_image("logo").unwrap(),
+            wordmark: assets.get_asset_image("wordmark").unwrap(),
+            app_icon: assets.get_asset_image("app_icon").unwrap(),
+            error: assets.get_asset_image("error").unwrap(),
+            qr_code: Arc::new(assets.load_png("qr_code.png").unwrap()),
+            images: HashMap::default(),
+        };
 
         let mut images = HashMap::new();
 
-        for file in directory.inner.files() {
+        for file in assets.files() {
             let path = file.path().to_string_lossy();
+
             println!("PATH {:?}", path);
 
             if path.ends_with(".svg") {
                 let name = path.trim_end_matches(".svg").to_string();
-                let image = Arc::new(Assets::load_svg(&directory.load_file(file.path().to_str().unwrap()).unwrap()));
-                images.insert(name, image);
+
+                images.entry(name).or_insert_with(|| {
+                    Arc::new(Assets::load_svg(file.contents()))
+                });
             } else if path.ends_with(".png") {
                 let name = path.trim_end_matches(".png").to_string();
-                let image = Arc::new(directory.load_png(file.path().to_str().unwrap()).unwrap());
-                images.insert(name, image);
+
+                images.entry(name).or_insert_with(|| {
+                    Arc::new(
+                        image::load_from_memory(file.contents())
+                            .unwrap()
+                            .into_rgba8()
+                    )
+                });
             }
         }
 
         BrandResources {
-            logo: dir.load_file("brand/logo.svg").map(|f: Vec<u8>| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.logo.clone()),
-            wordmark: dir.load_file("brand/wordmark.svg").map(|f: Vec<u8>| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.wordmark.clone()),
-            app_icon: dir.load_file("brand/app_icon.svg").map(|f: Vec<u8>| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.app_icon.clone()),
-            error: dir.load_file("brand/error.svg").map(|f: Vec<u8>| Arc::new(Assets::load_svg(&f))).unwrap_or(defaults.error.clone()),
-            qr_code: defaults.qr_code.clone(),
+            logo: defaults.logo,
+            wordmark: defaults.wordmark,
+            app_icon: defaults.app_icon,
+            error: defaults.error,
+            qr_code: defaults.qr_code,
             images,
         }
     }
@@ -202,12 +214,12 @@ impl Button {
         resources.insert(Button(Primary, Pressed, Background),brand.darken(0.7));
         resources.insert(Button(Primary, Pressed, Label), brand.contrasted());
         resources.insert(Button(Primary, Pressed, Outline), Color::TRANSPARENT);
-        resources.insert(Button(Primary, Disabled, Background), Color::from_hex("#443f3f", 255));
-        resources.insert(Button(Primary, Disabled, Label), Color::BLACK);
-        resources.insert(Button(Primary, Disabled, Outline), Color::TRANSPARENT);
     
         match is_dark {
             false => {
+                resources.insert(Button(Primary, Disabled, Background), Color::from_hex("#9e9e9e", 255));
+                resources.insert(Button(Primary, Disabled, Label), Color::from_hex("#585250", 255));
+                resources.insert(Button(Primary, Disabled, Outline), Color::TRANSPARENT);
                 resources.insert(Button(Secondary, Default, Background), Color::TRANSPARENT);
                 resources.insert(Button(Secondary, Default, Label), Color::BLACK);
                 resources.insert(Button(Secondary, Default, Outline), Color::from_hex("#585250", 255));
@@ -227,13 +239,16 @@ impl Button {
                 resources.insert(Button(Ghost, Hover, Label), Color::BLACK);
                 resources.insert(Button(Ghost, Hover, Outline), Color::TRANSPARENT);
                 resources.insert(Button(Ghost, Pressed, Background), Color::from_hex("#DDDDDD", 255));
-                resources.insert(Button(Ghost, Pressed, Label), Color::BLACK);
+                resources.insert(Button(Ghost, Pressed, Label), Color::from_hex("#585250", 255));
                 resources.insert(Button(Ghost, Pressed, Outline), Color::TRANSPARENT);
-                resources.insert(Button(Ghost, Disabled, Background), Color::from_hex("#443f3f", 255));
-                resources.insert(Button(Ghost, Disabled, Label), Color::BLACK);
+                resources.insert(Button(Ghost, Disabled, Background), Color::TRANSPARENT);
+                resources.insert(Button(Ghost, Disabled, Label), Color::from_hex("#9e9e9e", 255));
                 resources.insert(Button(Ghost, Disabled, Outline), Color::TRANSPARENT);
             },
             true => {
+                resources.insert(Button(Primary, Disabled, Background), Color::from_hex("#443f3f", 255));
+                resources.insert(Button(Primary, Disabled, Label), Color::BLACK);
+                resources.insert(Button(Primary, Disabled, Outline), Color::TRANSPARENT);
                 resources.insert(Button(Secondary, Default, Background), Color::TRANSPARENT);
                 resources.insert(Button(Secondary, Default, Label), Color::WHITE);
                 resources.insert(Button(Secondary, Default, Outline), Color::from_hex("#585250", 255));

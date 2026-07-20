@@ -6,7 +6,7 @@ use prism::display::EitherOr;
 use prism::Context;
 
 use ptsd::interactions;
-use ptsd::utils::TitleSubtitle;
+use ptsd::utils::{TitleSubtitle};
 
 use crate::theme::{Theme, Color, Icons};
 use crate::components::text::{Text, TextSize, ExpandableText, TextStyle};
@@ -58,7 +58,8 @@ impl ListItem {
 
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
-        ListItem(Stack::default(), interactions::Button::new_triggers_on_release(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, callback, false), label, subtitle)
+        let button = interactions::Button::new(list_item, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, None::<ListItemContent>, callback, false);
+        ListItem(Stack::default(), button, label, subtitle)
     }
 
     pub fn default(theme: &Theme, title: String) -> Self {
@@ -159,31 +160,44 @@ impl ListItemInfoLeft {
 }
 
 #[derive(Debug, Component, Clone)]
-pub struct ListItemGroup(Column, Option<ExpandableText>, Vec<ListItem>);
-impl OnEvent for ListItemGroup {}
+pub struct Group(Column, Vec<ListItem>);
+impl OnEvent for Group {}
 
-impl ListItemGroup {
-    pub fn new(theme: &Theme, label: Option<String>, items: Vec<ListItem>) -> Self {
-        let text = label.as_ref().map(|l| ExpandableText::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None));
-        ListItemGroup(Column::start(16.0), text, items)
+impl Group {
+    pub fn new(items: Vec<ListItem>) -> Self {
+        Group(Column::start(16.0), items)
     }
 }
 
 
-#[derive(Debug, Component, Clone)]
-pub struct ListItemSection(Stack, Option<ExpandableText>, Option<ListItemGroup>);
-impl OnEvent for ListItemSection {}
+#[derive(Debug, Component, Clone)] // either instructions or the group
+pub struct ListItemGroup(Stack, Option<ExpandableText>, Option<Group>);
+impl OnEvent for ListItemGroup {}
 
-impl ListItemSection {
-    pub fn new(theme: &Theme, label: Option<String>, instructions: Option<String>, items: Vec<ListItem>) -> Self {
+impl ListItemGroup {
+    pub fn new(theme: &Theme, instructions: Option<String>, items: Vec<ListItem>, has_label: bool) -> Self {
         let layout = match items.is_empty() {
+            true if has_label => Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default()),
             true => Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default()),
             false => Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fill, Padding::default()),
         };
 
-        let instructions = items.is_empty().then_some(ExpandableText::new(theme, &instructions.unwrap_or_default(), TextSize::Md, TextStyle::Secondary, Align::Center, None));
-        let group = (!items.is_empty()).then_some(ListItemGroup::new(theme, label, items));
-        ListItemSection(layout, instructions, group)
+        let align = if has_label {Align::Left} else {Align::Center};
+        let instructions = items.is_empty().then_some(ExpandableText::new(theme, &instructions.unwrap_or_default(), TextSize::Md, TextStyle::Secondary, align, None));
+        let group = (!items.is_empty()).then_some(Group::new(items));
+        ListItemGroup(layout, instructions, group)
+    }
+}
+
+
+#[derive(Debug, Component, Clone)] // optional title, then the instructions or a group
+pub struct ListItemSection(Column, Option<ExpandableText>, ListItemGroup);
+impl OnEvent for ListItemSection {}
+
+impl ListItemSection {
+    pub fn new(theme: &Theme, label: Option<String>, instructions: Option<String>, items: Vec<ListItem>) -> Self {
+        let text = label.as_ref().map(|l| ExpandableText::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None));
+        ListItemSection(Column::start(16.0), text, ListItemGroup::new(theme, instructions, items, label.is_some()))
     }
 
     // pub fn group(&mut self) -> &mut ListItemGroup { &mut self.2.left() }

@@ -89,22 +89,21 @@ impl std::fmt::Debug for Interface {
 impl Interface {
     pub fn new(ctx: &mut Context, theme: &Theme, mut roots: Vec<RootInfo>, on_event: Box<dyn OnEventFn>) -> Self {
         let pages: Vec<(String, Box<dyn AppPage>)> = roots.iter_mut().map(|r| (r.label.to_string(), r.page.take().unwrap() as Box<dyn AppPage>)).collect();
-        let (b, l, t, r) = ctx.get_safe_area();
         Interface {
-            layout: Stack::new(Offset::default(), Offset::default(), Size::default(), Size::default(), Padding(l, t, r, b)),
+            layout: Stack::default(),
             background: Rectangle::new(theme.colors().get(ptsd::Background::Primary), 0.0, None),
             inner: match IS_WEB {
                 true => { // web
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::web(theme, roots)) as Box<dyn PTSDNavigator>);
-                    ptsd::interfaces::Interface::web(navigator, Screen::web(Pages::new(pages)))
+                    ptsd::interfaces::Interface::web(ctx, navigator, Screen::web(Pages::new(pages)))
                 },
                 false if IS_MOBILE => { // mobile
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::mobile(theme, roots)) as Box<dyn PTSDNavigator>);
-                    ptsd::interfaces::Interface::mobile(navigator, Screen::mobile(Pages::new(pages)), MobileKeyboard::new(theme))
+                    ptsd::interfaces::Interface::mobile(ctx, navigator, Screen::mobile(Pages::new(pages)), MobileKeyboard::new(theme))
                 },
                 false => { // desktop
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::desktop(theme, roots)) as Box<dyn PTSDNavigator>);
-                    ptsd::interfaces::Interface::desktop(navigator, Screen::desktop(theme, Pages::new(pages)))
+                    ptsd::interfaces::Interface::desktop(ctx, navigator, Screen::desktop(theme, Pages::new(pages)))
                 }
             },
             on_event: Some(on_event),
@@ -171,10 +170,10 @@ impl Content {
     /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
     pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>, validation: Box<dyn ValidationFn>) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
-        let anchor = if offset == Offset::End { ScrollAnchor::End } else { ScrollAnchor::Start };
+        let children = if offset == Offset::End { Scrollable::end(ContentChildren::new(children)) } else { Scrollable::new(ContentChildren::new(children)) };
         Content {
             layout: Stack::new(Offset::Center, offset, width, Size::Fill, Padding::default()),
-            children: Scrollable::new(ContentChildren::new(children, anchor)),
+            children,
             validation,
         }
     }
@@ -247,8 +246,8 @@ impl OnEvent for Content {
 pub struct ContentChildren(Column, Vec<Box<dyn Drawable>>);
 impl OnEvent for ContentChildren {}
 impl ContentChildren {
-    pub fn new(children: Vec<Box<dyn Drawable>>, anchor: ScrollAnchor) -> Self {
-        let layout = Column::new(24.0, Offset::Center, Size::Fit, Padding::default(), Some(anchor));
+    pub fn new(children: Vec<Box<dyn Drawable>>) -> Self {
+        let layout = Column::new(24.0, Offset::Center, Size::Fit, Padding::default(), None);
         // if anchor == ScrollAnchor::End { layout.set_scroll(f32::MAX); }
         ContentChildren(layout, children)
     }
