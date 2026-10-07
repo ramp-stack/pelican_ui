@@ -297,7 +297,7 @@ impl Header {
         Self::_new(theme, title, Some((Icons::Close, Box::new(closure))), None, TextSize::H4)
     }
 
-    pub fn messaging(ctx: &mut Context, theme: &Theme, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn Callback>) -> Self {
+    pub fn messaging(ctx: &mut Context, theme: &Theme, title: String, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn Callback>) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| (0..exact_len).for_each(|_| ctx.emit(NavigationEvent::Pop));
         let l_icon = HeaderIcon::new(theme, Icons::Left, closure);
         let r_icon = HeaderIcon::new(theme, Icons::Info, info); // this needs to navigate to info page
@@ -306,7 +306,7 @@ impl Header {
         Header {
             layout,
             left: l_icon,
-            center: Box::new(MessageHeader::new(theme, profiles)),
+            center: Box::new(MessageHeader::new(theme, title, profiles)),
             right: r_icon
         }
     }
@@ -337,14 +337,7 @@ impl Header {
 pub struct MessageHeader(Column, AvatarGroup, ExpandableText);
 impl OnEvent for MessageHeader {}
 impl MessageHeader {
-    pub fn new(theme: &Theme, profiles: Vec<Profile>) -> Self {
-        let title = match profiles.len() > 1 {
-            true => "Group Message".to_string(),
-            false => match profiles.get(0) {
-                Some(first) => first.username.to_string(),
-                None => "New Message".to_string(),
-            },
-        };
+    pub fn new(theme: &Theme, title: String, profiles: Vec<Profile>) -> Self {
         let text = ExpandableText::new(theme, &title, TextSize::H4, TextStyle::Heading, Align::Center, Some(1));
         let avatars = profiles.iter().map(|p| p.pfp.clone()).collect::<Vec<_>>();
         MessageHeader(Column::center(8.0), AvatarGroup::new(theme, avatars), text)
