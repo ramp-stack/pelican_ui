@@ -181,7 +181,7 @@ impl AvatarGroup {
 }
 
 /// Variations of avatar content.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AvatarContent {
     /// Display an icon on a circle background.
     Icon(Icons, AvatarIconStyle),
@@ -307,7 +307,7 @@ impl<'de> Deserialize<'de> for AvatarContent {
 }
 
 /// Style presets for avatar icons and backgrounds.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub enum AvatarIconStyle {
     Primary,
     Secondary,

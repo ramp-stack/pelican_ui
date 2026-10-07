@@ -15,7 +15,7 @@ use image::RgbaImage;
 use crate::theme::{Theme, Icons};
 use crate::components::Rectangle;
 
-use air::names::Name;
+use maverick_os::air::Name;
 
 use crate::components::avatar::{AvatarSize, AvatarContent, AvatarIconStyle, Avatar};
 use crate::components::text::{Text, ExpandableText, TextSize, TextStyle};

@@ -161,8 +161,8 @@ impl OnEvent for TextEditor {
             
             let character = match key {
                 Key::Character(c) => Some(c.clone()),
-                Key::Enter => Some('\n'),
-                Key::Space => Some(' '),
+                Key::Enter => Some("\n".to_string()),
+                Key::Space => Some(" ".to_string()),
                 Key::Delete | Key::Backspace => None,
                 _ => {return vec![event];}
             };
@@ -170,8 +170,8 @@ impl OnEvent for TextEditor {
             match character {
                 Some(c) => {
                     match index >= self.1.0.spans[0].len() {
-                        true => self.1.0.spans[0].push(c),
-                        false => self.1.0.spans[0].insert(index, c),
+                        true => self.1.0.spans[0].push_str(&c),
+                        false => self.1.0.spans[0].insert_str(index, &c),
                     };
                     if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1;}
                 }

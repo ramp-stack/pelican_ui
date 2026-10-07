@@ -31,7 +31,7 @@ struct KeypadButton;
 
 impl KeypadButton {
     pub fn char(c: char) -> (Option<char>, Option<Icons>, Key) {
-        (Some(c), None, Key::Character(c))
+        (Some(c), None, Key::Character(c.to_string()))
     }
 
     pub fn delete() -> (Option<char>, Option<Icons>, Key) {

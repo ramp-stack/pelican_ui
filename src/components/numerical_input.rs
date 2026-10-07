@@ -244,30 +244,30 @@ impl OnEvent for SlotDisplay {
                         }
                     },
                     Key::Character(character) => {
-                        let character = *character;
-                        if matches!(character, '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9') {
+                        let character = character.clone();
+                        if matches!(character.as_str(), "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9") {
                             match &mut slot.2 {
                                 SlotType::InputWithDefault(inputs, limit, default, _) => {
-                                    if inputs.len() < *limit && (!inputs.is_empty() || *default != character) {
-                                        inputs.push(character);
+                                    if inputs.len() < *limit && (!inputs.is_empty() || *default.to_string() != character) {
+                                        inputs.push(character.chars().next().unwrap());
                                         edited = true;
                                     }
                                 },
                                 SlotType::GhostInputWithDefault(inputs, limit, _) => {
                                     if inputs.len() < *limit {
-                                        inputs.push(character);
+                                        inputs.push(character.chars().next().unwrap());
                                         edited = true;
                                     }
                                 },
                                 SlotType::TriggeredGhostInputWithDefault(inputs, limit, default, is_on) if *is_on => {
-                                    if inputs.len() < *limit && (!inputs.is_empty() || *default != character) {
-                                        inputs.push(character);
+                                    if inputs.len() < *limit && (!inputs.is_empty() || *default.to_string() != character) {
+                                        inputs.push(character.chars().next().unwrap());
                                         edited = true;
                                     }
                                 },
                                 _ => {} // later...
                             }
-                        } else if let SlotType::TriggersGhost(trigger, is_on) = &mut slot.2 && *trigger == character {
+                        } else if let SlotType::TriggersGhost(trigger, is_on) = &mut slot.2 && *trigger.to_string() == character {
                             *is_on = true;
                             edited = true;
                         }

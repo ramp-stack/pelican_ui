@@ -11,7 +11,7 @@ use crate::components::TextInput;
 use crate::components::list_item::ListItem;
 use crate::components::button::{SecondaryButton, QuickActions};
 
-use air::names::Name;
+use maverick_os::air::Name;
 
 #[derive(Debug, Component, Clone)]
 pub struct SearchBar(Column, TextInput, Option<QuickActions>, SelectedItems, SearchableItems, #[skip] String);
