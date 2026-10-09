@@ -23,6 +23,15 @@ pub struct MobileKeyboard(Stack, Rectangle, Enum<KeyboardContent>, #[skip] bool,
 
 impl OnEvent for MobileKeyboard {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if event.downcast_ref::<KeyboardEvent>().is_some() {
+            let page = self.4;
+            match page {
+                0 => self.2.display("default"),
+                1 => self.2.display("page_one_caps_off"),
+                2 | _ => self.2.display("page_two_caps_off"),
+            };
+        }
+        
         if let Some(e) = event.downcast_ref::<MobileKeyboardEvent>() {
             match e {
                 MobileKeyboardEvent::Paginator(page) => {

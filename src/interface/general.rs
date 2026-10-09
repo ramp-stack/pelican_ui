@@ -219,8 +219,18 @@ impl OnEvent for Content {
         if event.downcast_ref::<TickEvent>().is_some() {
             let event = InterfaceEvent::Disable(!(self.validation)(ctx, self.children.1.inner().iter_mut().map(|c| c).collect()));
             ctx.emit(event);
-        // } else if let Some(AdjustScrollEvent::Vertical(a)) = event.downcast_ref::<AdjustScrollEvent>() {
-        //     self.children.column().adjust_scroll(*a);
+        } else if let Some(InterfaceEvent::FocusTextInput(true)) = event.downcast_ref::<InterfaceEvent>() {
+            let mut total_height = 0.0;
+            for c in self.children_mut().iter_mut() {
+                if let Some(input) = c.downcast_mut::<TextInput>() && input.is_focused {
+                    println!("Found child focused");
+                    ctx.emit(event::Scrollable::ScrollTo(total_height));
+                    break;
+                } else {
+                    let size = c.request_size();
+                    total_height += size.0.max_height();
+                }
+            }
         // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
         //     if roost_ui::IS_MOBILE {
         //         let mut total_height = 0.0;
@@ -462,7 +472,8 @@ impl Event for AdjustScrollEvent {
 /// Adjust the scroll value of a [`Scroll`] layout.
 #[derive(Debug, Clone)]
 pub enum InterfaceEvent {
-    Disable(bool)
+    Disable(bool),
+    FocusTextInput(bool)
 }
 
 impl Event for InterfaceEvent {

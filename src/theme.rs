@@ -307,6 +307,7 @@ macro_rules! icons {
 icons! {
     Accounts => "accounts",
     Add => "add",
+    AddUser => "add_user",
     AppStore => "app_store",
     Baby => "baby",
     Back => "back",

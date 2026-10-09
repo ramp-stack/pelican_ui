@@ -42,6 +42,7 @@ pub struct TextInput {
     pub inner: interactions::InputField,
     hint: EitherOr<Option<ExpandableText>, ExpandableText>,
     #[skip] pub error: Option<String>,
+    #[skip] pub is_focused: bool,
 }
 
 type InputCallback = Arc<Mutex<dyn FnMut(&mut Context, &mut String) + 'static>>;
@@ -76,7 +77,8 @@ impl TextInput {
             label: label.map(|l| Text::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None)),
             inner: input_field, 
             hint: EitherOr::new(help, error),
-            error: None
+            error: None,
+            is_focused: false,
         }
     }
     
@@ -100,6 +102,7 @@ impl TextInput {
 impl OnEvent for TextInput { 
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.as_any().downcast_ref::<TickEvent>().is_some() { 
+            self.is_focused = self.inner.is_focused();
             self.hint.display_left(self.error.is_none()); 
             if let Some(e) = &self.error && !e.is_empty() {
                 self.hint.right().0.spans[0] = e.to_string();
@@ -162,6 +165,7 @@ impl OnEvent for _InputContent {
             self.default.inner().inner().1.0.spans[0] = data.to_string();
         } else if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {
             self.is_focused = *x;
+            if crate::IS_MOBILE {ctx.emit(crate::interface::general::InterfaceEvent::FocusTextInput(*x));}
             // println!("FOCUSED {:?}", self.is_focused);
         } else if event.downcast_ref::<TickEvent>().is_some() {
             // if let Some(i) = ctx.state.get::<TextInputState>() {
