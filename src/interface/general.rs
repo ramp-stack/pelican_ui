@@ -127,7 +127,7 @@ pub struct Page {
     layout: Column,
     pub header: Header,
     pub content: Content,
-    pub bumper: Option<Bumper>
+    pub bumper: Option<Bumper>,
 }
 
 impl OnEvent for Page {}
