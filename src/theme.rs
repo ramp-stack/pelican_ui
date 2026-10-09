@@ -74,53 +74,38 @@ pub struct BrandResources {
 
 impl BrandResources {
     fn new(directory: &Vec<Dir<'static>>) -> Self {
-        let mut directory = directory.clone();
-        directory.push(include_dir!("resources"));
-        let assets = Assets::new(directory);
+        let layers: Vec<_> = directory.iter().cloned()
+            .chain(std::iter::once(include_dir!("resources")))
+            .map(|dir| Assets::new(vec![dir]))
+            .collect();
 
-        println!("Assets {:?}", assets);
-
-        let defaults = BrandResources {
-            logo: assets.get_asset_image("logo").unwrap(),
-            wordmark: assets.get_asset_image("wordmark").unwrap(),
-            app_icon: assets.get_asset_image("app_icon").unwrap(),
-            error: assets.get_asset_image("error").unwrap(),
-            qr_code: Arc::new(assets.load_png("qr_code.png").unwrap()),
-            images: HashMap::default(),
-        };
+        let get = |name: &str| layers.iter()
+            .find_map(|a| a.get_asset_image(name))
+            .unwrap_or_else(|| panic!("Missing asset: {name}"));
 
         let mut images = HashMap::new();
 
-        for file in assets.files() {
-            let path = file.path().to_string_lossy();
+        for assets in &layers {
+            for file in assets.files() {
+                let path = file.path().to_string_lossy();
+                let Some((name, ext)) = path.rsplit_once('.') else { continue };
+                if !matches!(ext, "svg" | "png") { continue }
 
-            println!("PATH {:?}", path);
-
-            if path.ends_with(".svg") {
-                let name = path.trim_end_matches(".svg").to_string();
-
-                images.entry(name).or_insert_with(|| {
-                    Arc::new(Assets::load_svg(file.contents()))
-                });
-            } else if path.ends_with(".png") {
-                let name = path.trim_end_matches(".png").to_string();
-
-                images.entry(name).or_insert_with(|| {
-                    Arc::new(
-                        image::load_from_memory(file.contents())
-                            .unwrap()
-                            .into_rgba8()
-                    )
-                });
+                images.entry(name.to_string()).or_insert_with(|| Arc::new(match ext {
+                    "svg" => Assets::load_svg(file.contents()),
+                    _ => image::load_from_memory(file.contents()).unwrap().into_rgba8(),
+                }));
             }
         }
 
-        BrandResources {
-            logo: defaults.logo,
-            wordmark: defaults.wordmark,
-            app_icon: defaults.app_icon,
-            error: defaults.error,
-            qr_code: defaults.qr_code,
+        Self {
+            logo: get("logo"),
+            wordmark: get("wordmark"),
+            app_icon: get("app_icon"),
+            error: get("error"),
+            qr_code: Arc::new(layers.iter()
+                .find_map(|a| a.load_png("qr_code.png"))
+                .expect("Missing qr_code.png")),
             images,
         }
     }
