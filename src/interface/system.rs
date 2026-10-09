@@ -18,52 +18,36 @@ lazy_static::lazy_static! {
     pub(crate) static ref EMOJIS: Vec<String> = include_str!("../../emoji.txt").lines().map(str::to_owned).collect();
 }
 
+/// Fields after the Enum: caps on, current page, emoji panel showing, theme.
+///
+/// The key layout is rebuilt whenever caps or the page changes, so the caps-lock
+/// and page keys always match the real state. The emoji panel is built once.
 #[derive(Component, Debug, Clone)]
-pub struct MobileKeyboard(Stack, Rectangle, Enum<KeyboardContent>, #[skip] bool, #[skip] usize);
+pub struct MobileKeyboard(Stack, Rectangle, Enum<KeyboardContent>, #[skip] bool, #[skip] usize, #[skip] bool, #[skip] Theme);
 
 impl OnEvent for MobileKeyboard {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<KeyboardEvent>().is_some() {
-            let page = self.4;
-            match page {
-                0 => self.2.display("default"),
-                1 => self.2.display("page_one_caps_off"),
-                2 | _ => self.2.display("page_two_caps_off"),
-            };
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        // Caps works as a one-shot shift: it turns off after a character is typed.
+        // Typing on the emoji panel doesn't leave it.
+        if let Some(KeyboardEvent{key: event::Key::Character(_), state: KeyboardState::Pressed, ..}) = event.downcast_ref::<KeyboardEvent>()
+            && self.3 && !self.5 {
+            self.3 = false;
+            self.show_keys(ctx);
         }
-        
+
         if let Some(e) = event.downcast_ref::<MobileKeyboardEvent>() {
             match e {
                 MobileKeyboardEvent::Paginator(page) => {
-                    println!("Page {}", page);
                     self.4 = *page;
-                    let caps = self.3;
-                    match page {
-                        0 if caps => self.2.display("page_zero_caps_on"),
-                        0 => self.2.display("default"),
-                        1 if caps => self.2.display("page_one_caps_on"),
-                        1 => self.2.display("page_one_caps_off"),
-                        2 if caps => self.2.display("page_two_caps_on"),
-                        2 | _ => self.2.display("page_two_caps_off"),
-                    };
+                    self.show_keys(ctx);
                 },
                 MobileKeyboardEvent::Capslock(caps) => {
                     self.3 = *caps;
-                    let page = self.4;
-                    match page {
-                        0 if *caps => self.2.display("page_zero_caps_on"),
-                        0 => self.2.display("default"),
-                        1 if *caps => self.2.display("page_one_caps_on"),
-                        1 => self.2.display("page_one_caps_off"),
-                        2 if *caps => self.2.display("page_two_caps_on"),
-                        2 | _ => self.2.display("page_two_caps_off"),
-                    };
+                    self.show_keys(ctx);
                 },
-                MobileKeyboardEvent::Emoji(emoji) => {
-                    match emoji {
-                        false => self.2.display("emoji_on"),
-                        true => self.2.display("default"),
-                    };
+                MobileKeyboardEvent::ToggleEmoji => {
+                    self.5 = !self.5;
+                    if self.5 { self.2.display("emoji"); } else { self.show_keys(ctx); }
                 },
             }
         }
@@ -73,51 +57,63 @@ impl OnEvent for MobileKeyboard {
 }
 
 impl MobileKeyboard {
-    pub fn new(theme: &Theme) -> Self {
+    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
         let height = Size::custom(|heights: Vec<(f32, f32)>| heights[1]);
         let color = theme.colors().get(ptsd::Background::Secondary);
         let e = Enum::<KeyboardContent>::new(vec![
-            ("default".to_string(), KeyboardContent::new(theme, 0, false)),
-            ("page_zero_caps_on".to_string(), KeyboardContent::new(theme, 0, true)),
-            ("page_one_caps_on".to_string(), KeyboardContent::new(theme, 1, true)),
-            ("page_one_caps_off".to_string(), KeyboardContent::new(theme, 1, false)),
-            ("page_two_caps_on".to_string(), KeyboardContent::new(theme, 2, true)),
-            ("page_two_caps_off".to_string(), KeyboardContent::new(theme, 2, false)),
-            ("emoji_on".to_string(), KeyboardContent::emoji(theme)),
-        ], "default".to_string());
+            ("keys".to_string(), KeyboardContent::new(ctx, theme, 0, false)),
+            ("emoji".to_string(), KeyboardContent::emoji(ctx, theme)),
+        ], "keys".to_string());
 
         MobileKeyboard(
-            Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default()), 
+            Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default()),
             Rectangle::new(color, 0.0, None),
-            e, false, 0
+            e, false, 0, false, theme.clone()
         )
+    }
+
+    /// Shows the key layout for the current page and caps state.
+    fn show_keys(&mut self, ctx: &mut Context) {
+        self.5 = false;
+        self.2.display("keys");
+        *self.2.drawable().inner() = KeyboardContent::new(ctx, &self.6, self.4, self.3);
     }
 }
 
 #[derive(Component, Debug, Clone)]
-struct KeyboardContent(Column, KeyboardHeader, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, #[skip] Theme);
+struct KeyboardContent(Column, KeyboardHeader, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Bin<Stack, Rectangle>, #[skip] Theme);
 impl OnEvent for KeyboardContent {}
 impl KeyboardContent {
-    pub fn new(theme: &Theme, page: usize, caps: bool) -> Self {
+    pub fn new(ctx: &mut Context, theme: &Theme, page: usize, caps: bool) -> Self {
+        let color = theme.colors().get(ptsd::Background::Secondary);
+        let (b, _, _, _) = ctx.get_safe_area();
+        let layout = Stack(Offset::Start, Offset::Start, Size::Fill, Size::Static(b), Padding::default());
+
         KeyboardContent(
             Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
-            KeyboardHeader::new(theme),
+            KeyboardHeader::new(theme, false),
             Some(KeyboardRow::top(theme, page, caps)),
             Some(KeyboardRow::middle(theme, page, caps)),
             Some(KeyboardRow::bottom(theme, page, caps)),
             Some(KeyboardRow::modifier(theme, page, caps)),
+            Bin(layout, Rectangle::new(color, 0.0, None)),
             theme.clone()
         )
     }
 
-    pub fn emoji(theme: &Theme) -> Self {
+    pub fn emoji(ctx: &mut Context, theme: &Theme) -> Self {
+        let color = theme.colors().get(ptsd::Background::Secondary);
+        let (b, _, _, _) = ctx.get_safe_area();
+        let layout = Stack(Offset::Start, Offset::Start, Size::Fill, Size::Static(b), Padding::default());
+
         KeyboardContent(
             Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
-            KeyboardHeader::new(theme),
+            KeyboardHeader::new(theme, true),
             Some(KeyboardRow::emoji(theme)),
             None,
             None,
             None,
+            Bin(layout, Rectangle::new(color, 0.0, None)),
             theme.clone()
         )
     }
@@ -210,24 +206,25 @@ struct KeyboardHeader(Column, KeyboardIcons, Bin<Stack, Rectangle>);
 impl OnEvent for KeyboardHeader {}
 
 impl KeyboardHeader {
-    fn new(theme: &Theme) -> Self {
+    fn new(theme: &Theme, emoji_on: bool) -> Self {
         let layout = Stack(Offset::default(), Offset::default(), Size::Fit, Size::Static(1.0), Padding(0.0,0.0,0.0,2.0));
         KeyboardHeader(Column::start(0.0),
-            KeyboardIcons::new(theme),
+            KeyboardIcons::new(theme, emoji_on),
             Bin(layout, Rectangle::new(theme.colors().get(ptsd::Outline::Secondary), 0.0, None))
         )
     }
 }
 
 #[derive(Component, Debug, Clone)]
-struct KeyboardIcons(Row, Emoji, Bin<Stack, Rectangle>, GhostIconButton);
+struct KeyboardIcons(Row, Key, Bin<Stack, Rectangle>, GhostIconButton);
 impl OnEvent for KeyboardIcons {}
 impl KeyboardIcons {
-    fn new(theme: &Theme) -> Self {
+    fn new(theme: &Theme, emoji_on: bool) -> Self {
+        let emoji_state = if emoji_on {ButtonState::Pressed} else {ButtonState::Default};
         KeyboardIcons(
-            Row::new(16.0, Offset::Start, Size::Fit, Padding(12.0, 6.0, 12.0, 6.0)), 
+            Row::new(16.0, Offset::Start, Size::Fit, Padding(12.0, 6.0, 12.0, 6.0)),
             // icons.then(|| KeyboardActions(Stack::default(), actions)),
-            Emoji::new(theme, false),
+            Key::emoji(theme, emoji_state),
             Bin (
                 Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(1.0),  Padding::default()), 
                 Rectangle::new(Color::TRANSPARENT, 0.0, None)
@@ -289,12 +286,10 @@ impl Key {
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false))
     }
 
+    /// `state` only sets the look (highlighted while the emoji panel is open).
     fn emoji(theme: &Theme, state: ButtonState) -> Self {
         let default = _Key::emoji(theme, state);
-        let callback = Box::new(move |ctx: &mut Context| ctx.emit(MobileKeyboardEvent::Emoji(match state {
-            ButtonState::Pressed => false,
-            ButtonState::Default => true,
-        })));
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(MobileKeyboardEvent::ToggleEmoji));
 
         Key(Stack::default(), interactions::Button::new_triggers_on_release(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false))
     }
@@ -311,22 +306,6 @@ impl Capslock {
         let selectable = interactions::Selectable::new(default, selected, is_on, true, Box::new(|_: &mut Context| {}), uuid::Uuid::new_v4());
 
         Capslock(Stack::default(), selectable)
-    }
-
-    fn status(&self) -> bool {self.1.is_selected()}
-}
-
-#[derive(Debug, Component, Clone)]
-struct Emoji(Stack, interactions::Selectable);
-impl OnEvent for Emoji {}
-impl Emoji {
-    fn new(theme: &Theme, is_on: bool) -> Self {
-        let selected = Key::emoji(theme, ButtonState::Pressed);
-        let default = Key::emoji(theme, ButtonState::Default);
-
-        let selectable = interactions::Selectable::new(default, selected, is_on, true, Box::new(|_: &mut Context| {}), uuid::Uuid::new_v4());
-
-        Emoji(Stack::default(), selectable)
     }
 
     fn status(&self) -> bool {self.1.is_selected()}
@@ -564,7 +543,7 @@ fn bot_keys(page: &usize) -> Vec<&str> {
 enum MobileKeyboardEvent {
     Capslock(bool),
     Paginator(usize),
-    Emoji(bool),
+    ToggleEmoji,
 }
 
 impl Event for MobileKeyboardEvent {

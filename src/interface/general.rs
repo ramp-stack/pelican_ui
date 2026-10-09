@@ -8,7 +8,7 @@ use prism::emitters::Scrollable;
 
 use crate::Callback;
 use crate::theme::{Theme, Icons};
-use crate::components::{Rectangle, TextInput, Profile};
+use crate::components::{Rectangle, TextInput, TextInputEvent, QRCodeScannedEvent, Profile};
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
 use crate::components::avatar::{AvatarGroup, AvatarContent};
@@ -99,7 +99,8 @@ impl Interface {
                 },
                 false if IS_MOBILE => { // mobile
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::mobile(theme, roots)) as Box<dyn PTSDNavigator>);
-                    ptsd::interfaces::Interface::mobile(ctx, navigator, Screen::mobile(Pages::new(pages)), MobileKeyboard::new(theme))
+                    let keyboard = MobileKeyboard::new(ctx, theme);
+                    ptsd::interfaces::Interface::mobile(ctx, navigator, Screen::mobile(Pages::new(pages)), keyboard)
                 },
                 false => { // desktop
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::desktop(theme, roots)) as Box<dyn PTSDNavigator>);
@@ -163,7 +164,9 @@ impl Page {
 pub struct Content {
     layout: Stack,
     pub children: Scrollable<ContentChildren>,
-    #[skip] validation: Box<dyn ValidationFn>
+    #[skip] validation: Box<dyn ValidationFn>,
+    /// Index of the text input that was focused most recently.
+    #[skip] last_input: Option<usize>,
 }
 
 impl Content {
@@ -175,6 +178,7 @@ impl Content {
             layout: Stack::new(Offset::Center, offset, width, Size::Fill, Padding::default()),
             children,
             validation,
+            last_input: None,
         }
     }
 
@@ -216,7 +220,43 @@ impl Content {
 
 impl OnEvent for Content {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        // Pasted text and scanned QR codes go to one text input, not to every one
+        // on the page: the focused input, else the last focused, else the first.
+        let routed = if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
+            Some(data.clone())
+        } else if let Some(QRCodeScannedEvent(data)) = event.downcast_ref::<QRCodeScannedEvent>() {
+            Some(data.clone())
+        } else {
+            None
+        };
+
+        if let Some(data) = routed {
+            let inputs = self.children().iter().enumerate()
+                .filter(|(_, c)| (***c).as_any().is::<TextInput>())
+                .map(|(i, _)| i)
+                .collect::<Vec<_>>();
+
+            // No direct text inputs: let the event reach nested ones (e.g. a search bar).
+            if inputs.is_empty() { return vec![event]; }
+
+            let focused = inputs.iter().copied().find(|&i| {
+                self.children()[i].downcast_ref::<TextInput>().is_some_and(|t| t.is_focused)
+            });
+            let target = focused
+                .or(self.last_input.filter(|i| inputs.contains(i)))
+                .unwrap_or(inputs[0]);
+
+            if let Some(input) = self.children_mut()[target].downcast_mut::<TextInput>() {
+                input.set_value(&data);
+            }
+            return Vec::new();
+        }
+
         if event.downcast_ref::<TickEvent>().is_some() {
+            if let Some(i) = self.children().iter().position(|c| c.downcast_ref::<TextInput>().is_some_and(|t| t.is_focused)) {
+                self.last_input = Some(i);
+            }
+
             let event = InterfaceEvent::Disable(!(self.validation)(ctx, self.children.1.inner().iter_mut().map(|c| c).collect()));
             ctx.emit(event);
         } else if let Some(InterfaceEvent::FocusTextInput(true)) = event.downcast_ref::<InterfaceEvent>() {

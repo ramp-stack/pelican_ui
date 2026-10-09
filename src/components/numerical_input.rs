@@ -36,10 +36,19 @@ impl NumericalInput {
         NumericalInput(layout, input)
     }
 
+    /// The entered value, e.g. `"$1,250.00"`, `"25-12"` or `"09:30"`.
+    ///
+    /// Date and time inputs return an empty string until every slot is filled in,
+    /// so an empty or half-typed date can't be mistaken for one made of zeros.
     pub fn value(&self) -> String {
         let mut out = String::new();
 
         for slot in &self.1.inner.1.1 {
+            if let SlotType::GhostInputWithDefault(inputs, limit, _) = &slot.2
+                && inputs.chars().count() < *limit {
+                return String::new();
+            }
+
             let s = match slot.2.get_visual() {
                 SlotVisual::Primary(s) | SlotVisual::Ghost(s) => s,
                 SlotVisual::None => continue,
@@ -213,7 +222,8 @@ impl OnEvent for SlotDisplay {
             let mut start = 0;
 
             match key {
-                Key::Delete => {
+                // Both keys delete from the end, like the keypad's delete button.
+                Key::Delete | Key::Backspace => {
                     reversed = true;
                     slots = self.1.clone().into_iter().rev().collect::<Vec<_>>();
                 },
@@ -259,8 +269,10 @@ impl OnEvent for SlotDisplay {
                                         edited = true;
                                     }
                                 },
-                                SlotType::TriggeredGhostInputWithDefault(inputs, limit, default, is_on) if *is_on => {
-                                    if inputs.len() < *limit && (!inputs.is_empty() || *default.to_string() != character) {
+                                // Decimal places: unlike the integer part, a leading zero is
+                                // a real digit here (e.g. the 0 in $1.05), so always accept it.
+                                SlotType::TriggeredGhostInputWithDefault(inputs, limit, _, is_on) if *is_on => {
+                                    if inputs.len() < *limit {
                                         inputs.push(character.chars().next().unwrap());
                                         edited = true;
                                     }

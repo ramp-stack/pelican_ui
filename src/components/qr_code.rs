@@ -26,13 +26,23 @@ use std::sync::Arc;
 /// let qr = QRCode::new(ctx, "https://ramp-stack.com/pelican_ui");
 /// ```
 #[derive(Debug, Component, Clone)]
-pub struct QRCode(Stack, Rectangle, Image, Bin<Stack, Image>, #[skip] Option<String>);
+pub struct QRCode(Stack, Rectangle, Image, Option<Bin<Stack, Image>>, #[skip] Option<String>, #[skip] Arc<RgbaImage>);
 impl OnEvent for QRCode {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() && let Some(data) = &self.4 {
-            let image: Arc<RgbaImage> = generate_qr_code(data).convert().into();
-            self.4 = None;
-            self.2 = Image{shape: ShapeType::RoundedRectangle(0.0, (300.0 - 16.0, 300.0 - 16.0), 0.0, 8.0), image, color: None};
+        if event.downcast_ref::<TickEvent>().is_some() && let Some(data) = self.4.take() {
+            let shape = ShapeType::RoundedRectangle(0.0, (300.0 - 16.0, 300.0 - 16.0), 0.0, 8.0);
+            match generate_qr_code(&data) {
+                Some(code) => {
+                    let image: Arc<RgbaImage> = code.convert().into();
+                    self.2 = Image{shape, image, color: None};
+                }
+                // Too much data to encode: show the error image rather than the
+                // placeholder code, and drop the logo overlay.
+                None => {
+                    self.2 = Image{shape, image: self.5.clone(), color: None};
+                    self.3 = None;
+                }
+            }
         }
 
         vec![event]
@@ -51,8 +61,9 @@ impl QRCode {
             Rectangle::new(Color::WHITE, 8.0, None),
             Image{shape: ShapeType::RoundedRectangle(0.0, (300.0 - 16.0, 300.0 - 16.0), 0.0, 8.0), image: dummy_qr_code, color: None},
             // QRModules::new(ctx, data, qr_size, logo_size),  - NO CUSTOM STYLIZATION FOR THIS RELEASE
-            Bin(layout, AspectRatioImage::new(app_icon, (logo_size, logo_size))),
-            Some(data.to_string())
+            Some(Bin(layout, AspectRatioImage::new(app_icon, (logo_size, logo_size)))),
+            Some(data.to_string()),
+            theme.brand().error.clone(),
         )
     }
 
@@ -61,13 +72,14 @@ impl QRCode {
     }
 }
 
-pub fn generate_qr_code(data: &str) -> RgbImage {
+/// Renders `data` as a QR code, or returns `None` if it's too long to encode
+/// (about 1.2 KB at the error-correction level used here).
+pub fn generate_qr_code(data: &str) -> Option<RgbImage> {
     let scale: usize = 60;
     let fg = [0u8, 0, 0];
     let bg = [255u8, 255, 255];
 
-    let code = QrCode::with_error_correction_level(data, EcLevel::H)
-        .expect("Failed to create QR");
+    let code = QrCode::with_error_correction_level(data, EcLevel::H).ok()?;
 
     let module_count = code.width();
     let img_size = module_count * scale;
@@ -107,7 +119,7 @@ pub fn generate_qr_code(data: &str) -> RgbImage {
         draw_finder_fast(&mut buf, img_size, fx * scale, fy * scale, scale, fg, bg);
     }
 
-    RgbImage::from_raw(img_size as u32, img_size as u32, buf).unwrap()
+    RgbImage::from_raw(img_size as u32, img_size as u32, buf)
 }
 
 fn build_skip_mask(module_count: usize, logo_start: usize, logo_end: usize) -> Vec<bool> {

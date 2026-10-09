@@ -132,7 +132,8 @@ impl std::fmt::Debug for TextEditor {
 impl TextEditor {
     pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
         let mut built = ExpandableText::new(theme, text, size, style, align, None);
-        built.0.inner.cursor = Some(text.len());
+        // The canvas treats `cursor` as a character index, not a byte index.
+        built.0.inner.cursor = Some(text.chars().count());
         TextEditor(Stack::start(), built, TextCursor::new(theme, style, size))
     }
 
@@ -143,6 +144,17 @@ impl TextEditor {
     pub fn display_cursor(&mut self, display: bool) {
         self.2.1.display(display)
     }
+
+    /// Replaces the text and moves the cursor to the end of it.
+    pub fn set_text(&mut self, text: &str) {
+        self.1.0.spans[0] = text.to_string();
+        self.1.0.inner.cursor = Some(text.chars().count());
+    }
+}
+
+/// Converts a character index into a byte index into `text`, clamped to the end.
+fn byte_index(text: &str, char_index: usize) -> usize {
+    text.char_indices().nth(char_index).map_or(text.len(), |(i, _)| i)
 }
 
 impl OnEvent for TextEditor {
@@ -157,39 +169,36 @@ impl OnEvent for TextEditor {
                 _ => {}
             }
         } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key, ..}) = event.downcast_ref() {
-            let index = self.1.0.inner.cursor.unwrap();
-            
             let character = match key {
                 Key::Character(c) => Some(c.clone()),
                 Key::Enter => Some("\n".to_string()),
                 Key::Space => Some(" ".to_string()),
+                // The on-screen keyboard and keypad send `Delete` for backspace,
+                // so both keys delete the character before the cursor.
                 Key::Delete | Key::Backspace => None,
                 _ => {return vec![event];}
             };
 
-            match character {
+            // `cursor` counts characters; String APIs need byte offsets.
+            let text = &mut self.1.0.spans[0];
+            let len = text.chars().count();
+            let index = self.1.0.inner.cursor.unwrap_or(len).min(len);
+
+            let cursor = match character {
                 Some(c) => {
-                    match index >= self.1.0.spans[0].len() {
-                        true => self.1.0.spans[0].push_str(&c),
-                        false => self.1.0.spans[0].insert_str(index, &c),
-                    };
-                    if let Some(c) = self.1.0.inner.cursor.as_mut() {*c += 1;}
+                    let at = byte_index(text, index);
+                    text.insert_str(at, &c);
+                    index + c.chars().count()
                 }
-                None => {
-                    self.1.0.spans[0] = {
-                        let mut chars: Vec<char> = self.1.0.spans[0].chars().collect();
-
-                        match chars.len() {
-                            1 => chars.clear(),
-                            _ if index >= chars.len() => {chars.pop();},
-                            _ => {chars.remove(index);}
-                        }
-
-                        chars.into_iter().collect()
-                    };
-                    if let Some(c) = self.1.0.inner.cursor.as_mut() { *c = c.saturating_sub(1); }
+                None if index > 0 => {
+                    let (start, end) = (byte_index(text, index - 1), byte_index(text, index));
+                    text.replace_range(start..end, "");
+                    index - 1
                 }
-            }
+                None => index,
+            };
+
+            self.1.0.inner.cursor = Some(cursor);
 
             // (self.3)(ctx, &mut self.1.0.spans[0])
         }

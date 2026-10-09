@@ -159,16 +159,16 @@ impl Message {
 // }
 
 
+/// Front cameras usually deliver mirrored frames and rear cameras don't, and a
+/// mirrored QR code won't decode. So try the frame as-is, then flipped.
 fn decode_image(img: Arc<RgbaImage>) -> Option<String> {
-    let mirrored = image::imageops::flip_horizontal(&*img);
-
     let decoder = bardecoder::default_decoder();
+    let decode = |image: DynamicImage| {
+        decoder.decode(&image).into_iter().flatten().find(|s| !s.is_empty())
+    };
 
-    decoder
-        .decode(&DynamicImage::ImageRgba8(mirrored))
-        .into_iter()
-        .flatten()
-        .find(|s| !s.is_empty())
+    decode(DynamicImage::ImageRgba8((*img).clone()))
+        .or_else(|| decode(DynamicImage::ImageRgba8(image::imageops::flip_horizontal(&*img))))
 }
 
 #[derive(Debug, Clone, PartialEq)]

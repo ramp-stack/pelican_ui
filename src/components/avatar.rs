@@ -49,6 +49,9 @@ pub struct Avatar {
     #[skip] pub flair: Option<(Icons, AvatarIconStyle)>,
     #[skip] pub outline: bool,
     #[skip] waiting_on_photo: bool,
+    #[skip] theme: Theme,
+    /// The content `_avatar` was last built from.
+    #[skip] shown: AvatarContent,
 }
 
 impl std::fmt::Debug for Avatar {
@@ -72,10 +75,12 @@ impl Avatar {
             _flair: flair.map(|(name, style)| Flair::new(theme, name, style, size)),
             _size: size,
             _on_click: on_click,
+            shown: content.clone(),
             content,
             flair,
             outline,
             waiting_on_photo: false,
+            theme: theme.clone(),
         }
     }
 
@@ -97,8 +102,10 @@ impl OnEvent for Avatar {
             }
         }
 
-        if event.as_any().downcast_ref::<TickEvent>().is_some() {
-            self._avatar.update(self.content.clone(), self._size);
+        // Rebuild only when the content changes, in either direction (icon <-> image).
+        if event.as_any().downcast_ref::<TickEvent>().is_some() && !same_content(&self.content, &self.shown) {
+            self._avatar = PrimaryAvatar::new(&self.theme, self.content.clone(), self.outline, self._size);
+            self.shown = self.content.clone();
         }
 
         vec![event]
@@ -122,15 +129,14 @@ impl PrimaryAvatar {
             circle_icon, image, outline.then(|| Circle::new(size.get(), background, true)),
         )
     }
+}
 
-    fn update(&mut self, content: AvatarContent, size: AvatarSize) {
-        match content {
-            AvatarContent::Image(image) => {
-                self.1 = None;
-                self.2 = Some(Image{shape: ShapeType::Ellipse(0.0, (size.get(), size.get()), 0.0), image, color: None});
-            },
-            AvatarContent::Icon(icon, style) => {}
-        }
+/// Cheap equality for change detection: images compare by pointer, not by pixels.
+fn same_content(a: &AvatarContent, b: &AvatarContent) -> bool {
+    match (a, b) {
+        (AvatarContent::Image(x), AvatarContent::Image(y)) => Arc::ptr_eq(x, y),
+        (AvatarContent::Icon(i1, s1), AvatarContent::Icon(i2, s2)) => i1 == i2 && s1 == s2,
+        _ => false,
     }
 }
 

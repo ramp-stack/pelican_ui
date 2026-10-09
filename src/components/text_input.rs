@@ -88,7 +88,14 @@ impl TextInput {
 
     pub fn value(&self) -> String {
         self.inner.2.as_any().downcast_ref::<_InputContent>().unwrap().value.to_string()
-    } 
+    }
+
+    /// Replaces the text in this input and moves the cursor to the end.
+    pub fn set_value(&mut self, value: &str) {
+        if let Some(content) = (*self.inner.2).as_any_mut().downcast_mut::<_InputContent>() {
+            content.set_value(value);
+        }
+    }
     
     pub fn error(&mut self, error: Result<(), String>) {
         self.inner.error(matches!(error, Err(ref e) if !e.is_empty()));
@@ -153,16 +160,24 @@ impl _InputContent {
             is_focused: false,
         }
     }
+
+    fn set_value(&mut self, value: &str) {
+        self.default.inner().inner().set_text(value);
+        self.value = value.to_string();
+    }
 }
 
-impl OnEvent for _InputContent { 
+impl OnEvent for _InputContent {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        // Inside a `Content`, these two events are routed to a single input (see
+        // `Content::on_event`). They only arrive here unrouted for inputs outside
+        // a `Content`, such as the bumper's message input.
         if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
-            self.default.inner().inner().1.0.spans[0] = data.to_string();
+            self.set_value(data);
         // } else if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
         //     self.default.inner().inner().1.0.spans[0] = data.to_string();
         } else if let Some(QRCodeScannedEvent(data)) = event.downcast_ref::<QRCodeScannedEvent>() {
-            self.default.inner().inner().1.0.spans[0] = data.to_string();
+            self.set_value(data);
         } else if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {
             self.is_focused = *x;
             if crate::IS_MOBILE {ctx.emit(crate::interface::general::InterfaceEvent::FocusTextInput(*x));}
@@ -188,8 +203,8 @@ impl OnEvent for _InputContent {
         && let Some(on_submit) = &mut self.on_submit 
         && let Ok(mut cb) = on_submit.lock() {
             (cb)(ctx, &mut self.value);
-            self.default.inner().inner().1.0.spans[0] = String::new();
-            self.value = String::new();
+            self.default.inner().inner().set_text("");
+            self.value.clear();
         }
         vec![event]
     }
