@@ -307,10 +307,10 @@ impl Header {
         Self::_new(theme, title, Some((Icons::Close, Box::new(closure))), None, TextSize::H4)
     }
 
-    pub fn messaging(ctx: &mut Context, theme: &Theme, title: String, profiles: Vec<Profile>, exact_len: usize, info: Box<dyn Callback>) -> Self {
+    pub fn messaging(ctx: &mut Context, theme: &Theme, title: String, profiles: Vec<Profile>, exact_len: usize, info: Option<Box<dyn Callback>>) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| (0..exact_len).for_each(|_| ctx.emit(NavigationEvent::Pop));
         let l_icon = HeaderIcon::new(theme, Icons::Left, closure);
-        let r_icon = HeaderIcon::new(theme, Icons::Info, info); // this needs to navigate to info page
+        let r_icon = info.map(|i| HeaderIcon::new(theme, Icons::Info, i)).unwrap_or_default(); // this needs to navigate to info page
 
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0));
         Header {
