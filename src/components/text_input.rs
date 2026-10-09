@@ -62,7 +62,7 @@ impl TextInput {
         let input_field = interactions::InputField::new(
             background(Color::TRANSPARENT, colors.get(ptsd::Outline::Secondary)),
             background(Color::TRANSPARENT, colors.get(ptsd::Outline::Primary)),
-            Some(background(colors.get(ptsd::Outline::Primary), colors.get(ptsd::Outline::Secondary))),
+            Some(background(colors.get(ptsd::Background::Secondary), colors.get(ptsd::Outline::Secondary))),
             Some(background(Color::TRANSPARENT, colors.get(ptsd::Status::Danger))),
             _InputContent::new(theme, value, placeholder, icon_button),
             48.0,
@@ -172,7 +172,13 @@ impl OnEvent for _InputContent {
         // Inside a `Content`, these two events are routed to a single input (see
         // `Content::on_event`). They only arrive here unrouted for inputs outside
         // a `Content`, such as the bumper's message input.
-        if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
+        if !crate::IS_MOBILE
+            && self.is_focused
+            && self.on_submit.is_some()
+            && let Some(event::KeyboardEvent{key: event::Key::Enter, state: event::KeyboardState::Pressed, ..}) = event.downcast_ref::<event::KeyboardEvent>()
+        {
+            ctx.emit(TextInputEvent::Submit);
+        } else if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
             self.set_value(data);
         // } else if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
         //     self.default.inner().inner().1.0.spans[0] = data.to_string();
