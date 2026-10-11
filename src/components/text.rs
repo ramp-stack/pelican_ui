@@ -1,9 +1,11 @@
-use prism::event::{OnEvent, MouseState, MouseEvent, Event, TickEvent, Key, KeyboardEvent, KeyboardState};
+use prism::event::{OnEvent, Event, TickEvent, Key, KeyboardEvent, KeyboardState};
 use prism::layout::{Stack, Size, Offset, Padding, SizeRequest};
 use prism::display::Opt;
 use prism::drawable::{Drawable, Component, SizedTree, RequestTree, Rect}; 
-use prism::canvas::{self, Align, Span, Text as BasicText, Area as CanvasArea, Item as CanvasItem, Instruction};
+use prism::canvas::{self, ShapeType, Shape as CanvasShape, Align, Span, Text as BasicText, Area as CanvasArea, Item as CanvasItem, Instruction};
 use prism::Context;
+
+use std::time::{Instant, Duration};
 
 use pelican_ui::components::Rectangle;
 use pelican_ui::theme::{Theme, Color};
@@ -122,7 +124,7 @@ impl Drawable for ExpandableText {
 }
 
 #[derive(Component, Clone)]
-pub struct TextEditor(Stack, pub ExpandableText, TextCursor);
+pub struct TextEditor(Stack, pub ExpandableText, TextCursor, Magnifier, #[skip] Scrub);
 impl std::fmt::Debug for TextEditor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("TextEditor").field(&self.0).field(&self.1).field(&self.2).finish()
@@ -134,7 +136,8 @@ impl TextEditor {
         let mut built = ExpandableText::new(theme, text, size, style, align, None);
         // The canvas treats `cursor` as a character index, not a byte index.
         built.0.inner.cursor = Some(text.chars().count());
-        TextEditor(Stack::start(), built, TextCursor::new(theme, style, size))
+        let magnifier = Magnifier::new(theme, style, built.0.inner.clone());
+        TextEditor(Stack::start(), built, TextCursor::new(theme, style, size), magnifier, Scrub::default())
     }
 
     pub fn default(theme: &Theme) -> Self {
@@ -149,6 +152,79 @@ impl TextEditor {
     pub fn set_text(&mut self, text: &str) {
         self.1.0.spans[0] = text.to_string();
         self.1.0.inner.cursor = Some(text.chars().count());
+        self.sync();
+    }
+
+    /// Pointer pressed at `pos`, in this editor's coordinates. The owning input
+    /// calls this for presses anywhere in the field, not just on the text line.
+    pub fn pointer_pressed(&mut self, pos: (f32, f32)) {
+        self.place_cursor(pos);
+        self.4 = Scrub { pressed_at: Some(Instant::now()), pointer: pos, travel: 0.0, active: false };
+        self.sync();
+    }
+
+    /// Pointer moved while pressed. `pos` is the new position in this editor's
+    /// coordinates when the pointer is over the field; `delta` is the movement
+    /// (from touch drags), used to keep tracking once the finger leaves the field.
+    pub fn pointer_moved(&mut self, pos: Option<(f32, f32)>, delta: Option<(f32, f32)>) {
+        if self.4.pressed_at.is_none() { return; }
+        let next = match (pos, delta) {
+            (Some(p), _) => p,
+            (None, Some(d)) => (self.4.pointer.0 + d.0, self.4.pointer.1 + d.1),
+            (None, None) => return,
+        };
+        let (dx, dy) = (next.0 - self.4.pointer.0, next.1 - self.4.pointer.1);
+        self.4.travel += (dx * dx + dy * dy).sqrt();
+        self.4.pointer = next;
+
+        if !self.4.active {
+            if prism::IS_MOBILE {
+                // On touch, moving before the hold completes is a swipe, not a scrub.
+                if self.4.travel > SCRUB_CANCEL_DISTANCE { self.4 = Scrub::default(); }
+                return;
+            }
+            // With a mouse, dragging starts scrubbing right away.
+            if self.4.travel < DESKTOP_DRAG_START { return; }
+            self.4.active = true;
+        }
+
+        self.place_cursor(next);
+        self.sync();
+    }
+
+    /// Pointer released (anywhere). Ends any scrub and hides the magnifier.
+    pub fn pointer_released(&mut self) {
+        self.4 = Scrub::default();
+        self.sync();
+    }
+
+    /// Moves the cursor to the character nearest `pos`. The y position is
+    /// snapped to the middle of the nearest line, so a pointer above or below
+    /// the text still scrubs along it instead of jumping to the end.
+    fn place_cursor(&mut self, pos: (f32, f32)) {
+        let inner = &mut self.1.0.inner;
+        let lh = inner.spans.first().map(|s| s.line_height.unwrap_or(s.font_size * 1.25)).unwrap_or(1.0);
+        let lines = inner.len().max(1);
+        let line = ((pos.1 / lh).floor().max(0.0) as usize).min(lines - 1);
+        inner.cursor_click(pos.0, line as f32 * lh + lh * 0.5);
+    }
+
+    /// Brings the laid-out text, cursor bar and magnifier in line with the
+    /// current text and scrub state, so they update in the same frame.
+    fn sync(&mut self) {
+        let text = &mut self.1.0;
+        text.inner.spans.iter_mut().zip(&text.spans).for_each(|(span, s)| {
+            if span.text != *s { span.text = s.clone(); }
+        });
+
+        if self.1.0.inner.cursor.is_some() {
+            let cursor_pos = self.1.0.inner.cursor_position();
+            *self.2.x_offset() = Offset::Static(cursor_pos.0);
+            *self.2.y_offset() = Offset::Static(cursor_pos.1+2.0);
+        }
+
+        self.3.active = self.4.active;
+        self.3.text = self.1.0.inner.clone();
     }
 }
 
@@ -159,15 +235,14 @@ fn byte_index(text: &str, char_index: usize) -> usize {
 
 impl OnEvent for TextEditor {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() && self.1.0.inner.cursor.is_some() {
-            let cursor_pos = self.1.0.inner.cursor_position();
-            *self.2.x_offset() = Offset::Static(cursor_pos.0);
-            *self.2.y_offset() = Offset::Static(cursor_pos.1+2.0);
-        } else if let Some(event) = event.downcast_ref::<MouseEvent>() && let Some(pos) = event.position {
-            match event.state {
-                MouseState::Pressed(_) => self.1.0.inner.cursor_click(pos.0, pos.1),
-                _ => {}
+        if event.downcast_ref::<TickEvent>().is_some() {
+            // A press held long enough becomes a scrub.
+            if let Some(t) = self.4.pressed_at && !self.4.active && t.elapsed() >= SCRUB_HOLD {
+                self.4.active = true;
+                let pointer = self.4.pointer;
+                self.place_cursor(pointer);
             }
+            self.sync();
         } else if let Some(KeyboardEvent{state: KeyboardState::Pressed | KeyboardState::Repeated, key, ..}) = event.downcast_ref() {
             let character = match key {
                 Key::Character(c) => Some(c.clone()),
@@ -199,10 +274,9 @@ impl OnEvent for TextEditor {
             };
 
             self.1.0.inner.cursor = Some(cursor);
-
-            // (self.3)(ctx, &mut self.1.0.spans[0])
+            self.sync();
         }
-        
+
         vec![event]
     }
 }
@@ -265,3 +339,84 @@ impl TextCursor {
 // //         )
 // //     }
 // // }
+
+const SCRUB_HOLD: Duration = Duration::from_millis(300);
+const SCRUB_CANCEL_DISTANCE: f32 = 10.0;
+const DESKTOP_DRAG_START: f32 = 3.0;
+const ZOOM: f32 = 1.5;
+const LENS_WIDTH: f32 = 120.0;
+const LENS_PADDING: f32 = 8.0;
+const LENS_GAP: f32 = 16.0;
+const LENS_RADIUS: f32 = 8.0;
+const LENS_EDGE: f32 = 4.0;
+
+#[derive(Debug, Clone, Default)]
+struct Scrub { pressed_at: Option<Instant>, pointer: (f32, f32), travel: f32, active: bool }
+
+/// A zoomed copy of the editor's text, drawn above the cursor while scrubbing.
+#[derive(Debug, Clone)]
+pub struct Magnifier {
+    text: BasicText,
+    active: bool,
+    background: canvas::Color,
+    outline: canvas::Color,
+    cursor: canvas::Color,
+}
+
+impl Magnifier {
+    fn new(theme: &Theme, style: TextStyle, text: BasicText) -> Self {
+        let colors = theme.colors();
+        Magnifier {
+            text,
+            active: false,
+            background: colors.get(ptsd::Background::Secondary).into(),
+            outline: colors.get(ptsd::Outline::Secondary).into(),
+            cursor: style.get(theme).0.into(),
+        }
+    }
+}
+
+impl Drawable for Magnifier {
+    // Mirror the text's request so prism always draws this child
+    // (it skips zero-size children) without changing the layout.
+    fn request_size(&self) -> RequestTree {
+        let h = self.text.size().1;
+        RequestTree(SizeRequest::new(0.0, h, f32::MAX, h), vec![])
+    }
+
+    fn draw(&self, _sized: &SizedTree, offset: (f32, f32), _bound: Rect) -> Vec<Instruction> {
+        if !self.active || self.text.cursor.is_none() { return vec![]; }
+        let Some(span) = self.text.spans.first() else { return vec![] };
+
+        let line_h = span.line_height.unwrap_or(span.font_size * 1.25);
+        let (cx, cy) = self.text.cursor_position();
+        let (w, h) = (LENS_WIDTH, line_h * ZOOM + 2.0 * LENS_PADDING);
+
+        // Lens sits centered over the cursor, just above its line.
+        let lens = ((offset.0 + cx - w / 2.0).max(LENS_EDGE), offset.1 + cy - h - LENS_GAP);
+        let center = (lens.0 + w / 2.0, lens.1 + h / 2.0);
+        let cursor_x = (offset.0 + cx).clamp(lens.0 + LENS_PADDING, lens.0 + w - LENS_PADDING);
+        let focus_y = cy + line_h / 2.0;
+
+        let mut zoomed = self.text.clone();
+        zoomed.cursor = None;
+        zoomed.scale(ZOOM);
+
+        let rect = |x: f32, y: f32, w: f32, h: f32, stroke: f32, radius: f32, color: canvas::Color| Instruction(
+            CanvasArea { offset: (x, y), bounds: None },
+            CanvasItem::Shape(CanvasShape { shape: ShapeType::RoundedRectangle(stroke, (w, h), 0.0, radius), color }),
+        );
+
+        let band = (lens.0, center.1 - line_h * ZOOM / 2.0, w, line_h * ZOOM);
+
+        vec![
+            rect(lens.0, lens.1, w, h, 0.0, LENS_RADIUS, self.background),
+            Instruction(
+                CanvasArea { offset: (cursor_x - cx * ZOOM, center.1 - focus_y * ZOOM), bounds: Some(band) },
+                CanvasItem::Text(zoomed),
+            ),
+            rect(cursor_x - 1.0, center.1 - line_h * ZOOM / 2.0, 2.0, line_h * ZOOM, 0.0, 0.0, self.cursor),
+            rect(lens.0, lens.1, w, h, 1.0, LENS_RADIUS, self.outline),
+        ]
+    }
+}

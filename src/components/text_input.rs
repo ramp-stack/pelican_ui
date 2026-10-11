@@ -168,10 +168,49 @@ impl _InputContent {
         self.default.inner().inner().set_text(value);
         self.value = value.to_string();
     }
+
+    /// Where the editor sits inside this row, and its size: row → Opt → Bin → TextEditor.
+    /// `None` while the editor is hidden (placeholder showing).
+    fn editor_area(sized: &SizedTree) -> Option<((f32, f32), (f32, f32))> {
+        let (o1, opt) = sized.1.first()?;
+        let (o2, bin) = opt.1.first()?;
+        let (o3, editor) = bin.1.first()?;
+        Some(((o1.0 + o2.0 + o3.0, o1.1 + o2.1 + o3.1), editor.0))
+    }
+
+    /// Forwards pointer input to the editor in its own coordinates, so presses
+    /// anywhere in the field place the cursor and drags scrub it.
+    fn forward_pointer(&mut self, sized: &SizedTree, mouse: &event::MouseEvent) {
+        let Some((origin, size)) = Self::editor_area(sized) else { return };
+        let local = mouse.position.map(|p| (p.0 - origin.0, p.1 - origin.1));
+        let editor = self.default.inner().inner();
+
+        match mouse.state {
+            // Presses on the button (right of the editor) are left to the button.
+            event::MouseState::Pressed(event::MouseButton::Left) => {
+                if let Some(p) = local && p.0 >= -origin.0 && p.0 <= size.0 {
+                    editor.pointer_pressed(p);
+                }
+            }
+            event::MouseState::Moved => editor.pointer_moved(local, None),
+            // Touch drags arrive as scroll deltas (negated finger movement); they keep
+            // coming even after the finger leaves the field, so tracking continues.
+            event::MouseState::Scroll(dx, dy) if crate::IS_MOBILE => editor.pointer_moved(local, Some((-dx, -dy))),
+            event::MouseState::Released(_) => editor.pointer_released(),
+            _ => {}
+        }
+    }
 }
 
 impl OnEvent for _InputContent {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        // The editor's hit area is only its text line, so cursor placement and
+        // scrubbing are handled here, where presses anywhere in the field arrive.
+        if let Some(mouse) = event.downcast_ref::<event::MouseEvent>() {
+            self.forward_pointer(sized, mouse);
+            return vec![event];
+        }
+
         // Inside a `Content`, these two events are routed to a single input (see
         // `Content::on_event`). They only arrive here unrouted for inputs outside
         // a `Content`, such as the bumper's message input.
