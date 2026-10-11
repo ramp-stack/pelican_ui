@@ -26,8 +26,8 @@ impl OnEvent for SearchBar {
 }
 
 impl SearchBar {
-    pub fn new(theme: &Theme, items: Vec<(ListItem, Name)>, actions: Option<QuickActions>) -> Self {
-        let input = TextInput::new(theme, None, None, None, None, None);
+    pub fn new(theme: &Theme, label: &str, items: Vec<(ListItem, Name)>, actions: Option<QuickActions>) -> Self {
+        let input = TextInput::new(theme, None, None, Some(&format!("Search {}...", label.to_lowercase())), None, None);
         SearchBar(Column::start(12.0), input, actions, SelectedItems::new(theme, vec![]), SearchableItems::new(theme, items), String::new())
     }
 
