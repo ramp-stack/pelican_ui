@@ -1,6 +1,6 @@
 use prism::event::{OnEvent, TickEvent, Event, self};
 use prism::canvas::Align;
-use prism::drawable::{Component, SizedTree};
+use prism::drawable::{Component, SizedTree, Drawable};
 use prism::{Context};
 use prism::layout::{Padding, Column, Offset, Size, Row, Stack, Area};
 use prism::display::{EitherOr, Opt, Bin};
@@ -46,6 +46,7 @@ pub struct TextInput {
 }
 
 type InputCallback = Arc<Mutex<dyn FnMut(&mut Context, &mut String) + 'static>>;
+type ValidTextCallback = Arc<Mutex<dyn FnMut(&mut Context, &mut String) -> bool + 'static>>;
 
 impl TextInput {
     pub fn new(
@@ -54,7 +55,7 @@ impl TextInput {
         label: Option<&str>,
         placeholder: Option<&str>,
         mut help_text: Option<&str>,
-        icon_button: Option<(Icons, InputCallback)>,
+        icon_button: Option<(Icons, InputCallback, ValidTextCallback)>,
         // on_edit: impl FnMut(&mut Context, &mut String) + 'static,
     ) -> Self {
         let background = |bg: Color, o: Color| Rectangle::new(bg, 8.0, Some((1.0, o)));
@@ -128,6 +129,7 @@ struct _InputContent {
     #[skip] pub value: String,
     #[skip] on_submit: Option<InputCallback>,
     #[skip] is_focused: bool,
+    #[skip] is_valid: Option<ValidTextCallback>,
 }
 
 impl std::fmt::Debug for _InputContent { 
@@ -141,12 +143,12 @@ impl _InputContent {
         theme: &Theme,
         value: Option<&str>,
         placeholder: Option<&str>,
-        button: Option<(Icons, InputCallback)>,
+        button: Option<(Icons, InputCallback, ValidTextCallback)>,
     ) -> Self {
-        let (button, on_submit) = button.map(|(icon, cb)| {
+        let (button, on_submit, is_valid) = button.map(|(icon, cb, vtc)| {
             let btn = SecondaryIconButton::medium(theme, icon, |ctx: &mut Context, _: &Theme| ctx.emit(TextInputEvent::Submit));
-            (Some(btn), Some(cb))
-        }).unwrap_or((None, None));
+            (Some(btn), Some(cb), Some(vtc))
+        }).unwrap_or((None, None, None));
         
         let default = TextEditor::new(theme, value.unwrap_or_default(), TextSize::Md, TextStyle::Primary, Align::Left); 
         let empty = ExpandableText::new(theme, placeholder.unwrap_or("Enter text..."), TextSize::Md, TextStyle::Secondary, Align::Left, None);
@@ -158,6 +160,7 @@ impl _InputContent {
             value: value.unwrap_or_default().to_string(), 
             on_submit,
             is_focused: false,
+            is_valid,
         }
     }
 
@@ -178,6 +181,7 @@ impl OnEvent for _InputContent {
             && let Some(event::KeyboardEvent{key: event::Key::Enter, state: event::KeyboardState::Pressed, ..}) = event.downcast_ref::<event::KeyboardEvent>()
         {
             ctx.emit(TextInputEvent::Submit);
+            return vec![];
         } else if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
             self.set_value(data);
         // } else if let Some(HardwareEvent::Clipboard(data)) = event.downcast_ref::<HardwareEvent>() {
@@ -189,6 +193,11 @@ impl OnEvent for _InputContent {
             if crate::IS_MOBILE {ctx.emit(crate::interface::general::InterfaceEvent::FocusTextInput(*x));}
             // println!("FOCUSED {:?}", self.is_focused);
         } else if event.downcast_ref::<TickEvent>().is_some() {
+            if let Some(is_valid) = &mut self.is_valid 
+            && let Ok(mut cb) = is_valid.lock() {
+                let result = (cb)(ctx, &mut self.value);
+                self.button.as_mut().unwrap().1.disable(result);
+            }
             // if let Some(i) = ctx.state.get::<TextInputState>() {
             //     if i.0 == self.state_name {
             //         self.default.inner().inner().1.0.spans[0] = i.1.to_string();

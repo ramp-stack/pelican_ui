@@ -168,7 +168,7 @@ impl OnEvent for TextEditor {
                 MouseState::Pressed(_) => self.1.0.inner.cursor_click(pos.0, pos.1),
                 _ => {}
             }
-        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed, key, ..}) = event.downcast_ref() {
+        } else if let Some(KeyboardEvent{state: KeyboardState::Pressed | KeyboardState::Repeated, key, ..}) = event.downcast_ref() {
             let character = match key {
                 Key::Character(c) => Some(c.clone()),
                 Key::Enter => Some("\n".to_string()),

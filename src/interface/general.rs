@@ -457,8 +457,8 @@ impl Bumper {
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }
 
-    pub fn input(theme: &Theme, placeholder: &str, on_submit: impl FnMut(&mut Context, &mut String) + 'static) -> Self {
-        let content = TextInput::new(theme, None, None, Some(placeholder), None, Some((Icons::Send, Arc::new(Mutex::new(on_submit)))));
+    pub fn input(theme: &Theme, placeholder: &str, on_submit: impl FnMut(&mut Context, &mut String) + 'static, valid: impl FnMut(&mut Context, &mut String) -> bool + 'static) -> Self {
+        let content = TextInput::new(theme, None, None, Some(placeholder), None, Some((Icons::Send, Arc::new(Mutex::new(on_submit)), Arc::new(Mutex::new(valid)))));
         let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }

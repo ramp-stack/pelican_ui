@@ -1,9 +1,10 @@
-use prism::event::{self, KeyboardState, KeyboardEvent, OnEvent, Event, Modifiers};
+use prism::event::{self, MouseEvent, TickEvent, KeyboardState, KeyboardEvent, OnEvent, Event, Modifiers, MouseState, MouseButton};
 use prism::canvas::{Align, Image};
 use prism::{emitters, Context};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::layout::{Layout, Wrap, Stack, Column, Row, Offset, Size, Padding, Area};
 use prism::display::{Bin, Enum};
+use std::time::{Duration, Instant};
 
 use ptsd::interfaces::ShowKeyboard;
 use ptsd::interactions;
@@ -13,6 +14,14 @@ use crate::theme::{Theme, Color, Icons};
 use crate::components::text::{Text, TextStyle, TextSize};
 use crate::components::{Rectangle, Icon};
 use crate::components::button::GhostIconButton;
+
+const REPEAT_DELAY: Duration = Duration::from_millis(500);
+const REPEAT_INTERVAL: Duration = Duration::from_millis(80);
+const FAST_AFTER: Duration = Duration::from_millis(2000);
+const FAST_INTERVAL: Duration = Duration::from_millis(35);
+
+#[derive(Debug, Clone, Default)]
+struct HoldRepeat { started: Option<Instant>, last: Option<Instant> }
 
 lazy_static::lazy_static! {
     pub(crate) static ref EMOJIS: Vec<String> = include_str!("../../emoji.txt").lines().map(str::to_owned).collect();
@@ -238,42 +247,69 @@ impl KeyboardIcons {
 }
 
 #[derive(Debug, Component, Clone)]
-struct Key(Stack, interactions::Button);
-impl OnEvent for Key {}
+struct Key(Stack, interactions::Button, #[skip] Option<HoldRepeat>);
+
+impl OnEvent for Key {
+    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if let Some(hold) = &mut self.2 {
+            if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
+                match mouse.state {
+                    MouseState::Pressed(MouseButton::Left) if mouse.position.is_some() => {
+                        *hold = HoldRepeat { started: Some(Instant::now()), last: None };
+                    }
+                    // Stop on release anywhere, or when the finger slides off the key.
+                    MouseState::Released(_) => *hold = HoldRepeat::default(),
+                    MouseState::Moved if mouse.position.is_none() => *hold = HoldRepeat::default(),
+                    _ => {}
+                }
+            } else if event.downcast_ref::<TickEvent>().is_some()
+                && let Some(started) = hold.started
+            {
+                let held = started.elapsed();
+                let interval = if held >= FAST_AFTER { FAST_INTERVAL } else { REPEAT_INTERVAL };
+                if held >= REPEAT_DELAY && hold.last.is_none_or(|t| t.elapsed() >= interval) {
+                    hold.last = Some(Instant::now());
+                    ctx.emit(KeyboardEvent{key: event::Key::Delete, state: KeyboardState::Pressed, modifiers: Modifiers::default()});
+                }
+            }
+        }
+        vec![event]
+    }
+}
 impl Key {
     fn character(theme: &Theme, character: char) -> Self {
         let default = _Key::character(theme, &character.to_string(), ButtonState::Default, true);
         let pressed = _Key::character(theme, &character.to_string(), ButtonState::Pressed, true);
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Character(character.to_string()), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit character
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
     }
 
     fn emoji_character(theme: &Theme, emoji: String) -> Self {
         let default = _Key::character(theme, &emoji, ButtonState::Default, false);
         let pressed = _Key::character(theme, &emoji, ButtonState::Pressed, false);
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Character(emoji.to_string()), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit character
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
     }
 
     fn spacebar(theme: &Theme, caps_on: bool) -> Self {
         let default = _Key::spacebar(theme, caps_on, ButtonState::Default);
         let pressed = _Key::spacebar(theme, caps_on, ButtonState::Pressed);
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Space, state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit space
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
     }
 
     fn newline(theme: &Theme, caps_on: bool) -> Self {
         let default = _Key::newline(theme, caps_on, ButtonState::Default);
         let pressed = _Key::newline(theme, caps_on, ButtonState::Pressed);
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Enter, state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit newline
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
     }
 
     fn backspace(theme: &Theme) -> Self {
         let default = _Key::backspace(theme, ButtonState::Default);
         let pressed = _Key::backspace(theme, ButtonState::Pressed);
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Delete, state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit delete
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), Some(HoldRepeat::default()))
     }
 
     fn capslock(theme: &Theme, state: ButtonState) -> Self {
@@ -283,7 +319,7 @@ impl Key {
             ButtonState::Default => true,
         })));
 
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false), None)
     }
 
     /// `state` only sets the look (highlighted while the emoji panel is open).
@@ -291,7 +327,7 @@ impl Key {
         let default = _Key::emoji(theme, state);
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(MobileKeyboardEvent::ToggleEmoji));
 
-        Key(Stack::default(), interactions::Button::new_triggers_on_release(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false))
+        Key(Stack::default(), interactions::Button::new_triggers_on_release(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false), None)
     }
 }
 

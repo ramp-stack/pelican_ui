@@ -243,9 +243,9 @@ impl Button {
                 resources.insert(Button(Secondary, Pressed, Background), Color::from_hex("#262322", 255));
                 resources.insert(Button(Secondary, Pressed, Label), Color::WHITE);
                 resources.insert(Button(Secondary, Pressed, Outline), Color::WHITE);
-                resources.insert(Button(Secondary, Disabled, Background), Color::from_hex("#443f3f", 255));
-                resources.insert(Button(Secondary, Disabled, Label), Color::BLACK);
-                resources.insert(Button(Secondary, Disabled, Outline), Color::from_hex("#585250", 255));
+                resources.insert(Button(Secondary, Disabled, Background), Color::TRANSPARENT);
+                resources.insert(Button(Secondary, Disabled, Label), Color::from_hex("#443f3f", 255));
+                resources.insert(Button(Secondary, Disabled, Outline), Color::from_hex("#443f3f", 255));
                 resources.insert(Button(Ghost, Default, Background), Color::TRANSPARENT);
                 resources.insert(Button(Ghost, Default, Label), Color::WHITE);
                 resources.insert(Button(Ghost, Default, Outline), Color::TRANSPARENT);
