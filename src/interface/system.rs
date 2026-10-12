@@ -1,5 +1,5 @@
-use prism::event::{self, MouseEvent, TickEvent, KeyboardState, KeyboardEvent, OnEvent, Event, Modifiers, MouseState, MouseButton};
-use prism::canvas::{Align, Image};
+use prism::event::{self, MouseEvent, TickEvent, KeyboardState, KeyboardEvent, OnEvent, Event, Modifiers, MouseState, MouseButton, PickedPhoto};
+use prism::canvas::{Align, Image, ShapeType};
 use prism::{emitters, Context};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::layout::{Layout, Stack, Column, Row, Offset, Size, Padding, Area};
@@ -9,10 +9,12 @@ use std::time::{Duration, Instant};
 use ptsd::interfaces::ShowKeyboard;
 use ptsd::interactions;
 
+use maverick_os::air::Instance;
+
 use crate::theme::{Theme, Color, Icons};
 
 use crate::components::text::{Text, TextStyle, TextSize};
-use crate::components::{Rectangle, Icon};
+use crate::components::{Rectangle, Icon, Sticker, StickerEvent, StickerPack, StickerPackAction};
 use crate::components::button::GhostIconButton;
 
 const REPEAT_DELAY: Duration = Duration::from_millis(500);
@@ -23,15 +25,25 @@ const FAST_INTERVAL: Duration = Duration::from_millis(35);
 #[derive(Debug, Clone, Default)]
 struct HoldRepeat { started: Option<Instant>, last: Option<Instant> }
 
+/// Fields after the Enum: caps on, current page of letter keys, which
+/// keyboard page is showing (letters, emoji or stickers), theme.
+///
+/// The key layout is rebuilt whenever caps or the page changes, so the caps-lock
+/// and page keys always match the real state. The emoji and sticker pages are
+/// built once and keep their place while the letter keys are showing.
 #[derive(Component, Debug, Clone)]
-pub struct MobileKeyboard(Stack, Rectangle, Enum<KeyboardContent>, #[skip] bool, #[skip] usize, #[skip] bool, #[skip] Theme);
+pub struct MobileKeyboard(Stack, Rectangle, Enum<KeyboardContent>, #[skip] bool, #[skip] usize, #[skip] KeyboardPage, #[skip] Theme);
+
+/// The keyboard's pages: letter keys, emoji, or stickers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KeyboardPage { Keys, Emoji, Stickers }
 
 impl OnEvent for MobileKeyboard {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         // Caps works as a one-shot shift: it turns off after a character is typed.
-        // Typing on the emoji panel doesn't leave it.
+        // Typing on the emoji page doesn't leave it.
         if let Some(KeyboardEvent{key: event::Key::Character(_), state: KeyboardState::Pressed, ..}) = event.downcast_ref::<KeyboardEvent>()
-            && self.3 && !self.5 {
+            && self.3 && self.5 == KeyboardPage::Keys {
             self.3 = false;
             self.show_keys(ctx);
         }
@@ -46,10 +58,8 @@ impl OnEvent for MobileKeyboard {
                     self.3 = *caps;
                     self.show_keys(ctx);
                 },
-                MobileKeyboardEvent::ToggleEmoji => {
-                    self.5 = !self.5;
-                    if self.5 { self.2.display("emoji"); } else { self.show_keys(ctx); }
-                },
+                MobileKeyboardEvent::ToggleEmoji => self.toggle(ctx, KeyboardPage::Emoji),
+                MobileKeyboardEvent::ToggleStickers => self.toggle(ctx, KeyboardPage::Stickers),
                 // Handled by the emoji panel.
                 MobileKeyboardEvent::EmojiCategory(_) => {},
             }
@@ -66,31 +76,51 @@ impl MobileKeyboard {
         let e = Enum::<KeyboardContent>::new(vec![
             ("keys".to_string(), KeyboardContent::new(ctx, theme, 0, false)),
             ("emoji".to_string(), KeyboardContent::emoji(ctx, theme)),
+            ("stickers".to_string(), KeyboardContent::stickers(ctx, theme)),
         ], "keys".to_string());
 
         MobileKeyboard(
             Stack(Offset::Start, Offset::Start, Size::Fill, height, Padding::default()),
             Rectangle::new(color, 0.0, None),
-            e, false, 0, false, theme.clone()
+            e, false, 0, KeyboardPage::Keys, theme.clone()
         )
+    }
+
+    /// Opens the emoji or sticker page, or goes back to the letter keys if
+    /// it's already open.
+    fn toggle(&mut self, ctx: &mut Context, page: KeyboardPage) {
+        if self.5 == page { return self.show_keys(ctx); }
+        self.5 = page;
+        self.2.display(match page {
+            KeyboardPage::Keys => "keys",
+            KeyboardPage::Emoji => "emoji",
+            KeyboardPage::Stickers => "stickers",
+        });
     }
 
     /// Shows the key layout for the current page and caps state.
     fn show_keys(&mut self, ctx: &mut Context) {
-        self.5 = false;
+        self.5 = KeyboardPage::Keys;
         self.2.display("keys");
         *self.2.drawable().inner() = KeyboardContent::new(ctx, &self.6, self.4, self.3);
     }
 }
 
+/// Header, then the 4 rows of letter keys, the emoji page or the sticker
+/// page, then the safe area below.
 #[derive(Component, Debug, Clone)]
-struct KeyboardContent(Column, KeyboardHeader, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Option<EmojiPanel>, Bin<Stack, Rectangle>, #[skip] Theme);
+struct KeyboardContent(Column, KeyboardHeader, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Option<EmojiPanel>, Option<StickerPanel>, Bin<Stack, Rectangle>, #[skip] Theme);
 
 impl OnEvent for KeyboardContent {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() && let Some(panel) = &self.6 {
-            let (category, page) = panel.label();
-            self.1.set_label(&category, &page);
+        // Show the emoji category or "Stickers", and the page, in the header.
+        if event.downcast_ref::<TickEvent>().is_some() {
+            let label = match (&self.6, &self.7) {
+                (Some(panel), _) => Some(panel.label()),
+                (_, Some(panel)) => Some(panel.label()),
+                _ => None,
+            };
+            if let Some((title, page)) = label { self.1.set_label(&title, &page); }
         }
         vec![event]
     }
@@ -104,11 +134,12 @@ impl KeyboardContent {
 
         KeyboardContent(
             Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
-            KeyboardHeader::new(theme, false),
+            KeyboardHeader::new(theme, KeyboardPage::Keys),
             Some(KeyboardRow::top(theme, page, caps)),
             Some(KeyboardRow::middle(theme, page, caps)),
             Some(KeyboardRow::bottom(theme, page, caps)),
             Some(KeyboardRow::modifier(theme, page, caps)),
+            None,
             None,
             Bin(layout, Rectangle::new(color, 0.0, None)),
             theme.clone()
@@ -122,12 +153,32 @@ impl KeyboardContent {
 
         KeyboardContent(
             Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
-            KeyboardHeader::new(theme, true),
+            KeyboardHeader::new(theme, KeyboardPage::Emoji),
             None,
             None,
             None,
             None,
             Some(EmojiPanel::new(theme)),
+            None,
+            Bin(layout, Rectangle::new(color, 0.0, None)),
+            theme.clone()
+        )
+    }
+
+    pub fn stickers(ctx: &mut Context, theme: &Theme) -> Self {
+        let color = theme.colors().get(ptsd::Background::Secondary);
+        let (b, _, _, _) = ctx.get_safe_area();
+        let layout = Stack(Offset::Start, Offset::Start, Size::Fill, Size::Static(b), Padding::default());
+
+        KeyboardContent(
+            Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
+            KeyboardHeader::new(theme, KeyboardPage::Stickers),
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(StickerPanel::new(theme)),
             Bin(layout, Rectangle::new(color, 0.0, None)),
             theme.clone()
         )
@@ -191,10 +242,10 @@ struct KeyboardHeader(Column, KeyboardIcons, Bin<Stack, Rectangle>);
 impl OnEvent for KeyboardHeader {}
 
 impl KeyboardHeader {
-    fn new(theme: &Theme, emoji_on: bool) -> Self {
+    fn new(theme: &Theme, page: KeyboardPage) -> Self {
         let layout = Stack(Offset::default(), Offset::default(), Size::Fit, Size::Static(1.0), Padding(0.0,0.0,0.0,2.0));
         KeyboardHeader(Column::start(0.0),
-            KeyboardIcons::new(theme, emoji_on),
+            KeyboardIcons::new(theme, page),
             Bin(layout, Rectangle::new(theme.colors().get(ptsd::Outline::Secondary), 0.0, None))
         )
     }
@@ -202,16 +253,18 @@ impl KeyboardHeader {
     fn set_label(&mut self, title: &str, detail: &str) { self.1.set_label(title, detail); }
 }
 
+/// The emoji and sticker buttons, the label, and the button that hides the keyboard.
 #[derive(Component, Debug, Clone)]
-struct KeyboardIcons(Row, Key, Bin<Stack, HeaderLabel>, GhostIconButton);
+struct KeyboardIcons(Row, Key, Key, Bin<Stack, HeaderLabel>, GhostIconButton);
 impl OnEvent for KeyboardIcons {}
 impl KeyboardIcons {
-    fn new(theme: &Theme, emoji_on: bool) -> Self {
-        let emoji_state = if emoji_on {ButtonState::Pressed} else {ButtonState::Default};
+    fn new(theme: &Theme, page: KeyboardPage) -> Self {
+        let state = |on: bool| if on {ButtonState::Pressed} else {ButtonState::Default};
         KeyboardIcons(
             Row::new(16.0, Offset::Start, Size::Fit, Padding(12.0, 6.0, 12.0, 6.0)),
             // icons.then(|| KeyboardActions(Stack::default(), actions)),
-            Key::emoji(theme, emoji_state),
+            Key::page_button(theme, Icons::Emoji, state(page == KeyboardPage::Emoji), MobileKeyboardEvent::ToggleEmoji),
+            Key::page_button(theme, Icons::Sticker, state(page == KeyboardPage::Stickers), MobileKeyboardEvent::ToggleStickers),
             // Fills the space between the keys; shows the emoji category and page.
             Bin(
                 Stack(Offset::Start, Offset::Center, Size::Fill, Size::Static(48.0), Padding::default()),
@@ -225,7 +278,7 @@ impl KeyboardIcons {
     }
 
     fn set_label(&mut self, title: &str, _detail: &str) {
-        let label = &mut self.2.1;
+        let label = &mut self.3.1;
         if label.1.spans[0] != title { label.1.spans[0] = title.to_string(); }
         // if label.2.spans[0] != detail { label.2.spans[0] = detail.to_string(); }
     }
@@ -300,7 +353,7 @@ impl Key {
     fn backspace(theme: &Theme) -> Self { Self::backspace_sized(theme, 48.0) }
 
     /// Backspace for the emoji panel's 48px tab row.
-    fn backspace_compact(theme: &Theme) -> Self { Self::backspace_sized(theme, 48.0 - 12.0) }
+    fn backspace_compact(theme: &Theme) -> Self { Self::backspace_sized(theme, EMOJI_ROW_HEIGHT - 12.0) }
 
     fn backspace_sized(theme: &Theme, height: f32) -> Self {
         let default = _Key::backspace(theme, ButtonState::Default, height);
@@ -319,10 +372,11 @@ impl Key {
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false), None)
     }
 
-    /// `state` only sets the look (highlighted while the emoji panel is open).
-    fn emoji(theme: &Theme, state: ButtonState) -> Self {
-        let default = _Key::emoji(theme, state);
-        let callback = Box::new(move |ctx: &mut Context| ctx.emit(MobileKeyboardEvent::ToggleEmoji));
+    /// A header button that opens a keyboard page (emoji or stickers).
+    /// `state` only sets the look (highlighted while its page is open).
+    fn page_button(theme: &Theme, icon: Icons, state: ButtonState, event: MobileKeyboardEvent) -> Self {
+        let default = _Key::page_button(theme, icon, state);
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(event.clone()));
 
         Key(Stack::default(), interactions::Button::new_triggers_on_release(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false), None)
     }
@@ -355,7 +409,7 @@ enum _Key {
     Backspace {layout: Stack, background: Rectangle, icon: Image},
     Paginator {layout: Stack, background: Rectangle, content: Box<PaginatorContent>},
     Newline {layout: Stack, background: Rectangle, text: Text},
-    Emoji {layout: Stack, icon: Image}
+    PageButton {layout: Stack, icon: Image}
 }
 
 impl OnEvent for _Key {}
@@ -416,15 +470,15 @@ impl _Key {
         }
     }
 
-    fn emoji(theme: &Theme, state: ButtonState) -> Self {
+    fn page_button(theme: &Theme, icon: Icons, state: ButtonState) -> Self {
         let color = match state {
             ButtonState::Default => Color::WHITE,
             ButtonState::Pressed => theme.colors().get(ptsd::colors::Text::Secondary),
         };
 
-        _Key::Emoji {
+        _Key::PageButton {
             layout: Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding(3.0, 6.0, 3.0, 6.0)),
-            icon: Icon::new(theme, Icons::Emoji, Some(color), 36.0),
+            icon: Icon::new(theme, icon, Some(color), 36.0),
         }
     }
 
@@ -577,6 +631,7 @@ enum MobileKeyboardEvent {
     Capslock(bool),
     Paginator(usize),
     ToggleEmoji,
+    ToggleStickers,
     /// Show the first page of this emoji category.
     EmojiCategory(usize),
 }
@@ -587,16 +642,50 @@ impl Event for MobileKeyboardEvent {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Emoji and sticker pages
+//
+// Each shows one page of cells at a time, in a fixed grid, and turns pages
+// with a sideways swipe. Only the visible page is built, so a page costs the
+// same however many emoji or stickers there are, and both are exactly as tall
+// as the letter keys.
+// ---------------------------------------------------------------------------
+
+/// The emoji grid is 4 rows of 48px plus the 48px tab row: the same 240px as
+/// the 4 rows of letter keys, so the keyboard doesn't change height.
+const EMOJI_COLUMNS: usize = 8;
+const EMOJI_ROWS: usize = 4;
+const EMOJI_ROW_HEIGHT: f32 = 48.0;
+const EMOJIS_PER_PAGE: usize = EMOJI_COLUMNS * EMOJI_ROWS;
+
+/// The sticker grid is 3 rows of 80px: the same 240px again.
+const STICKER_COLUMNS: usize = 4;
+const STICKER_ROWS: usize = 3;
+const STICKER_ROW_HEIGHT: f32 = 80.0;
+const STICKERS_PER_PAGE: usize = STICKER_COLUMNS * STICKER_ROWS;
+/// Sticker size on the page. 4 of these fit across the narrowest phones.
+const STICKER_IMAGE: f32 = 72.0;
+const STICKER_TITLE: &str = "Stickers";
+
+/// A press that moves less than this is a tap.
+const TAP_SLOP: f32 = 12.0;
+/// Sideways travel that turns the page.
+const SWIPE_DISTANCE: f32 = 40.0;
+
 struct EmojiCategory { name: String, icon: &'static str, emojis: Vec<String> }
 
 lazy_static::lazy_static! {
     static ref EMOJI_CATEGORIES: Vec<EmojiCategory> = parse_emoji_categories(include_str!("../../emoji.txt"));
 
+    /// Every page as (category, index of its first emoji). Pages never span
+    /// categories, so each category starts on a fresh page.
     static ref EMOJI_PAGES: Vec<(usize, usize)> = EMOJI_CATEGORIES.iter().enumerate()
-        .flat_map(|(c, category)| (0..category.emojis.len()).step_by(32).map(move |start| (c, start)))
+        .flat_map(|(c, category)| (0..category.emojis.len()).step_by(EMOJIS_PER_PAGE).map(move |start| (c, start)))
         .collect();
 }
 
+/// The tab icon for each emoji-test.txt group. `None` for "Component"
+/// (skin tones and hair styles on their own), which isn't shown.
 fn category_icon(group: &str) -> Option<&'static str> {
     Some(match group {
         "Smileys & Emotion" => "😀",
@@ -612,6 +701,8 @@ fn category_icon(group: &str) -> Option<&'static str> {
     })
 }
 
+/// Reads Unicode's emoji-test.txt into its groups, in its (CLDR) order,
+/// keeping fully-qualified emoji and leaving out skin-tone variants.
 fn parse_emoji_categories(contents: &str) -> Vec<EmojiCategory> {
     let mut categories: Vec<EmojiCategory> = Vec::new();
     let mut in_category = false;
@@ -641,97 +732,47 @@ fn parse_emoji_categories(contents: &str) -> Vec<EmojiCategory> {
     categories
 }
 
+/// The emoji page: a page of emoji and a row of category tabs.
+/// Swipe the grid sideways to turn pages; tap a tab to jump to its category.
 #[derive(Component, Debug, Clone)]
-struct EmojiPanel(Column, EmojiGrid, EmojiTabs, #[skip] usize, #[skip] Option<EmojiTouch>, #[skip] Theme);
-
-#[derive(Debug, Clone, Copy)]
-struct EmojiTouch { cell: Option<(usize, usize)>, last: (f32, f32), travel: (f32, f32) }
+struct EmojiPanel {
+    layout: Column,
+    grid: PanelGrid,
+    tabs: EmojiTabs,
+    #[skip] page: usize,
+    #[skip] touch: Option<PanelTouch>,
+    #[skip] theme: Theme,
+}
 
 impl EmojiPanel {
     fn new(theme: &Theme) -> Self {
-        EmojiPanel(
-            Column::new(0.0, Offset::Center, Size::Fill, Padding::default(), None),
-            EmojiGrid::new(theme, 0),
-            EmojiTabs::new(theme, 0),
-            0, None, theme.clone(),
-        )
+        EmojiPanel {
+            layout: Column::new(0.0, Offset::Center, Size::Fill, Padding::default(), None),
+            grid: PanelGrid::emoji(theme, 0),
+            tabs: EmojiTabs::new(theme, 0),
+            page: 0,
+            touch: None,
+            theme: theme.clone(),
+        }
     }
 
-    fn category(&self) -> usize { EMOJI_PAGES[self.3].0 }
+    fn category(&self) -> usize { EMOJI_PAGES[self.page].0 }
 
     fn show_page(&mut self, page: usize) {
-        if page == self.3 || page >= EMOJI_PAGES.len() { return; }
+        if page == self.page || page >= EMOJI_PAGES.len() { return; }
         let category = self.category();
-        self.3 = page;
-        self.4 = None;
-        self.1 = EmojiGrid::new(&self.5, page);
-        if self.category() != category { self.2 = EmojiTabs::new(&self.5, self.category()); }
+        self.page = page;
+        self.touch = None;
+        self.grid = PanelGrid::emoji(&self.theme, page);
+        if self.category() != category { self.tabs = EmojiTabs::new(&self.theme, self.category()); }
     }
 
+    /// The category's name, and this page's number out of the category's pages.
     fn label(&self) -> (String, String) {
-        let (c, start) = EMOJI_PAGES[self.3];
+        let (c, start) = EMOJI_PAGES[self.page];
         let category = &EMOJI_CATEGORIES[c];
-        let pages = category.emojis.len().div_ceil(32);
-        (category.name.clone(), format!("{}/{}", start / 32 + 1, pages))
-    }
-
-    fn cell_at(sized: &SizedTree, pos: (f32, f32)) -> Option<(usize, usize)> {
-        let contains = |offset: (f32, f32), size: (f32, f32), p: (f32, f32)|
-            p.0 >= offset.0 && p.0 < offset.0 + size.0 && p.1 >= offset.1 && p.1 < offset.1 + size.1;
-
-        let (grid_offset, grid) = sized.1.first()?;
-        let p = (pos.0 - grid_offset.0, pos.1 - grid_offset.1);
-        grid.1.iter().enumerate().find_map(|(r, (row_offset, row))| {
-            let p = (p.0 - row_offset.0, p.1 - row_offset.1);
-            row.1.iter().position(|(cell_offset, cell)| contains(*cell_offset, cell.0, p)).map(|c| (r, c))
-        })
-    }
-
-    fn highlight(&mut self, cell: Option<(usize, usize)>, on: bool) {
-        if let Some(cell) = cell.and_then(|c| self.1.cell(c)) { cell.1.display(on); }
-    }
-
-    fn on_touch(&mut self, ctx: &mut Context, sized: &SizedTree, mouse: &MouseEvent) {
-        match mouse.state {
-            MouseState::Pressed(MouseButton::Left) => {
-                let on_grid = |p: (f32, f32)| sized.1.first().is_some_and(|(o, grid)| p.1 >= o.1 && p.1 < o.1 + grid.0.1);
-                self.4 = mouse.position.filter(|p| on_grid(*p)).map(|p| {
-                    let cell = Self::cell_at(sized, p).filter(|c| self.1.cell(*c).is_some_and(|cell| cell.3.is_some()));
-                    EmojiTouch { cell, last: p, travel: (0.0, 0.0) }
-                });
-                if let Some(touch) = self.4 { self.highlight(touch.cell, true); }
-            }
-            MouseState::Scroll(dx, dy) => if let Some(touch) = &mut self.4 {
-                touch.travel.0 -= dx;
-                touch.travel.1 -= dy;
-            },
-            MouseState::Moved => if let (Some(touch), Some(p)) = (&mut self.4, mouse.position) {
-                touch.travel.0 += p.0 - touch.last.0;
-                touch.travel.1 += p.1 - touch.last.1;
-                touch.last = p;
-            },
-            MouseState::Released(_) => if let Some(touch) = self.4.take() {
-                self.highlight(touch.cell, false);
-                let (dx, dy) = touch.travel;
-
-                if dx.abs() >= 40.0 && dx.abs() > dy.abs() {
-                    let page = if dx < 0.0 { self.3 + 1 } else { self.3.saturating_sub(1) };
-                    // if page != self.3 && page < EMOJI_PAGES.len() { ctx.trigger_haptic(); }
-                    self.show_page(page);
-                } else if dx.hypot(dy) < 12.0
-                    && let Some(emoji) = touch.cell.and_then(|c| self.1.cell(c)).and_then(|cell| cell.3.clone())
-                {
-                    ctx.trigger_haptic();
-                    ctx.emit(KeyboardEvent{key: event::Key::Character(emoji), state: KeyboardState::Pressed, modifiers: Modifiers::default()});
-                }
-            },
-            _ => {}
-        }
-
-        // Once a press has moved too far to be a tap, stop highlighting its emoji.
-        if let Some(touch) = self.4 && touch.travel.0.hypot(touch.travel.1) >= 12.0 {
-            self.highlight(touch.cell, false);
-        }
+        let pages = category.emojis.len().div_ceil(EMOJIS_PER_PAGE);
+        (category.name.clone(), format!("{}/{}", start / EMOJIS_PER_PAGE + 1, pages))
     }
 }
 
@@ -740,53 +781,292 @@ impl OnEvent for EmojiPanel {
         if let Some(MobileKeyboardEvent::EmojiCategory(category)) = event.downcast_ref::<MobileKeyboardEvent>() {
             if let Some(page) = EMOJI_PAGES.iter().position(|(c, _)| c == category) { self.show_page(page); }
         } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
-            self.on_touch(ctx, sized, mouse);
+            match track_touch(&mut self.touch, &mut self.grid, sized, mouse) {
+                Some(TouchEnd::Turn(next)) => self.show_page(if next { self.page + 1 } else { self.page.saturating_sub(1) }),
+                Some(TouchEnd::Tap(CellAction::Emoji(emoji))) => {
+                    ctx.trigger_haptic();
+                    ctx.emit(KeyboardEvent{key: event::Key::Character(emoji), state: KeyboardState::Pressed, modifiers: Modifiers::default()});
+                }
+                _ => {}
+            }
         }
         vec![event]
     }
 }
 
+/// The sticker page: your stickers, a page at a time, starting with a tile
+/// that makes a new one from a photo. Swipe sideways to turn pages; tap a
+/// sticker to send it (with a [`StickerEvent::Send`] for the chat).
+///
+/// The stickers are your [`StickerPack`]. The page finds it (or makes it) the
+/// first time it's shown, adds the stickers you make to it, and keeps up with
+/// it while it's showing, so stickers added on another device appear too.
 #[derive(Component, Debug, Clone)]
-struct EmojiGrid(Column, Vec<EmojiGridRow>);
-impl OnEvent for EmojiGrid {}
+struct StickerPanel {
+    layout: Stack,
+    grid: PanelGrid,
+    #[skip] page: usize,
+    #[skip] touch: Option<PanelTouch>,
+    #[skip] pack: Option<Instance<StickerPack>>,
+    #[skip] stickers: Vec<Sticker>,
+    #[skip] waiting_for_photo: bool,
+    #[skip] theme: Theme,
+}
 
-impl EmojiGrid {
-    fn new(theme: &Theme, page: usize) -> Self {
-        let (c, start) = EMOJI_PAGES[page];
-        let emojis = &EMOJI_CATEGORIES[c].emojis;
-        let rows = (0..4).map(|r| {
-            let cells = (0..8).map(|col| {
-                EmojiCell::new(theme, emojis.get(start + r * 8 + col).map(String::as_str))
-            }).collect();
-            EmojiGridRow(Row::new(0.0, Offset::Center, Size::Fit, Padding::default()), cells)
-        }).collect();
-        EmojiGrid(Column::new(0.0, Offset::Center, Size::Fill, Padding::default(), None), rows)
+impl StickerPanel {
+    fn new(theme: &Theme) -> Self {
+        StickerPanel {
+            layout: Stack::default(),
+            grid: PanelGrid::stickers(theme, &[], 0),
+            page: 0,
+            touch: None,
+            pack: None,
+            stickers: Vec::new(),
+            waiting_for_photo: false,
+            theme: theme.clone(),
+        }
     }
 
-    fn cell(&mut self, (row, col): (usize, usize)) -> Option<&mut EmojiCell> {
+    /// The new-sticker tile takes the first cell of the first page.
+    fn page_count(&self) -> usize { (self.stickers.len() + 1).div_ceil(STICKERS_PER_PAGE) }
+
+    fn show_page(&mut self, page: usize) {
+        if page == self.page || page >= self.page_count() { return; }
+        self.page = page;
+        self.touch = None;
+        self.grid = PanelGrid::stickers(&self.theme, &self.stickers, page);
+    }
+
+    /// Shows any changes to the pack, staying on this page if it still exists.
+    fn sync(&mut self, ctx: &mut Context) {
+        let pack = self.pack.get_or_insert_with(|| StickerPack::mine(ctx));
+        if pack.pending().stickers == self.stickers { return; }
+        self.stickers = pack.pending().stickers.clone();
+        self.page = self.page.min(self.page_count() - 1);
+        self.touch = None;
+        self.grid = PanelGrid::stickers(&self.theme, &self.stickers, self.page);
+    }
+
+    fn label(&self) -> (String, String) {
+        (STICKER_TITLE.to_string(), format!("{}/{}", self.page + 1, self.page_count()))
+    }
+}
+
+impl OnEvent for StickerPanel {
+    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if event.downcast_ref::<TickEvent>().is_some() {
+            self.sync(ctx);
+        } else if let Some(PickedPhoto(photo)) = event.downcast_ref::<PickedPhoto>() && self.waiting_for_photo {
+            // The photo picked with the new-sticker tile.
+            self.waiting_for_photo = false;
+            if let Some(sticker) = Sticker::from_photo(photo) && let Some(pack) = &mut self.pack {
+                pack.send(StickerPackAction::Add(sticker));
+                self.sync(ctx);
+            }
+        } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
+            match track_touch(&mut self.touch, &mut self.grid, sized, mouse) {
+                Some(TouchEnd::Turn(next)) => self.show_page(if next { self.page + 1 } else { self.page.saturating_sub(1) }),
+                Some(TouchEnd::Tap(CellAction::Sticker(sticker))) => {
+                    ctx.trigger_haptic();
+                    ctx.emit(StickerEvent::Send(sticker));
+                }
+                Some(TouchEnd::Tap(CellAction::NewSticker)) => {
+                    self.waiting_for_photo = true;
+                    ctx.pick_photo();
+                }
+                _ => {}
+            }
+        }
+        vec![event]
+    }
+}
+
+/// A press on a page's grid: the cell it started on, and how far it has moved.
+#[derive(Debug, Clone, Copy)]
+struct PanelTouch { cell: Option<(usize, usize)>, last: (f32, f32), travel: (f32, f32) }
+
+/// How a press on a page's grid ended.
+enum TouchEnd {
+    /// A tap on a cell.
+    Tap(CellAction),
+    /// A sideways swipe: `true` for the next page, `false` for the previous.
+    Turn(bool),
+}
+
+/// Follows a press on a page whose first child is its grid, highlighting the
+/// cell under it. Taps and swipes are handled here rather than by buttons on
+/// each cell: a tap tolerates a little finger movement, and a swipe never taps.
+fn track_touch(touch: &mut Option<PanelTouch>, grid: &mut PanelGrid, sized: &SizedTree, mouse: &MouseEvent) -> Option<TouchEnd> {
+    let mut end = None;
+    match mouse.state {
+        MouseState::Pressed(MouseButton::Left) => {
+            let on_grid = |p: (f32, f32)| sized.1.first().is_some_and(|(o, g)| p.1 >= o.1 && p.1 < o.1 + g.0.1);
+            *touch = mouse.position.filter(|p| on_grid(*p)).map(|p| {
+                let cell = PanelGrid::cell_at(sized, p).filter(|c| grid.cell(*c).is_some_and(|cell| cell.3.is_some()));
+                PanelTouch { cell, last: p, travel: (0.0, 0.0) }
+            });
+            if let Some(t) = *touch { grid.highlight(t.cell, true); }
+        }
+        // Touch drags arrive as scroll deltas (the negated finger movement),
+        // and keep arriving after the finger leaves the page.
+        MouseState::Scroll(dx, dy) => if let Some(t) = touch {
+            t.travel.0 -= dx;
+            t.travel.1 -= dy;
+        },
+        // A mouse drags with positions instead.
+        MouseState::Moved => if let (Some(t), Some(p)) = (touch.as_mut(), mouse.position) {
+            t.travel.0 += p.0 - t.last.0;
+            t.travel.1 += p.1 - t.last.1;
+            t.last = p;
+        },
+        MouseState::Released(_) => if let Some(t) = touch.take() {
+            grid.highlight(t.cell, false);
+            let (dx, dy) = t.travel;
+            if dx.abs() >= SWIPE_DISTANCE && dx.abs() > dy.abs() {
+                // Finger moving left shows the next page, right the previous one.
+                end = Some(TouchEnd::Turn(dx < 0.0));
+            } else if dx.hypot(dy) < TAP_SLOP
+                && let Some(action) = t.cell.and_then(|c| grid.cell(c)).and_then(|cell| cell.3.clone())
+            {
+                end = Some(TouchEnd::Tap(action));
+            }
+        },
+        _ => {}
+    }
+
+    // Once a press has moved too far to be a tap, stop highlighting its cell.
+    if let Some(t) = *touch && t.travel.0.hypot(t.travel.1) >= TAP_SLOP {
+        grid.highlight(t.cell, false);
+    }
+    end
+}
+
+/// One page of cells: emoji in 4 rows of 8, or stickers in 3 rows of 4.
+/// Always full rows (blank cells past the end), so the columns line up and
+/// the height never changes.
+#[derive(Component, Debug, Clone)]
+struct PanelGrid(Column, Vec<PanelRow>);
+impl OnEvent for PanelGrid {}
+
+impl PanelGrid {
+    fn emoji(theme: &Theme, page: usize) -> Self {
+        let (c, start) = EMOJI_PAGES[page];
+        let emojis = &EMOJI_CATEGORIES[c].emojis;
+        Self::new(EMOJI_ROWS, EMOJI_COLUMNS, PanelCell::emoji_layout(), |i| {
+            emojis.get(start + i).map(|emoji| PanelCell::emoji(theme, emoji))
+        })
+    }
+
+    /// Sticker page `page`. The first page starts with the new-sticker tile.
+    fn stickers(theme: &Theme, stickers: &[Sticker], page: usize) -> Self {
+        let start = page * STICKERS_PER_PAGE;
+        Self::new(STICKER_ROWS, STICKER_COLUMNS, PanelCell::sticker_layout(), |i| match start + i {
+            0 => Some(PanelCell::new_sticker(theme)),
+            n => stickers.get(n - 1).map(PanelCell::sticker),
+        })
+    }
+
+    /// `cell(i)` gives the i-th cell on the page; `None` leaves it blank.
+    fn new(rows: usize, columns: usize, layout: Stack, mut cell: impl FnMut(usize) -> Option<PanelCell>) -> Self {
+        let rows = (0..rows).map(|r| {
+            let cells = (0..columns).map(|c| {
+                cell(r * columns + c).unwrap_or_else(|| PanelCell::blank(layout.clone()))
+            }).collect();
+            PanelRow(Row::new(0.0, Offset::Center, Size::Fit, Padding::default()), cells)
+        }).collect();
+        PanelGrid(Column::new(0.0, Offset::Center, Size::Fill, Padding::default(), None), rows)
+    }
+
+    fn cell(&mut self, (row, col): (usize, usize)) -> Option<&mut PanelCell> {
         self.1.get_mut(row)?.1.get_mut(col)
+    }
+
+    /// The cell under `pos`, given the sized tree of the page the grid is the
+    /// first child of, and `pos` in that page's coordinates.
+    fn cell_at(page: &SizedTree, pos: (f32, f32)) -> Option<(usize, usize)> {
+        let contains = |offset: (f32, f32), size: (f32, f32), p: (f32, f32)|
+            p.0 >= offset.0 && p.0 < offset.0 + size.0 && p.1 >= offset.1 && p.1 < offset.1 + size.1;
+
+        let (grid_offset, grid) = page.1.first()?;
+        let p = (pos.0 - grid_offset.0, pos.1 - grid_offset.1);
+        grid.1.iter().enumerate().find_map(|(r, (row_offset, row))| {
+            let p = (p.0 - row_offset.0, p.1 - row_offset.1);
+            row.1.iter().position(|(cell_offset, cell)| contains(*cell_offset, cell.0, p)).map(|c| (r, c))
+        })
+    }
+
+    fn highlight(&mut self, cell: Option<(usize, usize)>, on: bool) {
+        if let Some(cell) = cell.and_then(|c| self.cell(c)) { cell.1.display(on); }
     }
 }
 
 #[derive(Component, Debug, Clone)]
-struct EmojiGridRow(Row, Vec<EmojiCell>);
-impl OnEvent for EmojiGridRow {}
+struct PanelRow(Row, Vec<PanelCell>);
+impl OnEvent for PanelRow {}
 
-/// One emoji (or a blank), with a highlight shown while it's pressed.
+/// What tapping a cell does.
+#[derive(Debug, Clone)]
+enum CellAction {
+    /// Types the emoji.
+    Emoji(String),
+    /// Sends the sticker.
+    Sticker(Sticker),
+    /// Picks a photo to make a new sticker from.
+    NewSticker,
+}
+
+/// One cell: a highlight shown while it's pressed, what's in it, and what
+/// tapping it does (blank cells have neither).
 #[derive(Component, Debug, Clone)]
-struct EmojiCell(Stack, Opt<Rectangle>, Text, #[skip] Option<String>);
-impl OnEvent for EmojiCell {}
+struct PanelCell(Stack, Opt<Rectangle>, Option<CellFace>, #[skip] Option<CellAction>);
+impl OnEvent for PanelCell {}
 
-impl EmojiCell {
-    fn new(theme: &Theme, emoji: Option<&str>) -> Self {
-        // Every cell asks for the same width, so all 8 columns get equal space.
-        let width = Size::custom(|_: Vec<(f32, f32)>| (32.0, f32::MAX));
-        EmojiCell(
-            Stack(Offset::Center, Offset::Center, width, Size::Static(48.0 - 4.0), Padding(2.0, 2.0, 2.0, 2.0)),
-            Opt::new(Rectangle::new(Color::from_hex("ffffff", 110), 8.0, None), false),
-            Text::new(theme, emoji.unwrap_or(""), TextSize::H2, TextStyle::Keyboard, Align::Left, None),
-            emoji.map(str::to_string),
-        )
+#[derive(Component, Debug, Clone)]
+enum CellFace {
+    Emoji {layout: Stack, text: Text},
+    Sticker {layout: Stack, image: Image},
+    NewSticker {layout: Stack, background: Rectangle, icon: Image},
+}
+impl OnEvent for CellFace {}
+
+impl PanelCell {
+    /// Every cell in a grid asks for the same width, so the columns get equal space.
+    fn layout(width: f32, height: f32) -> Stack {
+        let width = Size::custom(move |_: Vec<(f32, f32)>| (width, f32::MAX));
+        Stack(Offset::Center, Offset::Center, width, Size::Static(height), Padding(2.0, 2.0, 2.0, 2.0))
+    }
+
+    fn emoji_layout() -> Stack { Self::layout(32.0, EMOJI_ROW_HEIGHT - 4.0) }
+    fn sticker_layout() -> Stack { Self::layout(STICKER_IMAGE + 4.0, STICKER_ROW_HEIGHT - 4.0) }
+
+    fn highlight(radius: f32) -> Opt<Rectangle> {
+        Opt::new(Rectangle::new(Color::from_hex("ffffff", 110), radius, None), false)
+    }
+
+    fn emoji(theme: &Theme, emoji: &str) -> Self {
+        let text = Text::new(theme, emoji, TextSize::H2, TextStyle::Keyboard, Align::Left, None);
+        let face = CellFace::Emoji {layout: Stack::default(), text};
+        PanelCell(Self::emoji_layout(), Self::highlight(8.0), Some(face), Some(CellAction::Emoji(emoji.to_string())))
+    }
+
+    fn sticker(sticker: &Sticker) -> Self {
+        let shape = ShapeType::RoundedRectangle(0.0, (STICKER_IMAGE, STICKER_IMAGE), 0.0, 12.0);
+        let face = CellFace::Sticker {layout: Stack::default(), image: Image {shape, image: sticker.image(), color: None}};
+        PanelCell(Self::sticker_layout(), Self::highlight(12.0), Some(face), Some(CellAction::Sticker(sticker.clone())))
+    }
+
+    fn new_sticker(theme: &Theme) -> Self {
+        let tile = Stack(Offset::Center, Offset::Center, Size::Static(STICKER_IMAGE), Size::Static(STICKER_IMAGE), Padding::default());
+        let face = CellFace::NewSticker {
+            layout: tile,
+            background: Rectangle::new(Color::from_hex("ffffff", 110), 12.0, None),
+            icon: Icon::new(theme, Icons::Add, Some(Color::WHITE), 36.0),
+        };
+        PanelCell(Self::sticker_layout(), Self::highlight(12.0), Some(face), Some(CellAction::NewSticker))
+    }
+
+    fn blank(layout: Stack) -> Self {
+        PanelCell(layout, Self::highlight(0.0), None, None)
     }
 }
 
@@ -824,7 +1104,7 @@ impl EmojiTabFace {
     fn new(theme: &Theme, icon: &str, active: bool) -> Self {
         let width = Size::custom(|_: Vec<(f32, f32)>| (28.0, f32::MAX));
         EmojiTabFace(
-            Stack(Offset::Center, Offset::Center, width, Size::Static(48.0 - 8.0), Padding(2.0, 4.0, 2.0, 4.0)),
+            Stack(Offset::Center, Offset::Center, width, Size::Static(EMOJI_ROW_HEIGHT - 8.0), Padding(2.0, 4.0, 2.0, 4.0)),
             active.then(|| Rectangle::new(Color::from_hex("ffffff", 110), 8.0, None)),
             Text::new(theme, icon, TextSize::H4, TextStyle::Keyboard, Align::Left, None),
         )

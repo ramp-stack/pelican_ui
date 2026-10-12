@@ -1,11 +1,12 @@
 use prism::event::{OnEvent, Event, TickEvent};
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
 use prism::drawable::{Component, SizedTree};
-use prism::canvas::Align;
+use prism::canvas::{Align, Image, ShapeType};
 use prism::display::Bin;
 use ptsd::colors;
 use ptsd::utils::Timestamp;
 use prism::Context;
+use serde::{Deserialize, Serialize};
 
 use chrono::{Local, Duration};
 
@@ -14,6 +15,7 @@ use image::RgbaImage;
 
 use crate::theme::{Theme, Icons};
 use crate::components::Rectangle;
+use crate::components::Sticker;
 
 use maverick_os::air::Name;
 
@@ -39,11 +41,9 @@ impl Profile {
     pub fn is_me(&self, ctx: &mut Context) -> bool {self.name == ctx.me()}
 }
 
-
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct Message {
-    pub message: String,
+    pub body: MessageContent,
     pub timestamp: Timestamp,
     pub author: Profile,
 }
@@ -68,7 +68,7 @@ impl MessageGroups {
             if !collection.is_empty() && (!close_enough || author != prev_auth) {
                 let a = collection[0].author.clone();
                 let t = collection.last().unwrap().timestamp.clone();
-                let msgs = collection.iter().map(|m| m.message.as_str()).collect::<Vec<_>>();
+                let msgs: Vec<MessageContent> = collection.iter().map(|m| m.body.clone()).collect::<Vec<_>>();
                 let direction = if a.is_me(ctx) { Direction::Sent } else { Direction::Received };
 
                 let room_type = match is_room {
@@ -92,7 +92,7 @@ impl MessageGroups {
         if !collection.is_empty() {
             let a = collection[0].author.clone();
             let t = collection.last().unwrap().timestamp.clone();
-            let msgs = collection.iter().map(|m| m.message.as_str()).collect::<Vec<_>>();
+            let msgs = collection.iter().map(|m| m.body.clone()).collect::<Vec<_>>();
             let direction = if a.is_me(ctx) { Direction::Sent } else { Direction::Received };
 
             new.push(MessageGroup::new(theme, msgs, t, a, match is_room {
@@ -110,7 +110,7 @@ impl MessageGroups {
 pub struct MessageGroup(Row, Option<Bin<Stack, Avatar>>, _MessageGroup);
 impl OnEvent for MessageGroup {}
 impl MessageGroup {
-    pub fn new(theme: &Theme, messages: Vec<&str>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
+    pub fn new(theme: &Theme, messages: Vec<MessageContent>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
         let avatar = Avatar::new(theme, profile.pfp.clone(), None, false, AvatarSize::Xs, None);
 
         let (layout, avatar) = match room {
@@ -137,7 +137,7 @@ pub enum _MessageGroup {
 
 impl OnEvent for _MessageGroup {}
 impl _MessageGroup {
-    pub fn new(theme: &Theme, messages: Vec<&str>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
+    pub fn new(theme: &Theme, messages: Vec<MessageContent>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
         let info = MessageInfo::new(theme, profile.username, timestamp, room);
         let msg = _TextMessages::new(theme, messages, room);
         match room {
@@ -181,7 +181,7 @@ impl MessageInfo {
 pub struct _TextMessages(Column, Vec<_TextMessage>);
 impl OnEvent for _TextMessages {}
 impl _TextMessages {
-    pub fn new(theme: &Theme, messages: Vec<&str>, room: Room) -> Self {
+    pub fn new(theme: &Theme, messages: Vec<MessageContent>, room: Room) -> Self {
         let layout = match room {
             Room::Group(Direction::Sent) | Room::Direct(Direction::Sent) => Column::end(8.0),
             Room::Group(Direction::Received) | Room::Direct(Direction::Received) => Column::start(8.0),
@@ -193,30 +193,58 @@ impl _TextMessages {
 }
 
 #[derive(Debug, Clone, Component)]
-pub struct _TextMessage(Stack, Option<Rectangle>, Bin<Stack, ExpandableText>);
+pub enum _TextMessage {
+    Text {
+        layout: Stack, 
+        background: Option<Rectangle>, 
+        text: Bin<Stack, ExpandableText>
+    },
+    Sticker {
+        layout: Stack,
+        image: Image,
+    }
+}
+
 impl OnEvent for _TextMessage {
     fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            let w = self.2.inner().0.inner().size().0.min(250.0) + 4.0;
-            *self.2.get_layout() = Stack::new(Offset::Center, Offset::Center, Size::Static(w), Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));
+            match self {
+                _TextMessage::Text{text, ..} => {
+                    let w = text.inner().0.inner().size().0.min(250.0) + 4.0;
+                    *text.get_layout() = Stack::new(Offset::Center, Offset::Center, Size::Static(w), Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));
+                },
+                _ => {}
+            }
+            
         }
         vec![event]
     }
 }
 
 impl _TextMessage {
-    pub fn new(theme: &Theme, message: &str, style: Room) -> Self {
-        let text = ExpandableText::new(theme, message, TextSize::Md, TextStyle::Primary, Align::Left, None);
-        let background = match style {
-            Room::Group(Direction::Sent) | Room::Direct(Direction::Sent) => Some(theme.colors().get(colors::Brand)),
-            Room::Group(Direction::Received) | Room::Direct(Direction::Received) => Some(theme.colors().get(colors::Background::Secondary)),
-            Room::Room => None,
-        };
+    pub fn new(theme: &Theme, message: &MessageContent, style: Room) -> Self {
+        match message {
+            MessageContent::Text(message) => {
+                let text = ExpandableText::new(theme, message, TextSize::Md, TextStyle::Primary, Align::Left, None);
+                let background = match style {
+                    Room::Group(Direction::Sent) | Room::Direct(Direction::Sent) => Some(theme.colors().get(colors::Brand)),
+                    Room::Group(Direction::Received) | Room::Direct(Direction::Received) => Some(theme.colors().get(colors::Background::Secondary)),
+                    Room::Room => None,
+                };
 
-        let width = Size::custom(move |h: Vec<(f32, f32)>| (h.last().unwrap().0, (h.last().unwrap().1 + 24.0).max(42.0)));
-        let height = Size::custom(move |h: Vec<(f32, f32)>| (h.last().unwrap().0, h.last().unwrap().1));
-        let layout = Stack::new(Offset::Center, Offset::Center, width, height, Padding::default());
-        _TextMessage(layout, background.map(|c| Rectangle::new(c, 18.0, None)), Bin(Stack::default(), text))
+                let width = Size::custom(move |h: Vec<(f32, f32)>| (h.last().unwrap().0, (h.last().unwrap().1 + 24.0).max(42.0)));
+                let height = Size::custom(move |h: Vec<(f32, f32)>| (h.last().unwrap().0, h.last().unwrap().1));
+                let layout = Stack::new(Offset::Center, Offset::Center, width, height, Padding::default());
+                _TextMessage::Text{layout, background: background.map(|c| Rectangle::new(c, 18.0, None)), text: Bin(Stack::default(), text)}
+            },
+            MessageContent::Sticker(sticker) => {
+                let sticker_size = 120.0;
+                let layout = Stack(Offset::Center, Offset::Center, Size::Static(sticker_size), Size::Static(sticker_size), Padding::default());
+                let shape = ShapeType::RoundedRectangle(0.0, (sticker_size, sticker_size), 0.0, 16.0);
+                _TextMessage::Sticker{layout, image: Image { shape, image: sticker.image(), color: None }}
+            }
+        }
+        
     }
 }
 
@@ -231,4 +259,10 @@ pub enum Room {
     Group(Direction),
     Direct(Direction),
     Room,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Eq, Hash)]
+pub enum MessageContent {
+    Text(String),
+    Sticker(Sticker)
 }

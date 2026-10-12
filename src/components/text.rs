@@ -125,7 +125,7 @@ impl Drawable for ExpandableText {
 }
 
 #[derive(Component, Clone)]
-pub struct TextEditor(Stack, pub ExpandableText, TextCursor, Magnifier, #[skip] Scrub);
+pub struct TextEditor(Stack, pub ExpandableText, TextCursor, Magnifier, #[skip] Scrub, #[skip] FrameInput);
 impl std::fmt::Debug for TextEditor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("TextEditor").field(&self.0).field(&self.1).field(&self.2).finish()
@@ -135,10 +135,9 @@ impl std::fmt::Debug for TextEditor {
 impl TextEditor {
     pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
         let mut built = ExpandableText::new(theme, text, size, style, align, None);
-        // The canvas's cursor is a byte offset into the text.
         built.0.inner.cursor = Some(text.len());
         let magnifier = Magnifier::new(theme, style, built.0.inner.clone());
-        TextEditor(Stack::start(), built, TextCursor::new(theme, style, size), magnifier, Scrub::default())
+        TextEditor(Stack::start(), built, TextCursor::new(theme, style, size), magnifier, Scrub::default(), FrameInput::default())
     }
 
     pub fn default(theme: &Theme) -> Self {
@@ -149,71 +148,63 @@ impl TextEditor {
         self.2.1.display(display)
     }
 
-    /// Replaces the text and moves the cursor to the end of it.
     pub fn set_text(&mut self, text: &str) {
         self.1.0.spans[0] = text.to_string();
         self.1.0.inner.cursor = Some(text.len());
         self.sync();
     }
 
-    /// Pointer pressed at `pos`, in this editor's coordinates. The owning input
-    /// calls this for presses anywhere in the field, not just on the text line.
     pub fn pointer_pressed(&mut self, pos: (f32, f32)) {
         self.place_cursor(pos);
-        self.4 = Scrub { pressed_at: Some(Instant::now()), pointer: pos, travel: 0.0, active: false };
+        self.4 = match self.5.released {
+            true => Scrub::default(),
+            false => Scrub { pressed_at: Some(Instant::now()), pointer: pos, moved: (0.0, 0.0), active: false },
+        };
+        self.5.pressed = true;
         self.sync();
     }
 
-    /// Pointer moved while pressed. `pos` is the new position in this editor's
-    /// coordinates when the pointer is over the field; `delta` is the movement
-    /// (from touch drags), used to keep tracking once the finger leaves the field.
     pub fn pointer_moved(&mut self, pos: Option<(f32, f32)>, delta: Option<(f32, f32)>) {
         if self.4.pressed_at.is_none() { return; }
-        let next = match (pos, delta) {
-            (Some(p), _) => p,
-            (None, Some(d)) => (self.4.pointer.0 + d.0, self.4.pointer.1 + d.1),
+
+        let step = match (delta, pos) {
+            (Some(d), _) => d,
+            (None, Some(p)) => (p.0 - self.4.pointer.0, p.1 - self.4.pointer.1),
             (None, None) => return,
         };
-        let (dx, dy) = (next.0 - self.4.pointer.0, next.1 - self.4.pointer.1);
-        self.4.travel += (dx * dx + dy * dy).sqrt();
-        self.4.pointer = next;
+        self.4.pointer = (self.4.pointer.0 + step.0, self.4.pointer.1 + step.1);
+        self.4.moved = (self.4.moved.0 + step.0, self.4.moved.1 + step.1);
+
+        let distance = self.4.moved.0.hypot(self.4.moved.1);
 
         if !self.4.active {
             if prism::IS_MOBILE {
-                // On touch, moving before the hold completes is a swipe, not a scrub.
-                if self.4.travel > SCRUB_CANCEL_DISTANCE { self.4 = Scrub::default(); }
+                if distance > 10.0 { self.4 = Scrub::default(); }
                 return;
             }
-            // With a mouse, dragging starts scrubbing right away.
-            if self.4.travel < DESKTOP_DRAG_START { return; }
+            if distance < 3.0 { return; }
             self.4.active = true;
         }
 
-        self.place_cursor(next);
+        let pointer = self.4.pointer;
+        self.place_cursor(pointer);
         self.sync();
     }
 
-    /// Pointer released (anywhere). Ends any scrub and hides the magnifier.
     pub fn pointer_released(&mut self) {
-        self.4 = Scrub::default();
+        if !self.5.pressed { self.4 = Scrub::default(); }
+        self.5.released = true;
         self.sync();
     }
 
-    /// Moves the cursor to the character nearest `pos`. The y position is
-    /// snapped to the middle of the nearest line, so a pointer above or below
-    /// the text still scrubs along it instead of jumping to the end.
     fn place_cursor(&mut self, pos: (f32, f32)) {
         let inner = &mut self.1.0.inner;
         let lh = inner.spans.first().map(|s| s.line_height.unwrap_or(s.font_size * 1.25)).unwrap_or(1.0);
-        // Count lines from the height, which includes the empty line after a
-        // trailing newline, so the cursor can be scrubbed onto it.
         let lines = ((inner.size().1 / lh).round() as usize).max(1);
         let line = ((pos.1 / lh).floor().max(0.0) as usize).min(lines - 1);
         inner.cursor_click(pos.0, line as f32 * lh + lh * 0.5);
     }
 
-    /// Brings the laid-out text, cursor bar and magnifier in line with the
-    /// current text and scrub state, so they update in the same frame.
     fn sync(&mut self) {
         let text = &mut self.1.0;
         text.inner.spans.iter_mut().zip(&text.spans).for_each(|(span, s)| {
@@ -231,17 +222,12 @@ impl TextEditor {
     }
 }
 
-/// `index` clamped to the text and moved back onto a character boundary, so
-/// it's always safe to insert or slice there.
 fn clamp_to_boundary(text: &str, index: usize) -> usize {
     let mut index = index.min(text.len());
     while !text.is_char_boundary(index) { index -= 1; }
     index
 }
 
-/// Where the grapheme before byte `index` starts, if there is one. Deleting
-/// from there removes a whole emoji (with its variation selector, ZWJ parts
-/// or skin tone) or an accented letter, not just its last code point.
 fn previous_grapheme(text: &str, index: usize) -> Option<usize> {
     text[..index].grapheme_indices(true).next_back().map(|(start, _)| start)
 }
@@ -249,8 +235,11 @@ fn previous_grapheme(text: &str, index: usize) -> Option<usize> {
 impl OnEvent for TextEditor {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
+            // A new frame: no pointer events handled in it yet.
+            self.5 = FrameInput::default();
+
             // A press held long enough becomes a scrub.
-            if let Some(t) = self.4.pressed_at && !self.4.active && t.elapsed() >= SCRUB_HOLD {
+            if let Some(t) = self.4.pressed_at && !self.4.active && t.elapsed() >= Duration::from_millis(300) {
                 self.4.active = true;
                 let pointer = self.4.pointer;
                 self.place_cursor(pointer);
@@ -312,20 +301,52 @@ impl TextCursor {
     pub fn y_offset(&mut self) -> &mut Offset { &mut self.0.1 }
 }
 
-const SCRUB_HOLD: Duration = Duration::from_millis(300);
-const SCRUB_CANCEL_DISTANCE: f32 = 10.0;
-const DESKTOP_DRAG_START: f32 = 3.0;
-const ZOOM: f32 = 1.5;
-const LENS_WIDTH: f32 = 120.0;
-const LENS_PADDING: f32 = 8.0;
-const LENS_GAP: f32 = 16.0;
-const LENS_RADIUS: f32 = 8.0;
-const LENS_EDGE: f32 = 4.0;
+// // /// # Bulleted Text
+// // ///
+// // /// A component for rendering lists with bullet points.
+// // ///
+// // /// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/bulleted_text.png"
+// // ///      alt="Bulleted Text Example"
+// // ///      width="400">
+// // ///
+// // /// ## Example
+// // ///```rust
+// // /// let text_size = ctx.theme.fonts.size.md;
+// // /// let items = vec!["Feed the chairs at midnight.", "Borrow a broom from the moon.", "Vacuum the car inside out.", "Hide the clock beneath the carpet."];
+// // /// let list = BulletedText::new(ctx, items, TextStyle::Primary, text_size);
+// // ///```
+// // #[derive(Debug, Component)]
+// // pub struct BulletedText(Column, Vec<BulletedTextContent>);
+
+// // impl OnEvent for BulletedText {}
+
+// // impl BulletedText {
+// //     pub fn new(ctx: &mut Context, text: Vec<&str>, style: TextStyle, size: f32) -> Self {
+// //         let color = style.get(ctx).0;
+// //         let items = text.into_iter().map(|t| BulletedTextContent::new(ctx, t, color, style, size)).collect();
+// //         BulletedText(Column::center(8.0), items)
+// //     }
+// // }
+
+// // #[derive(Debug, Component)]
+// // struct BulletedTextContent(Row, Shape, ExpandableText);
+// // impl OnEvent for BulletedTextContent {}
+// // impl BulletedTextContent {
+// //     fn new(ctx: &mut Context, text: &str, color: Color, style: TextStyle, size: f32) -> Self {
+// //         BulletedTextContent(
+// //             Row::new(size*0.75, Offset::Center, Size::Fit, Padding::default()), // change this offset to be line_height - circle size / 2
+// //             Circle::new(size*0.2, color, false),
+// //             ExpandableText::new(ctx, text, style, size, Align::Left, None)
+// //         )
+// //     }
+// // }
 
 #[derive(Debug, Clone, Default)]
-struct Scrub { pressed_at: Option<Instant>, pointer: (f32, f32), travel: f32, active: bool }
+struct Scrub { pressed_at: Option<Instant>, pointer: (f32, f32), moved: (f32, f32), active: bool }
 
-/// A zoomed copy of the editor's text, drawn above the cursor while scrubbing.
+#[derive(Debug, Clone, Copy, Default)]
+struct FrameInput { pressed: bool, released: bool }
+
 #[derive(Debug, Clone)]
 pub struct Magnifier {
     text: BasicText,
@@ -349,8 +370,6 @@ impl Magnifier {
 }
 
 impl Drawable for Magnifier {
-    // Mirror the text's request so prism always draws this child
-    // (it skips zero-size children) without changing the layout.
     fn request_size(&self) -> RequestTree {
         let h = self.text.size().1;
         RequestTree(SizeRequest::new(0.0, h, f32::MAX, h), vec![])
@@ -362,33 +381,32 @@ impl Drawable for Magnifier {
 
         let line_h = span.line_height.unwrap_or(span.font_size * 1.25);
         let (cx, cy) = self.text.cursor_position();
-        let (w, h) = (LENS_WIDTH, line_h * ZOOM + 2.0 * LENS_PADDING);
+        let (w, h) = (120.0, line_h * 1.5 + 2.0 * 8.0);
 
-        // Lens sits centered over the cursor, just above its line.
-        let lens = ((offset.0 + cx - w / 2.0).max(LENS_EDGE), offset.1 + cy - h - LENS_GAP);
+        let lens = ((offset.0 + cx - w / 2.0).max(4.0), offset.1 + cy - h - 16.0);
         let center = (lens.0 + w / 2.0, lens.1 + h / 2.0);
-        let cursor_x = (offset.0 + cx).clamp(lens.0 + LENS_PADDING, lens.0 + w - LENS_PADDING);
+        let cursor_x = (offset.0 + cx).clamp(lens.0 + 8.0, lens.0 + w - 8.0);
         let focus_y = cy + line_h / 2.0;
 
         let mut zoomed = self.text.clone();
         zoomed.cursor = None;
-        zoomed.scale(ZOOM);
+        zoomed.scale(1.5);
 
         let rect = |x: f32, y: f32, w: f32, h: f32, stroke: f32, radius: f32, color: canvas::Color| Instruction(
             CanvasArea { offset: (x, y), bounds: None },
             CanvasItem::Shape(CanvasShape { shape: ShapeType::RoundedRectangle(stroke, (w, h), 0.0, radius), color }),
         );
 
-        let band = (lens.0, center.1 - line_h * ZOOM / 2.0, w, line_h * ZOOM);
+        let band = (lens.0, center.1 - line_h * 1.5 / 2.0, w, line_h * 1.5);
 
         vec![
-            rect(lens.0, lens.1, w, h, 0.0, LENS_RADIUS, self.background),
+            rect(lens.0, lens.1, w, h, 0.0, 8.0, self.background),
             Instruction(
-                CanvasArea { offset: (cursor_x - cx * ZOOM, center.1 - focus_y * ZOOM), bounds: Some(band) },
+                CanvasArea { offset: (cursor_x - cx * 1.5, center.1 - focus_y * 1.5), bounds: Some(band) },
                 CanvasItem::Text(zoomed),
             ),
-            rect(cursor_x - 1.0, center.1 - line_h * ZOOM / 2.0, 2.0, line_h * ZOOM, 0.0, 0.0, self.cursor),
-            rect(lens.0, lens.1, w, h, 1.0, LENS_RADIUS, self.outline),
+            rect(cursor_x - 1.0, center.1 - line_h * 1.5 / 2.0, 2.0, line_h * 1.5, 0.0, 0.0, self.cursor),
+            rect(lens.0, lens.1, w, h, 1.0, 8.0, self.outline),
         ]
     }
 }

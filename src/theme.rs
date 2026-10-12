@@ -348,6 +348,7 @@ icons! {
     Send => "send",
     Senior => "senior",
     Settings => "settings",
+    Sticker => "sticker",
     Unblock => "unblock",
     Unboot => "unboot",
     Unchecked => "unchecked",

@@ -41,3 +41,6 @@ pub use messages::*;
 
 mod searchbar;
 pub use searchbar::{SearchBar, SearchbarEvent};
+
+mod sticker;
+pub use sticker::{Sticker, StickerEvent, StickerPack, StickerPackAction};
