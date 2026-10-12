@@ -2,8 +2,8 @@ use prism::event::{self, MouseEvent, TickEvent, KeyboardState, KeyboardEvent, On
 use prism::canvas::{Align, Image};
 use prism::{emitters, Context};
 use prism::drawable::{Drawable, Component, SizedTree};
-use prism::layout::{Layout, Wrap, Stack, Column, Row, Offset, Size, Padding, Area};
-use prism::display::{Bin, Enum};
+use prism::layout::{Layout, Stack, Column, Row, Offset, Size, Padding, Area};
+use prism::display::{Bin, Enum, Opt};
 use std::time::{Duration, Instant};
 
 use ptsd::interfaces::ShowKeyboard;
@@ -23,14 +23,6 @@ const FAST_INTERVAL: Duration = Duration::from_millis(35);
 #[derive(Debug, Clone, Default)]
 struct HoldRepeat { started: Option<Instant>, last: Option<Instant> }
 
-lazy_static::lazy_static! {
-    pub(crate) static ref EMOJIS: Vec<String> = include_str!("../../emoji.txt").lines().map(str::to_owned).collect();
-}
-
-/// Fields after the Enum: caps on, current page, emoji panel showing, theme.
-///
-/// The key layout is rebuilt whenever caps or the page changes, so the caps-lock
-/// and page keys always match the real state. The emoji panel is built once.
 #[derive(Component, Debug, Clone)]
 pub struct MobileKeyboard(Stack, Rectangle, Enum<KeyboardContent>, #[skip] bool, #[skip] usize, #[skip] bool, #[skip] Theme);
 
@@ -58,6 +50,8 @@ impl OnEvent for MobileKeyboard {
                     self.5 = !self.5;
                     if self.5 { self.2.display("emoji"); } else { self.show_keys(ctx); }
                 },
+                // Handled by the emoji panel.
+                MobileKeyboardEvent::EmojiCategory(_) => {},
             }
         }
 
@@ -90,8 +84,18 @@ impl MobileKeyboard {
 }
 
 #[derive(Component, Debug, Clone)]
-struct KeyboardContent(Column, KeyboardHeader, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Bin<Stack, Rectangle>, #[skip] Theme);
-impl OnEvent for KeyboardContent {}
+struct KeyboardContent(Column, KeyboardHeader, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Option<KeyboardRow>, Option<EmojiPanel>, Bin<Stack, Rectangle>, #[skip] Theme);
+
+impl OnEvent for KeyboardContent {
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if event.downcast_ref::<TickEvent>().is_some() && let Some(panel) = &self.6 {
+            let (category, page) = panel.label();
+            self.1.set_label(&category, &page);
+        }
+        vec![event]
+    }
+}
+
 impl KeyboardContent {
     pub fn new(ctx: &mut Context, theme: &Theme, page: usize, caps: bool) -> Self {
         let color = theme.colors().get(ptsd::Background::Secondary);
@@ -105,6 +109,7 @@ impl KeyboardContent {
             Some(KeyboardRow::middle(theme, page, caps)),
             Some(KeyboardRow::bottom(theme, page, caps)),
             Some(KeyboardRow::modifier(theme, page, caps)),
+            None,
             Bin(layout, Rectangle::new(color, 0.0, None)),
             theme.clone()
         )
@@ -118,10 +123,11 @@ impl KeyboardContent {
         KeyboardContent(
             Column::new(0.0, Offset::Center, Size::Fit, Padding(8.0, 8.0, 8.0, 8.0), None),
             KeyboardHeader::new(theme, true),
-            Some(KeyboardRow::emoji(theme)),
             None,
             None,
             None,
+            None,
+            Some(EmojiPanel::new(theme)),
             Bin(layout, Rectangle::new(color, 0.0, None)),
             theme.clone()
         )
@@ -142,31 +148,6 @@ impl KeyRow {
             }.chars().next().unwrap_or_default())
         }).collect();
         KeyRow(Box::new(Row::center(0.0)), keys)
-    }
-
-    fn emoji(theme: &Theme) -> Self {
-       let emojis: Vec<String> = EMOJIS
-        .iter()
-        .filter(|line| line.contains("; fully-qualified"))
-        .filter(|line| !line.starts_with('#'))
-        .filter_map(|line| {
-            let (_, after_hash) = line.split_once('#')?;
-            Some(after_hash.split_whitespace().next()?.to_string())
-        })
-        .filter(|emoji| {
-            !emoji.contains('\u{1F3FB}')
-                && !emoji.contains('\u{1F3FC}')
-                && !emoji.contains('\u{1F3FD}')
-                && !emoji.contains('\u{1F3FE}')
-                && !emoji.contains('\u{1F3FF}')
-        })
-        // .take(700)
-        .collect();
-
-        let keys = emojis.iter().map(|k| {
-            Key::emoji_character(theme, k.to_string())
-        }).collect();
-        KeyRow(Box::new(Wrap::start(0.0, 0.0)), keys)
     }
 }
 
@@ -200,11 +181,6 @@ impl KeyboardRow {
         KeyboardRow(Row::center(6.0), None, Some(paginator), None, Some(spacebar), Some(newline))
     }
 
-    fn emoji(theme: &Theme) -> Self {
-        let key_row = KeyRow::emoji(theme);
-        KeyboardRow(Row::center(0.0), None, None, Some(key_row), None, None)
-    }
-
     fn capslock(&mut self) -> &mut Option<Capslock> {&mut self.1}
     fn paginator(&mut self) -> &mut Option<Paginator> {&mut self.2}
 }
@@ -222,10 +198,12 @@ impl KeyboardHeader {
             Bin(layout, Rectangle::new(theme.colors().get(ptsd::Outline::Secondary), 0.0, None))
         )
     }
+
+    fn set_label(&mut self, title: &str, detail: &str) { self.1.set_label(title, detail); }
 }
 
 #[derive(Component, Debug, Clone)]
-struct KeyboardIcons(Row, Key, Bin<Stack, Rectangle>, GhostIconButton);
+struct KeyboardIcons(Row, Key, Bin<Stack, HeaderLabel>, GhostIconButton);
 impl OnEvent for KeyboardIcons {}
 impl KeyboardIcons {
     fn new(theme: &Theme, emoji_on: bool) -> Self {
@@ -234,14 +212,35 @@ impl KeyboardIcons {
             Row::new(16.0, Offset::Start, Size::Fit, Padding(12.0, 6.0, 12.0, 6.0)),
             // icons.then(|| KeyboardActions(Stack::default(), actions)),
             Key::emoji(theme, emoji_state),
-            Bin (
-                Stack(Offset::Center, Offset::Center, Size::Fill, Size::Static(1.0),  Padding::default()), 
-                Rectangle::new(Color::TRANSPARENT, 0.0, None)
+            // Fills the space between the keys; shows the emoji category and page.
+            Bin(
+                Stack(Offset::Start, Offset::Center, Size::Fill, Size::Static(48.0), Padding::default()),
+                HeaderLabel::new(theme)
             ),
             GhostIconButton::new(theme, Icons::DownArrow, |ctx: &mut Context, _: &Theme| {
                 ctx.emit(ShowKeyboard(false));
                 ctx.emit(event::TextInput::Focused(false));
             }),
+        )
+    }
+
+    fn set_label(&mut self, title: &str, _detail: &str) {
+        let label = &mut self.2.1;
+        if label.1.spans[0] != title { label.1.spans[0] = title.to_string(); }
+        // if label.2.spans[0] != detail { label.2.spans[0] = detail.to_string(); }
+    }
+}
+
+/// Title and detail text in the keyboard header (empty on the letter keys).
+#[derive(Component, Debug, Clone)]
+struct HeaderLabel(Row, Text);
+impl OnEvent for HeaderLabel {}
+impl HeaderLabel {
+    fn new(theme: &Theme) -> Self {
+        HeaderLabel(
+            Row::new(8.0, Offset::Center, Size::Fit, Padding::default()),
+            Text::new(theme, "", TextSize::Md, TextStyle::Keyboard, Align::Left, None),
+            // Text::new(theme, "", TextSize::Md, TextStyle::Secondary, Align::Left, None),
         )
     }
 }
@@ -284,13 +283,6 @@ impl Key {
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
     }
 
-    fn emoji_character(theme: &Theme, emoji: String) -> Self {
-        let default = _Key::character(theme, &emoji, ButtonState::Default, false);
-        let pressed = _Key::character(theme, &emoji, ButtonState::Pressed, false);
-        let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Character(emoji.to_string()), state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit character
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
-    }
-
     fn spacebar(theme: &Theme, caps_on: bool) -> Self {
         let default = _Key::spacebar(theme, caps_on, ButtonState::Default);
         let pressed = _Key::spacebar(theme, caps_on, ButtonState::Pressed);
@@ -305,9 +297,14 @@ impl Key {
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
     }
 
-    fn backspace(theme: &Theme) -> Self {
-        let default = _Key::backspace(theme, ButtonState::Default);
-        let pressed = _Key::backspace(theme, ButtonState::Pressed);
+    fn backspace(theme: &Theme) -> Self { Self::backspace_sized(theme, 48.0) }
+
+    /// Backspace for the emoji panel's 48px tab row.
+    fn backspace_compact(theme: &Theme) -> Self { Self::backspace_sized(theme, 48.0 - 12.0) }
+
+    fn backspace_sized(theme: &Theme, height: f32) -> Self {
+        let default = _Key::backspace(theme, ButtonState::Default, height);
+        let pressed = _Key::backspace(theme, ButtonState::Pressed, height);
         let callback = Box::new(move |ctx: &mut Context| ctx.emit(KeyboardEvent{key: event::Key::Delete, state: KeyboardState::Pressed, modifiers: Modifiers::default()})); // emmit delete
         Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), Some(HoldRepeat::default()))
     }
@@ -431,9 +428,9 @@ impl _Key {
         }
     }
 
-    fn backspace(theme: &Theme, state: ButtonState) -> Self {
+    fn backspace(theme: &Theme, state: ButtonState, height: f32) -> Self {
         _Key::Backspace {
-            layout: Stack(Offset::Center, Offset::Center, Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 42.0)), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
+            layout: Stack(Offset::Center, Offset::Center, Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 42.0)), Size::Static(height), Padding(3.0, 6.0, 3.0, 6.0)),
             background: Rectangle::new(match state {
                 ButtonState::Default => Color::from_hex("ffffff", 110),
                 ButtonState::Pressed => Color::from_hex("ffffff", 130)
@@ -580,6 +577,8 @@ enum MobileKeyboardEvent {
     Capslock(bool),
     Paginator(usize),
     ToggleEmoji,
+    /// Show the first page of this emoji category.
+    EmojiCategory(usize),
 }
 
 impl Event for MobileKeyboardEvent {
@@ -588,33 +587,246 @@ impl Event for MobileKeyboardEvent {
     }
 }
 
-fn parse_emoji_test(contents: &str) -> Vec<String> {
-    let mut emojis = Vec::new();
+struct EmojiCategory { name: String, icon: &'static str, emojis: Vec<String> }
+
+lazy_static::lazy_static! {
+    static ref EMOJI_CATEGORIES: Vec<EmojiCategory> = parse_emoji_categories(include_str!("../../emoji.txt"));
+
+    static ref EMOJI_PAGES: Vec<(usize, usize)> = EMOJI_CATEGORIES.iter().enumerate()
+        .flat_map(|(c, category)| (0..category.emojis.len()).step_by(32).map(move |start| (c, start)))
+        .collect();
+}
+
+fn category_icon(group: &str) -> Option<&'static str> {
+    Some(match group {
+        "Smileys & Emotion" => "😀",
+        "People & Body" => "👋",
+        "Animals & Nature" => "🐻",
+        "Food & Drink" => "🍔",
+        "Travel & Places" => "🚗",
+        "Activities" => "⚽",
+        "Objects" => "💡",
+        "Symbols" => "🔣",
+        "Flags" => "🏁",
+        _ => return None,
+    })
+}
+
+fn parse_emoji_categories(contents: &str) -> Vec<EmojiCategory> {
+    let mut categories: Vec<EmojiCategory> = Vec::new();
+    let mut in_category = false;
 
     for line in contents.lines() {
-        let line = line.trim();
-
-        if line.is_empty() || line.starts_with('#') {
+        if let Some(group) = line.strip_prefix("# group:") {
+            let name = group.trim();
+            in_category = category_icon(name).map(|icon| {
+                categories.push(EmojiCategory { name: name.to_string(), icon, emojis: Vec::new() });
+            }).is_some();
             continue;
         }
+        if !in_category || line.starts_with('#') { continue; }
 
-        let Some((codes, rest)) = line.split_once(';') else {
-            continue;
-        };
+        let Some((codes, status)) = line.split_once(';') else { continue };
+        if !status.trim_start().starts_with("fully-qualified") { continue; }
 
-        if !rest.contains("fully-qualified") {
-            continue;
-        }
+        let emoji: Option<String> = codes.split_whitespace()
+            .map(|hex| u32::from_str_radix(hex, 16).ok().and_then(char::from_u32))
+            .collect();
+        let Some(emoji) = emoji else { continue };
+        if emoji.chars().any(|c| ('\u{1F3FB}'..='\u{1F3FF}').contains(&c)) { continue; }
 
-        let mut emoji = String::new();
-
-        for hex in codes.split_whitespace() {
-            let cp = u32::from_str_radix(hex, 16).unwrap();
-            emoji.push(char::from_u32(cp).unwrap());
-        }
-
-        emojis.push(emoji);
+        if let Some(category) = categories.last_mut() { category.emojis.push(emoji); }
     }
 
-    emojis
+    categories
+}
+
+#[derive(Component, Debug, Clone)]
+struct EmojiPanel(Column, EmojiGrid, EmojiTabs, #[skip] usize, #[skip] Option<EmojiTouch>, #[skip] Theme);
+
+#[derive(Debug, Clone, Copy)]
+struct EmojiTouch { cell: Option<(usize, usize)>, last: (f32, f32), travel: (f32, f32) }
+
+impl EmojiPanel {
+    fn new(theme: &Theme) -> Self {
+        EmojiPanel(
+            Column::new(0.0, Offset::Center, Size::Fill, Padding::default(), None),
+            EmojiGrid::new(theme, 0),
+            EmojiTabs::new(theme, 0),
+            0, None, theme.clone(),
+        )
+    }
+
+    fn category(&self) -> usize { EMOJI_PAGES[self.3].0 }
+
+    fn show_page(&mut self, page: usize) {
+        if page == self.3 || page >= EMOJI_PAGES.len() { return; }
+        let category = self.category();
+        self.3 = page;
+        self.4 = None;
+        self.1 = EmojiGrid::new(&self.5, page);
+        if self.category() != category { self.2 = EmojiTabs::new(&self.5, self.category()); }
+    }
+
+    fn label(&self) -> (String, String) {
+        let (c, start) = EMOJI_PAGES[self.3];
+        let category = &EMOJI_CATEGORIES[c];
+        let pages = category.emojis.len().div_ceil(32);
+        (category.name.clone(), format!("{}/{}", start / 32 + 1, pages))
+    }
+
+    fn cell_at(sized: &SizedTree, pos: (f32, f32)) -> Option<(usize, usize)> {
+        let contains = |offset: (f32, f32), size: (f32, f32), p: (f32, f32)|
+            p.0 >= offset.0 && p.0 < offset.0 + size.0 && p.1 >= offset.1 && p.1 < offset.1 + size.1;
+
+        let (grid_offset, grid) = sized.1.first()?;
+        let p = (pos.0 - grid_offset.0, pos.1 - grid_offset.1);
+        grid.1.iter().enumerate().find_map(|(r, (row_offset, row))| {
+            let p = (p.0 - row_offset.0, p.1 - row_offset.1);
+            row.1.iter().position(|(cell_offset, cell)| contains(*cell_offset, cell.0, p)).map(|c| (r, c))
+        })
+    }
+
+    fn highlight(&mut self, cell: Option<(usize, usize)>, on: bool) {
+        if let Some(cell) = cell.and_then(|c| self.1.cell(c)) { cell.1.display(on); }
+    }
+
+    fn on_touch(&mut self, ctx: &mut Context, sized: &SizedTree, mouse: &MouseEvent) {
+        match mouse.state {
+            MouseState::Pressed(MouseButton::Left) => {
+                let on_grid = |p: (f32, f32)| sized.1.first().is_some_and(|(o, grid)| p.1 >= o.1 && p.1 < o.1 + grid.0.1);
+                self.4 = mouse.position.filter(|p| on_grid(*p)).map(|p| {
+                    let cell = Self::cell_at(sized, p).filter(|c| self.1.cell(*c).is_some_and(|cell| cell.3.is_some()));
+                    EmojiTouch { cell, last: p, travel: (0.0, 0.0) }
+                });
+                if let Some(touch) = self.4 { self.highlight(touch.cell, true); }
+            }
+            MouseState::Scroll(dx, dy) => if let Some(touch) = &mut self.4 {
+                touch.travel.0 -= dx;
+                touch.travel.1 -= dy;
+            },
+            MouseState::Moved => if let (Some(touch), Some(p)) = (&mut self.4, mouse.position) {
+                touch.travel.0 += p.0 - touch.last.0;
+                touch.travel.1 += p.1 - touch.last.1;
+                touch.last = p;
+            },
+            MouseState::Released(_) => if let Some(touch) = self.4.take() {
+                self.highlight(touch.cell, false);
+                let (dx, dy) = touch.travel;
+
+                if dx.abs() >= 40.0 && dx.abs() > dy.abs() {
+                    let page = if dx < 0.0 { self.3 + 1 } else { self.3.saturating_sub(1) };
+                    // if page != self.3 && page < EMOJI_PAGES.len() { ctx.trigger_haptic(); }
+                    self.show_page(page);
+                } else if dx.hypot(dy) < 12.0
+                    && let Some(emoji) = touch.cell.and_then(|c| self.1.cell(c)).and_then(|cell| cell.3.clone())
+                {
+                    ctx.trigger_haptic();
+                    ctx.emit(KeyboardEvent{key: event::Key::Character(emoji), state: KeyboardState::Pressed, modifiers: Modifiers::default()});
+                }
+            },
+            _ => {}
+        }
+
+        // Once a press has moved too far to be a tap, stop highlighting its emoji.
+        if let Some(touch) = self.4 && touch.travel.0.hypot(touch.travel.1) >= 12.0 {
+            self.highlight(touch.cell, false);
+        }
+    }
+}
+
+impl OnEvent for EmojiPanel {
+    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if let Some(MobileKeyboardEvent::EmojiCategory(category)) = event.downcast_ref::<MobileKeyboardEvent>() {
+            if let Some(page) = EMOJI_PAGES.iter().position(|(c, _)| c == category) { self.show_page(page); }
+        } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
+            self.on_touch(ctx, sized, mouse);
+        }
+        vec![event]
+    }
+}
+
+#[derive(Component, Debug, Clone)]
+struct EmojiGrid(Column, Vec<EmojiGridRow>);
+impl OnEvent for EmojiGrid {}
+
+impl EmojiGrid {
+    fn new(theme: &Theme, page: usize) -> Self {
+        let (c, start) = EMOJI_PAGES[page];
+        let emojis = &EMOJI_CATEGORIES[c].emojis;
+        let rows = (0..4).map(|r| {
+            let cells = (0..8).map(|col| {
+                EmojiCell::new(theme, emojis.get(start + r * 8 + col).map(String::as_str))
+            }).collect();
+            EmojiGridRow(Row::new(0.0, Offset::Center, Size::Fit, Padding::default()), cells)
+        }).collect();
+        EmojiGrid(Column::new(0.0, Offset::Center, Size::Fill, Padding::default(), None), rows)
+    }
+
+    fn cell(&mut self, (row, col): (usize, usize)) -> Option<&mut EmojiCell> {
+        self.1.get_mut(row)?.1.get_mut(col)
+    }
+}
+
+#[derive(Component, Debug, Clone)]
+struct EmojiGridRow(Row, Vec<EmojiCell>);
+impl OnEvent for EmojiGridRow {}
+
+/// One emoji (or a blank), with a highlight shown while it's pressed.
+#[derive(Component, Debug, Clone)]
+struct EmojiCell(Stack, Opt<Rectangle>, Text, #[skip] Option<String>);
+impl OnEvent for EmojiCell {}
+
+impl EmojiCell {
+    fn new(theme: &Theme, emoji: Option<&str>) -> Self {
+        // Every cell asks for the same width, so all 8 columns get equal space.
+        let width = Size::custom(|_: Vec<(f32, f32)>| (32.0, f32::MAX));
+        EmojiCell(
+            Stack(Offset::Center, Offset::Center, width, Size::Static(48.0 - 4.0), Padding(2.0, 2.0, 2.0, 2.0)),
+            Opt::new(Rectangle::new(Color::from_hex("ffffff", 110), 8.0, None), false),
+            Text::new(theme, emoji.unwrap_or(""), TextSize::H2, TextStyle::Keyboard, Align::Left, None),
+            emoji.map(str::to_string),
+        )
+    }
+}
+
+/// Category tabs, with the active one highlighted, and backspace.
+#[derive(Component, Debug, Clone)]
+struct EmojiTabs(Row, Vec<EmojiTab>, Key);
+impl OnEvent for EmojiTabs {}
+
+impl EmojiTabs {
+    fn new(theme: &Theme, active: usize) -> Self {
+        let tabs = EMOJI_CATEGORIES.iter().enumerate()
+            .map(|(i, category)| EmojiTab::new(theme, i, category.icon, i == active))
+            .collect();
+        EmojiTabs(Row::new(0.0, Offset::Center, Size::Fit, Padding::default()), tabs, Key::backspace_compact(theme))
+    }
+}
+
+#[derive(Component, Debug, Clone)]
+struct EmojiTab(Stack, interactions::Button);
+impl OnEvent for EmojiTab {}
+
+impl EmojiTab {
+    fn new(theme: &Theme, index: usize, icon: &str, active: bool) -> Self {
+        let face = EmojiTabFace::new(theme, icon, active);
+        let callback = move |ctx: &mut Context| ctx.emit(MobileKeyboardEvent::EmojiCategory(index));
+        EmojiTab(Stack::default(), interactions::Button::new(face, None::<EmojiTabFace>, None::<EmojiTabFace>, None::<EmojiTabFace>, None::<EmojiTabFace>, callback, false))
+    }
+}
+
+#[derive(Component, Debug, Clone)]
+struct EmojiTabFace(Stack, Option<Rectangle>, Text);
+impl OnEvent for EmojiTabFace {}
+
+impl EmojiTabFace {
+    fn new(theme: &Theme, icon: &str, active: bool) -> Self {
+        let width = Size::custom(|_: Vec<(f32, f32)>| (28.0, f32::MAX));
+        EmojiTabFace(
+            Stack(Offset::Center, Offset::Center, width, Size::Static(48.0 - 8.0), Padding(2.0, 4.0, 2.0, 4.0)),
+            active.then(|| Rectangle::new(Color::from_hex("ffffff", 110), 8.0, None)),
+            Text::new(theme, icon, TextSize::H4, TextStyle::Keyboard, Align::Left, None),
+        )
+    }
 }

@@ -6,6 +6,7 @@ use prism::canvas::{self, ShapeType, Shape as CanvasShape, Align, Span, Text as 
 use prism::Context;
 
 use std::time::{Instant, Duration};
+use unicode_segmentation::UnicodeSegmentation;
 
 use pelican_ui::components::Rectangle;
 use pelican_ui::theme::{Theme, Color};
@@ -134,8 +135,8 @@ impl std::fmt::Debug for TextEditor {
 impl TextEditor {
     pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
         let mut built = ExpandableText::new(theme, text, size, style, align, None);
-        // The canvas treats `cursor` as a character index, not a byte index.
-        built.0.inner.cursor = Some(text.chars().count());
+        // The canvas's cursor is a byte offset into the text.
+        built.0.inner.cursor = Some(text.len());
         let magnifier = Magnifier::new(theme, style, built.0.inner.clone());
         TextEditor(Stack::start(), built, TextCursor::new(theme, style, size), magnifier, Scrub::default())
     }
@@ -151,7 +152,7 @@ impl TextEditor {
     /// Replaces the text and moves the cursor to the end of it.
     pub fn set_text(&mut self, text: &str) {
         self.1.0.spans[0] = text.to_string();
-        self.1.0.inner.cursor = Some(text.chars().count());
+        self.1.0.inner.cursor = Some(text.len());
         self.sync();
     }
 
@@ -204,7 +205,9 @@ impl TextEditor {
     fn place_cursor(&mut self, pos: (f32, f32)) {
         let inner = &mut self.1.0.inner;
         let lh = inner.spans.first().map(|s| s.line_height.unwrap_or(s.font_size * 1.25)).unwrap_or(1.0);
-        let lines = inner.len().max(1);
+        // Count lines from the height, which includes the empty line after a
+        // trailing newline, so the cursor can be scrubbed onto it.
+        let lines = ((inner.size().1 / lh).round() as usize).max(1);
         let line = ((pos.1 / lh).floor().max(0.0) as usize).min(lines - 1);
         inner.cursor_click(pos.0, line as f32 * lh + lh * 0.5);
     }
@@ -228,9 +231,19 @@ impl TextEditor {
     }
 }
 
-/// Converts a character index into a byte index into `text`, clamped to the end.
-fn byte_index(text: &str, char_index: usize) -> usize {
-    text.char_indices().nth(char_index).map_or(text.len(), |(i, _)| i)
+/// `index` clamped to the text and moved back onto a character boundary, so
+/// it's always safe to insert or slice there.
+fn clamp_to_boundary(text: &str, index: usize) -> usize {
+    let mut index = index.min(text.len());
+    while !text.is_char_boundary(index) { index -= 1; }
+    index
+}
+
+/// Where the grapheme before byte `index` starts, if there is one. Deleting
+/// from there removes a whole emoji (with its variation selector, ZWJ parts
+/// or skin tone) or an accented letter, not just its last code point.
+fn previous_grapheme(text: &str, index: usize) -> Option<usize> {
+    text[..index].grapheme_indices(true).next_back().map(|(start, _)| start)
 }
 
 impl OnEvent for TextEditor {
@@ -254,23 +267,22 @@ impl OnEvent for TextEditor {
                 _ => {return vec![event];}
             };
 
-            // `cursor` counts characters; String APIs need byte offsets.
+            // `cursor` is a byte offset into the text (as the canvas lays it out).
             let text = &mut self.1.0.spans[0];
-            let len = text.chars().count();
-            let index = self.1.0.inner.cursor.unwrap_or(len).min(len);
+            let index = clamp_to_boundary(text, self.1.0.inner.cursor.unwrap_or(text.len()));
 
             let cursor = match character {
                 Some(c) => {
-                    let at = byte_index(text, index);
-                    text.insert_str(at, &c);
-                    index + c.chars().count()
+                    text.insert_str(index, &c);
+                    index + c.len()
                 }
-                None if index > 0 => {
-                    let (start, end) = (byte_index(text, index - 1), byte_index(text, index));
-                    text.replace_range(start..end, "");
-                    index - 1
-                }
-                None => index,
+                None => match previous_grapheme(text, index) {
+                    Some(start) => {
+                        text.replace_range(start..index, "");
+                        start
+                    }
+                    None => index,
+                },
             };
 
             self.1.0.inner.cursor = Some(cursor);
@@ -299,46 +311,6 @@ impl TextCursor {
     pub fn x_offset(&mut self) -> &mut Offset { &mut self.0.0 }
     pub fn y_offset(&mut self) -> &mut Offset { &mut self.0.1 }
 }
-
-// // /// # Bulleted Text
-// // ///
-// // /// A component for rendering lists with bullet points.
-// // ///
-// // /// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/bulleted_text.png"
-// // ///      alt="Bulleted Text Example"
-// // ///      width="400">
-// // ///
-// // /// ## Example
-// // ///```rust
-// // /// let text_size = ctx.theme.fonts.size.md;
-// // /// let items = vec!["Feed the chairs at midnight.", "Borrow a broom from the moon.", "Vacuum the car inside out.", "Hide the clock beneath the carpet."];
-// // /// let list = BulletedText::new(ctx, items, TextStyle::Primary, text_size);
-// // ///```
-// // #[derive(Debug, Component)]
-// // pub struct BulletedText(Column, Vec<BulletedTextContent>);
-
-// // impl OnEvent for BulletedText {}
-
-// // impl BulletedText {
-// //     pub fn new(ctx: &mut Context, text: Vec<&str>, style: TextStyle, size: f32) -> Self {
-// //         let color = style.get(ctx).0;
-// //         let items = text.into_iter().map(|t| BulletedTextContent::new(ctx, t, color, style, size)).collect();
-// //         BulletedText(Column::center(8.0), items)
-// //     }
-// // }
-
-// // #[derive(Debug, Component)]
-// // struct BulletedTextContent(Row, Shape, ExpandableText);
-// // impl OnEvent for BulletedTextContent {}
-// // impl BulletedTextContent {
-// //     fn new(ctx: &mut Context, text: &str, color: Color, style: TextStyle, size: f32) -> Self {
-// //         BulletedTextContent(
-// //             Row::new(size*0.75, Offset::Center, Size::Fit, Padding::default()), // change this offset to be line_height - circle size / 2
-// //             Circle::new(size*0.2, color, false),
-// //             ExpandableText::new(ctx, text, style, size, Align::Left, None)
-// //         )
-// //     }
-// // }
 
 const SCRUB_HOLD: Duration = Duration::from_millis(300);
 const SCRUB_CANCEL_DISTANCE: f32 = 10.0;
