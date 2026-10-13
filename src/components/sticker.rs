@@ -18,10 +18,30 @@ use std::hash::{Hash, Hasher};
 use crate::theme::Theme;
 use crate::components::Rectangle;
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Sticker {
     bytes: Arc<[u8]>,
     image: Arc<RgbaImage>,
+}
+
+
+impl Serialize for Sticker {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use base64::{engine::general_purpose, Engine as _};
+        serializer.serialize_str(&general_purpose::STANDARD.encode(&self.bytes))
+    }
+}
+
+impl<'de> Deserialize<'de> for Sticker {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use base64::{engine::general_purpose, Engine as _};
+        let encoded = String::deserialize(deserializer)?;
+        let bytes = general_purpose::STANDARD.decode(encoded).map_err(serde::de::Error::custom)?;
+        Ok(Sticker::from_bytes(bytes.clone()).unwrap_or_else(|| Sticker {
+            bytes: bytes.into(),
+            image: Arc::new(RgbaImage::new(1, 1)),
+        }))
+    }
 }
 
 impl Sticker {
@@ -50,7 +70,7 @@ impl Sticker {
 }
 
 #[derive(Debug, Clone)]
-pub struct SendStickerEvent(Sticker)
+pub struct SendStickerEvent(pub Sticker);
 
 impl Event for SendStickerEvent {
     fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {

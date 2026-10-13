@@ -14,7 +14,7 @@ use maverick_os::air::Instance;
 use crate::theme::{Theme, Color, Icons};
 
 use crate::components::text::{Text, TextStyle, TextSize};
-use crate::components::{Rectangle, Icon, Sticker, StickerEvent, StickerPack, StickerPackAction};
+use crate::components::{Rectangle, Icon, Sticker, SendStickerEvent, StickerPack, StickerPackAction};
 use crate::components::button::GhostIconButton;
 
 const REPEAT_DELAY: Duration = Duration::from_millis(500);
@@ -868,7 +868,7 @@ impl OnEvent for StickerPanel {
                 Some(TouchEnd::Turn(next)) => self.show_page(if next { self.page + 1 } else { self.page.saturating_sub(1) }),
                 Some(TouchEnd::Tap(CellAction::Sticker(sticker))) => {
                     ctx.trigger_haptic();
-                    ctx.emit(StickerEvent::Send(sticker));
+                    ctx.emit(SendStickerEvent(sticker));
                 }
                 Some(TouchEnd::Tap(CellAction::NewSticker)) => {
                     self.waiting_for_photo = true;
