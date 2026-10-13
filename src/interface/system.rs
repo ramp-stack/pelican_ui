@@ -261,7 +261,7 @@ impl KeyboardIcons {
     fn new(theme: &Theme, page: KeyboardPage) -> Self {
         let state = |on: bool| if on {ButtonState::Pressed} else {ButtonState::Default};
         KeyboardIcons(
-            Row::new(16.0, Offset::Start, Size::Fit, Padding(12.0, 6.0, 12.0, 6.0)),
+            Row::new(12.0, Offset::Start, Size::Fit, Padding(12.0, 6.0, 12.0, 6.0)),
             // icons.then(|| KeyboardActions(Stack::default(), actions)),
             Key::page_button(theme, Icons::Emoji, state(page == KeyboardPage::Emoji), MobileKeyboardEvent::ToggleEmoji),
             Key::page_button(theme, Icons::Sticker, state(page == KeyboardPage::Stickers), MobileKeyboardEvent::ToggleStickers),
@@ -666,6 +666,7 @@ const STICKERS_PER_PAGE: usize = STICKER_COLUMNS * STICKER_ROWS;
 /// Sticker size on the page. 4 of these fit across the narrowest phones.
 const STICKER_IMAGE: f32 = 72.0;
 const STICKER_TITLE: &str = "Stickers";
+const STICKER_OUTLINE: f32 = 3.0;
 
 /// A press that moves less than this is a tap.
 const TAP_SLOP: f32 = 12.0;
@@ -952,7 +953,7 @@ impl PanelGrid {
     fn emoji(theme: &Theme, page: usize) -> Self {
         let (c, start) = EMOJI_PAGES[page];
         let emojis = &EMOJI_CATEGORIES[c].emojis;
-        Self::new(EMOJI_ROWS, EMOJI_COLUMNS, PanelCell::emoji_layout(), |i| {
+        Self::new(EMOJI_ROWS, EMOJI_COLUMNS, PanelCell::emoji_layout(), 6.0, |i| {
             emojis.get(start + i).map(|emoji| PanelCell::emoji(theme, emoji))
         })
     }
@@ -960,21 +961,21 @@ impl PanelGrid {
     /// Sticker page `page`. The first page starts with the new-sticker tile.
     fn stickers(theme: &Theme, stickers: &[Sticker], page: usize) -> Self {
         let start = page * STICKERS_PER_PAGE;
-        Self::new(STICKER_ROWS, STICKER_COLUMNS, PanelCell::sticker_layout(), |i| match start + i {
+        Self::new(STICKER_ROWS, STICKER_COLUMNS, PanelCell::sticker_layout(), 12.0, |i| match start + i {
             0 => Some(PanelCell::new_sticker(theme)),
             n => stickers.get(n - 1).map(PanelCell::sticker),
         })
     }
 
     /// `cell(i)` gives the i-th cell on the page; `None` leaves it blank.
-    fn new(rows: usize, columns: usize, layout: Stack, mut cell: impl FnMut(usize) -> Option<PanelCell>) -> Self {
+    fn new(rows: usize, columns: usize, layout: Stack, spacing: f32, mut cell: impl FnMut(usize) -> Option<PanelCell>) -> Self {
         let rows = (0..rows).map(|r| {
             let cells = (0..columns).map(|c| {
                 cell(r * columns + c).unwrap_or_else(|| PanelCell::blank(layout.clone()))
             }).collect();
-            PanelRow(Row::new(0.0, Offset::Center, Size::Fit, Padding::default()), cells)
+            PanelRow(Row::new(spacing, Offset::Start, Size::Fit, Padding::new(0.0)), cells)
         }).collect();
-        PanelGrid(Column::new(0.0, Offset::Center, Size::Fill, Padding::default(), None), rows)
+        PanelGrid(Column::new(spacing, Offset::Start, Size::Fill, Padding::new(12.0), None), rows)
     }
 
     fn cell(&mut self, (row, col): (usize, usize)) -> Option<&mut PanelCell> {
@@ -996,7 +997,7 @@ impl PanelGrid {
     }
 
     fn highlight(&mut self, cell: Option<(usize, usize)>, on: bool) {
-        if let Some(cell) = cell.and_then(|c| self.cell(c)) { cell.1.display(on); }
+        if let Some(cell) = cell.and_then(|c| self.cell(c)) { cell.press(on); }
     }
 }
 
@@ -1017,6 +1018,9 @@ enum CellAction {
 
 /// One cell: a highlight shown while it's pressed, what's in it, and what
 /// tapping it does (blank cells have neither).
+
+/// One cell: a highlight shown behind an emoji while it's pressed, what's in
+/// it, and what tapping it does (blank cells have neither).
 #[derive(Component, Debug, Clone)]
 struct PanelCell(Stack, Opt<Rectangle>, Option<CellFace>, #[skip] Option<CellAction>);
 impl OnEvent for PanelCell {}
@@ -1024,8 +1028,9 @@ impl OnEvent for PanelCell {}
 #[derive(Component, Debug, Clone)]
 enum CellFace {
     Emoji {layout: Stack, text: Text},
-    Sticker {layout: Stack, image: Image},
-    NewSticker {layout: Stack, background: Rectangle, icon: Image},
+    /// The outline is drawn over the sticker while it's pressed.
+    Sticker {layout: Stack, image: Image, outline: Opt<Rectangle>},
+    NewSticker {layout: Stack, background: Rectangle, icon: Image, outline: Opt<Rectangle>},
 }
 impl OnEvent for CellFace {}
 
@@ -1036,11 +1041,33 @@ impl PanelCell {
         Stack(Offset::Center, Offset::Center, width, Size::Static(height), Padding(2.0, 2.0, 2.0, 2.0))
     }
 
-    fn emoji_layout() -> Stack { Self::layout(32.0, EMOJI_ROW_HEIGHT - 4.0) }
-    fn sticker_layout() -> Stack { Self::layout(STICKER_IMAGE + 4.0, STICKER_ROW_HEIGHT - 4.0) }
+    fn emoji_layout() -> Stack { Self::layout(32.0, EMOJI_ROW_HEIGHT) }
 
+    /// Fixed at sticker size, so blank cells keep their place on the last page.
+    fn sticker_layout() -> Stack { Self::sticker_box() }
+
+    /// A sticker-sized box. The outline fills it exactly, so it never grows.
+    fn sticker_box() -> Stack {
+        Stack(Offset::Center, Offset::Center, Size::Static(STICKER_IMAGE), Size::Static(STICKER_IMAGE), Padding::default())
+    }
+
+    /// Shown behind an emoji while it's pressed.
     fn highlight(radius: f32) -> Opt<Rectangle> {
         Opt::new(Rectangle::new(Color::from_hex("ffffff", 110), radius, None), false)
+    }
+
+    /// Drawn over a sticker while it's pressed (inside its edge).
+    fn outline() -> Opt<Rectangle> {
+        Opt::new(Rectangle::new(Color::TRANSPARENT, 12.0, Some((STICKER_OUTLINE, Color::WHITE))), false)
+    }
+
+    /// Shows the cell as pressed: an outline over a sticker, or a highlight
+    /// behind an emoji.
+    fn press(&mut self, on: bool) {
+        match &mut self.2 {
+            Some(CellFace::Sticker {outline, ..}) | Some(CellFace::NewSticker {outline, ..}) => outline.display(on),
+            _ => self.1.display(on),
+        }
     }
 
     fn emoji(theme: &Theme, emoji: &str) -> Self {
@@ -1051,16 +1078,20 @@ impl PanelCell {
 
     fn sticker(sticker: &Sticker) -> Self {
         let shape = ShapeType::RoundedRectangle(0.0, (STICKER_IMAGE, STICKER_IMAGE), 0.0, 12.0);
-        let face = CellFace::Sticker {layout: Stack::default(), image: Image {shape, image: sticker.image(), color: None}};
+        let face = CellFace::Sticker {
+            layout: Self::sticker_box(),
+            image: Image {shape, image: sticker.image(), color: None},
+            outline: Self::outline(),
+        };
         PanelCell(Self::sticker_layout(), Self::highlight(12.0), Some(face), Some(CellAction::Sticker(sticker.clone())))
     }
 
     fn new_sticker(theme: &Theme) -> Self {
-        let tile = Stack(Offset::Center, Offset::Center, Size::Static(STICKER_IMAGE), Size::Static(STICKER_IMAGE), Padding::default());
         let face = CellFace::NewSticker {
-            layout: tile,
+            layout: Self::sticker_box(),
             background: Rectangle::new(Color::from_hex("ffffff", 110), 12.0, None),
             icon: Icon::new(theme, Icons::Add, Some(Color::WHITE), 36.0),
+            outline: Self::outline(),
         };
         PanelCell(Self::sticker_layout(), Self::highlight(12.0), Some(face), Some(CellAction::NewSticker))
     }
