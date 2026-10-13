@@ -14,17 +14,24 @@ pub use ptsd::Color;
 pub struct Theme(ptsd::Theme, BrandResources);
 impl Theme {
     pub fn from(assets: &Vec<Dir<'static>>, color: Color) -> Self { 
-        let (theme, is_dark) = ptsd::Theme::from(assets, color);
-        Theme::new(assets, theme, is_dark, color) 
+        let assets = std::iter::once(include_dir!("resources/icons")).chain(assets.iter().cloned()).collect::<Vec<_>>();
+        let (theme, is_dark) = ptsd::Theme::from(&assets, color);
+        Theme::new(&assets, theme, is_dark, color) 
     }
 
-    pub fn dark(assets: &Vec<Dir<'static>>, color: Color) -> Self { Theme::new(assets, ptsd::Theme::dark(assets, color), true, color) }
-    pub fn light(assets: &Vec<Dir<'static>>, color: Color) -> Self { Theme::new(assets, ptsd::Theme::light(assets, color), false, color) }
+    pub fn dark(assets: &Vec<Dir<'static>>, color: Color) -> Self { 
+        let assets = std::iter::once(include_dir!("resources/icons")).chain(assets.iter().cloned()).collect::<Vec<_>>();
+        Theme::new(&assets, ptsd::Theme::dark(&assets, color), true, color) 
+    }
+    pub fn light(assets: &Vec<Dir<'static>>, color: Color) -> Self { 
+        let assets = std::iter::once(include_dir!("resources/icons")).chain(assets.iter().cloned()).collect::<Vec<_>>();
+        Theme::new(&assets, ptsd::Theme::light(&assets, color), false, color) 
+    }
 
     fn new(assets: &Vec<Dir<'static>>, mut inner: ptsd::Theme, is_dark: bool, color: Color) -> Self {
         Icons::map(&mut inner.icons);
         Button::map(&mut inner.colors, is_dark, color);
-        Theme(inner, BrandResources::new(assets))
+        Theme(inner, BrandResources::new(&assets))
     }
 
     pub fn colors(&self) -> &ColorResources {&self.0.colors}

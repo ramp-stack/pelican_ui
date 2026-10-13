@@ -15,6 +15,7 @@ use crate::components::text::{Text, TextSize, TextStyle, TextEditor, ExpandableT
 use crate::components::Rectangle;
 use crate::components::button::SecondaryIconButton;
 use crate::components::QRCodeScannedEvent;
+use crate::interface::system::KeyboardPages;
 
 /// ## Text Input
 ///
@@ -56,6 +57,7 @@ impl TextInput {
         placeholder: Option<&str>,
         mut help_text: Option<&str>,
         icon_button: Option<(Icons, InputCallback, ValidTextCallback)>,
+        keyboard_pages: KeyboardPages,
         // on_edit: impl FnMut(&mut Context, &mut String) + 'static,
     ) -> Self {
         let background = |bg: Color, o: Color| Rectangle::new(bg, 8.0, Some((1.0, o)));
@@ -65,7 +67,7 @@ impl TextInput {
             background(Color::TRANSPARENT, colors.get(ptsd::Outline::Primary)),
             Some(background(colors.get(ptsd::Background::Secondary), colors.get(ptsd::Outline::Secondary))),
             Some(background(Color::TRANSPARENT, colors.get(ptsd::Status::Danger))),
-            _InputContent::new(theme, value, placeholder, icon_button),
+            _InputContent::new(theme, value, placeholder, icon_button, keyboard_pages),
             48.0,
         );
 
@@ -84,7 +86,7 @@ impl TextInput {
     }
     
     pub fn default(theme: &Theme, ) -> Self {
-        Self::new(theme, None, Some("First name"), None, None, None)
+        Self::new(theme, None, Some("First name"), None, None, None, KeyboardPages::default())
     }
 
     pub fn value(&self) -> String {
@@ -126,6 +128,7 @@ struct _InputContent {
     default: Opt<Bin<Stack, TextEditor>>,
     empty: Opt<Bin<Stack, ExpandableText>>,
     button: Option<SecondaryIconButton>,
+    #[skip] keyboard_pages: KeyboardPages,
     #[skip] pub value: String,
     #[skip] on_submit: Option<InputCallback>,
     #[skip] is_focused: bool,
@@ -144,6 +147,7 @@ impl _InputContent {
         value: Option<&str>,
         placeholder: Option<&str>,
         button: Option<(Icons, InputCallback, ValidTextCallback)>,
+        keyboard_pages: KeyboardPages
     ) -> Self {
         let (button, on_submit, is_valid) = button.map(|(icon, cb, vtc)| {
             let btn = SecondaryIconButton::medium(theme, icon, |ctx: &mut Context, _: &Theme| ctx.emit(TextInputEvent::Submit));
@@ -161,6 +165,7 @@ impl _InputContent {
             on_submit,
             is_focused: false,
             is_valid,
+            keyboard_pages,
         }
     }
 
@@ -230,6 +235,7 @@ impl OnEvent for _InputContent {
         } else if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {
             self.is_focused = *x;
             if crate::IS_MOBILE {ctx.emit(crate::interface::general::InterfaceEvent::FocusTextInput(*x));}
+            if crate::IS_MOBILE && *x {ctx.emit(self.keyboard_pages);}
             // println!("FOCUSED {:?}", self.is_focused);
         } else if event.downcast_ref::<TickEvent>().is_some() {
             if let Some(is_valid) = &mut self.is_valid 

@@ -15,7 +15,7 @@ use image::RgbaImage;
 
 use crate::theme::{Theme, Icons};
 use crate::components::Rectangle;
-use crate::components::Sticker;
+use crate::components::{Sticker, Gif, GifPlayer};
 
 use maverick_os::air::Name;
 
@@ -202,6 +202,10 @@ pub enum _TextMessage {
     Sticker {
         layout: Stack,
         image: Image,
+    },
+    Gif {
+        layout: Stack,
+        gif: GifPlayer,
     }
 }
 
@@ -242,7 +246,8 @@ impl _TextMessage {
                 let layout = Stack(Offset::Center, Offset::Center, Size::Static(sticker_size), Size::Static(sticker_size), Padding::default());
                 let shape = ShapeType::RoundedRectangle(0.0, (sticker_size, sticker_size), 0.0, 16.0);
                 _TextMessage::Sticker{layout, image: Image { shape, image: sticker.image(), color: None }}
-            }
+            },
+            MessageContent::Gif(gif) => _TextMessage::Gif{layout: Stack::default(), gif: GifPlayer::message(theme, gif)},
         }
         
     }
@@ -264,5 +269,6 @@ pub enum Room {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Eq, Hash)]
 pub enum MessageContent {
     Text(String),
-    Sticker(Sticker)
+    Sticker(Sticker),
+    Gif(Gif)
 }

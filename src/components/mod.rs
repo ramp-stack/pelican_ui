@@ -44,3 +44,6 @@ pub use searchbar::{SearchBar, SearchbarEvent};
 
 mod sticker;
 pub use sticker::{Sticker, SendStickerEvent, StickerPack, StickerPackAction};
+
+mod gif;
+pub use gif::{Gif, GifPlayer, GifFrames, GifBatch, GifError, SendGifEvent, Task, find_gifs, load_gif, set_giphy_api_key};

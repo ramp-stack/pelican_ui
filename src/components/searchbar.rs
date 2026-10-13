@@ -10,6 +10,7 @@ use crate::theme::{Theme, Icons};
 use crate::components::TextInput;
 use crate::components::list_item::ListItem;
 use crate::components::button::{SecondaryButton, QuickActions};
+use crate::interface::system::KeyboardPages;
 
 use maverick_os::air::Name;
 
@@ -27,7 +28,7 @@ impl OnEvent for SearchBar {
 
 impl SearchBar {
     pub fn new(theme: &Theme, label: &str, items: Vec<(ListItem, Name)>, actions: Option<QuickActions>) -> Self {
-        let input = TextInput::new(theme, None, None, Some(&format!("Search {}...", label.to_lowercase())), None, None);
+        let input = TextInput::new(theme, None, None, Some(&format!("Search {}...", label.to_lowercase())), None, None, KeyboardPages::EMOJI);
         SearchBar(Column::start(12.0), input, actions, SelectedItems::new(theme, vec![]), SearchableItems::new(theme, items), String::new())
     }
 

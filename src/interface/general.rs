@@ -12,14 +12,16 @@ use crate::components::{Rectangle, TextInput, TextInputEvent, QRCodeScannedEvent
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
 use crate::components::avatar::{AvatarGroup, AvatarContent};
-use crate::interface::system::MobileKeyboard;
+use crate::interface::system::{MobileKeyboard, KeyboardFullScreen, KeyboardPages};
 use crate::interface::navigation::{RootInfo, Navigator};
 use crate::interface::navigation::FlowContainer;
+
 
 use ptsd::interfaces::{Body, Navigator as PTSDNavigator};
 use ptsd::navigation::{NavigationEvent, AppPage};
 use ptsd::utils::ValidationFn;
 pub use ptsd::navigation::Pages;
+use ptsd::interfaces::ShowKeyboard;
 
 use std::sync::{Arc, Mutex};
 
@@ -70,6 +72,21 @@ impl OnEvent for Interface {
         //     self.layout = Stack::new(Offset::default(), Offset::default(), Size::default(), Size::default(), Padding(*l, *t, *r, *b));
         //     println!("Setting padding to {:?}", self.layout.4);
         // }
+
+        if let ptsd::interfaces::Interface::Mobile{keyboard, ..} = &mut self.inner {
+            let showing = keyboard.is_showing();
+            if let Some(keyboard) = keyboard.inner().downcast_mut::<MobileKeyboard>() {
+                if let Some(event::Selectable::Pressed(id, group)) = event.downcast_ref::<event::Selectable>() {
+                    keyboard.selected(id, group);
+                } else if let Some(pages) = event.downcast_ref::<KeyboardPages>() {
+                    keyboard.set_pages(ctx, *pages);
+                } else if let Some(ShowKeyboard(false)) = event.downcast_ref::<ShowKeyboard>() && keyboard.searching_gifs() {
+                    return vec![];
+                } else if !showing && event.downcast_ref::<TickEvent>().is_some() {
+                    keyboard.hidden(ctx);
+                }
+            }
+        }
 
         if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![0];}
 
@@ -458,7 +475,7 @@ impl Bumper {
     }
 
     pub fn input(theme: &Theme, placeholder: &str, on_submit: impl FnMut(&mut Context, &mut String) + 'static, valid: impl FnMut(&mut Context, &mut String) -> bool + 'static) -> Self {
-        let content = TextInput::new(theme, None, None, Some(placeholder), None, Some((Icons::Send, Arc::new(Mutex::new(on_submit)), Arc::new(Mutex::new(valid)))));
+        let content = TextInput::new(theme, None, None, Some(placeholder), None, Some((Icons::Send, Arc::new(Mutex::new(on_submit)), Arc::new(Mutex::new(valid)))), KeyboardPages::ALL);
         let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }
@@ -528,6 +545,10 @@ pub struct Screen(Stack, Pages, Option<Bin<Stack, Rectangle>>);
 impl OnEvent for Screen {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![1];}
+       
+        if let Some(KeyboardFullScreen(full)) = event.downcast_ref::<KeyboardFullScreen>() {
+            self.0.3 = if *full { Size::Static(0.0) } else { Size::Fit };
+        }
         vec![event]
     }
 }
