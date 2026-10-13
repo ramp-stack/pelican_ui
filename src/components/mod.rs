@@ -3,6 +3,9 @@ pub mod avatar;
 pub mod list_item;
 pub mod text;
 
+mod alert;
+pub use alert::Alert;
+
 mod text_input;
 pub use text_input::{TextInput, TextInputEvent};
 

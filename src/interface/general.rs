@@ -15,6 +15,7 @@ use crate::components::avatar::{AvatarGroup, AvatarContent};
 use crate::interface::system::{MobileKeyboard, KeyboardFullScreen, KeyboardPages};
 use crate::interface::navigation::{RootInfo, Navigator};
 use crate::interface::navigation::FlowContainer;
+use crate::components::Alert;
 
 
 use ptsd::interfaces::{Body, Navigator as PTSDNavigator};
@@ -478,6 +479,12 @@ impl Bumper {
         let content = TextInput::new(theme, None, None, Some(placeholder), None, Some((Icons::Send, Arc::new(Mutex::new(on_submit)), Arc::new(Mutex::new(valid)))), KeyboardPages::ALL);
         let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
+    }
+
+    pub fn alert(theme: &Theme, message: &str) -> Self {
+        let (layout, background) = Self::layout(theme);
+        let alert = Alert::new(theme, message);
+        Bumper { layout, background, content: BumperContent::new(vec![Box::new(alert)]) }
     }
 
     fn layout(theme: &Theme) -> (Stack, Rectangle) {
