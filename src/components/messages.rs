@@ -17,6 +17,9 @@ use crate::theme::{Theme, Icons};
 use crate::components::Rectangle;
 use crate::components::{Sticker, Gif, GifPlayer};
 
+use ptsd::interactions;
+use crate::Callback;
+
 use maverick_os::air::Name;
 
 use crate::components::avatar::{AvatarSize, AvatarContent, AvatarIconStyle, Avatar};
@@ -41,11 +44,12 @@ impl Profile {
     pub fn is_me(&self, ctx: &mut Context) -> bool {self.name == ctx.me()}
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Message {
     pub body: MessageContent,
     pub timestamp: Timestamp,
     pub author: Profile,
+    pub on_click: Box<dyn Callback>,
 }
 
 #[derive(Debug, Clone, Component)]
@@ -68,7 +72,6 @@ impl MessageGroups {
             if !collection.is_empty() && (!close_enough || author != prev_auth) {
                 let a = collection[0].author.clone();
                 let t = collection.last().unwrap().timestamp.clone();
-                let msgs: Vec<MessageContent> = collection.iter().map(|m| m.body.clone()).collect::<Vec<_>>();
                 let direction = if a.is_me(ctx) { Direction::Sent } else { Direction::Received };
 
                 let room_type = match is_room {
@@ -78,7 +81,7 @@ impl MessageGroups {
                 };
 
                 // println!("ROOM TYPE {:?} because {:?}", room_type, members.len());
-                new.push(MessageGroup::new(theme, msgs, t, a, room_type));
+                new.push(MessageGroup::new(theme, collection.clone(), t, a, room_type));
 
                 collection.clear();
             }
@@ -92,10 +95,9 @@ impl MessageGroups {
         if !collection.is_empty() {
             let a = collection[0].author.clone();
             let t = collection.last().unwrap().timestamp.clone();
-            let msgs = collection.iter().map(|m| m.body.clone()).collect::<Vec<_>>();
             let direction = if a.is_me(ctx) { Direction::Sent } else { Direction::Received };
 
-            new.push(MessageGroup::new(theme, msgs, t, a, match is_room {
+            new.push(MessageGroup::new(theme, collection.clone(), t, a, match is_room {
                 true => Room::Room,
                 false if is_group => Room::Group(direction),
                 false => Room::Direct(direction),
@@ -110,7 +112,7 @@ impl MessageGroups {
 pub struct MessageGroup(Row, Option<Bin<Stack, Avatar>>, _MessageGroup);
 impl OnEvent for MessageGroup {}
 impl MessageGroup {
-    pub fn new(theme: &Theme, messages: Vec<MessageContent>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
+    pub fn new(theme: &Theme, messages: Vec<Message>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
         let avatar = Avatar::new(theme, profile.pfp.clone(), None, false, AvatarSize::Xs, None);
 
         let (layout, avatar) = match room {
@@ -137,7 +139,7 @@ pub enum _MessageGroup {
 
 impl OnEvent for _MessageGroup {}
 impl _MessageGroup {
-    pub fn new(theme: &Theme, messages: Vec<MessageContent>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
+    pub fn new(theme: &Theme, messages: Vec<Message>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
         let info = MessageInfo::new(theme, profile.username, timestamp, room);
         let msg = _TextMessages::new(theme, messages, room);
         match room {
@@ -178,17 +180,27 @@ impl MessageInfo {
 }
 
 #[derive(Debug, Clone, Component)]
-pub struct _TextMessages(Column, Vec<_TextMessage>);
+pub struct _TextMessages(Column, Vec<interactions::Button>);
 impl OnEvent for _TextMessages {}
 impl _TextMessages {
-    pub fn new(theme: &Theme, messages: Vec<MessageContent>, room: Room) -> Self {
+    pub fn new(theme: &Theme, messages: Vec<Message>, room: Room) -> Self {
         let layout = match room {
             Room::Group(Direction::Sent) | Room::Direct(Direction::Sent) => Column::end(8.0),
             Room::Group(Direction::Received) | Room::Direct(Direction::Received) => Column::start(8.0),
             Room::Room => Column::start(0.0),
         };
 
-        _TextMessages(layout, messages.iter().map(|msg| _TextMessage::new(theme, msg, room)).collect::<Vec<_>>())
+        let bubbles = messages.into_iter().map(|message| {
+            let bubble = _TextMessage::new(theme, &message.body, room);
+            let theme = theme.clone();
+            let mut on_click = message.on_click;
+            let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
+            let mut button = interactions::Button::new(bubble, None::<_TextMessage>, None::<_TextMessage>, None::<_TextMessage>, None::<_TextMessage>, callback, false);
+            button.set_trigger_on_release();
+            button
+        }).collect::<Vec<_>>();
+
+        _TextMessages(layout, bubbles)
     }
 }
 
