@@ -13,6 +13,7 @@ use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
 use crate::components::avatar::{AvatarGroup, AvatarContent};
 use crate::interface::system::{MobileKeyboard, KeyboardFullScreen, KeyboardPages};
+use crate::interface::message_bar::MessageBar;
 use crate::interface::navigation::{RootInfo, Navigator};
 use crate::interface::navigation::FlowContainer;
 use crate::components::Alert;
@@ -24,7 +25,6 @@ use ptsd::utils::ValidationFn;
 pub use ptsd::navigation::Pages;
 use ptsd::interfaces::ShowKeyboard;
 
-use std::sync::{Arc, Mutex};
 
 pub trait OnEventFn: FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>> + 'static {
     fn clone_box(&self) -> Box<dyn OnEventFn>;
@@ -83,8 +83,9 @@ impl OnEvent for Interface {
                     keyboard.set_pages(ctx, *pages);
                 } else if let Some(ShowKeyboard(false)) = event.downcast_ref::<ShowKeyboard>() && keyboard.searching_gifs() {
                     return vec![];
-                } else if !showing && event.downcast_ref::<TickEvent>().is_some() {
-                    keyboard.hidden(ctx);
+                } else if event.downcast_ref::<TickEvent>().is_some() {
+                    if !showing { keyboard.hidden(ctx); }
+                    keyboard.announce(ctx, showing);
                 }
             }
         }
@@ -475,10 +476,20 @@ impl Bumper {
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }
 
+    /// A `Bumper` preset for a chat: the message field, with a toolbar under
+    /// it for emoji, stickers, GIFs, and photos and videos (see [`MessageBar`]).
     pub fn input(theme: &Theme, placeholder: &str, on_submit: impl FnMut(&mut Context, &mut String) + 'static, valid: impl FnMut(&mut Context, &mut String) -> bool + 'static) -> Self {
-        let content = TextInput::new(theme, None, None, Some(placeholder), None, Some((Icons::Send, Arc::new(Mutex::new(on_submit)), Arc::new(Mutex::new(valid)))), KeyboardPages::ALL);
+        let bar = MessageBar::new(theme, placeholder, on_submit, valid);
         let (layout, background) = Self::layout(theme);
-        Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
+        // Less below: the toolbar's icons have room around them already.
+        let mut content = BumperContent::new(vec![Box::new(bar)]);
+        content.layout.padding().3 = 8.0;
+        Bumper { layout, background, content }
+    }
+
+    /// The chat's message bar, for a `Bumper` made with [`Bumper::input`].
+    pub fn message_bar(&mut self) -> Option<&mut MessageBar> {
+        self.content.children.first_mut().and_then(|child| child.downcast_mut::<MessageBar>())
     }
 
     pub fn alert(theme: &Theme, message: &str) -> Self {

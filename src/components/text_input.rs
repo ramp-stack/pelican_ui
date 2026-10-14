@@ -93,6 +93,29 @@ impl TextInput {
         self.inner.2.as_any().downcast_ref::<_InputContent>().unwrap().value.to_string()
     }
 
+    /// Whether it has the focus: what's typed goes into it.
+    pub fn has_focus(&self) -> bool {
+        self.inner.2.as_any().downcast_ref::<_InputContent>().is_some_and(|content| content.is_focused)
+    }
+
+    /// Puts `text` in at the cursor, as typing it would, whether it has the
+    /// focus or not.
+    pub fn insert(&mut self, text: &str) {
+        if let Some(content) = (*self.inner.2).as_any_mut().downcast_mut::<_InputContent>() {
+            content.default.inner().inner().insert(text);
+            content.value = content.default.inner().inner().1.0.spans[0].clone();
+        }
+    }
+
+    /// Deletes the character before the cursor, as backspace would, whether
+    /// it has the focus or not.
+    pub fn delete_back(&mut self) {
+        if let Some(content) = (*self.inner.2).as_any_mut().downcast_mut::<_InputContent>() {
+            content.default.inner().inner().delete_back();
+            content.value = content.default.inner().inner().1.0.spans[0].clone();
+        }
+    }
+
     /// Replaces the text in this input and moves the cursor to the end.
     pub fn set_value(&mut self, value: &str) {
         if let Some(content) = (*self.inner.2).as_any_mut().downcast_mut::<_InputContent>() {

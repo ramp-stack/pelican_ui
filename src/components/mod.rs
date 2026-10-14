@@ -3,6 +3,9 @@ pub mod avatar;
 pub mod list_item;
 pub mod text;
 
+mod media;
+pub use media::{Photo, PhotoView, Video, VideoView, AttachButton, SendPhotoEvent, SendVideoEvent, VideoClip};
+
 mod alert;
 pub use alert::Alert;
 

@@ -1,7 +1,7 @@
 use prism::event::{OnEvent, Event, TickEvent};
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
 use prism::drawable::{Component, SizedTree};
-use prism::canvas::{Align, Image, ShapeType};
+use prism::canvas::{Align, Image, ShapeType, is_emoji_grapheme};
 use prism::display::Bin;
 use ptsd::colors;
 use ptsd::utils::Timestamp;
@@ -15,7 +15,7 @@ use image::RgbaImage;
 
 use crate::theme::{Theme, Icons};
 use crate::components::Rectangle;
-use crate::components::{Sticker, Gif, GifPlayer};
+use crate::components::{Sticker, Gif, GifPlayer, Photo, PhotoView, Video, VideoView};
 
 use ptsd::interactions;
 use crate::Callback;
@@ -211,6 +211,7 @@ pub enum _TextMessage {
         background: Option<Rectangle>, 
         text: Bin<Stack, ExpandableText>
     },
+    Emoji {layout: Stack, text: Text},
     Sticker {
         layout: Stack,
         image: Image,
@@ -218,7 +219,9 @@ pub enum _TextMessage {
     Gif {
         layout: Stack,
         gif: GifPlayer,
-    }
+    },
+    Photo { layout: Stack, photo: PhotoView },
+    Video { layout: Stack, video: VideoView }
 }
 
 impl OnEvent for _TextMessage {
@@ -241,17 +244,23 @@ impl _TextMessage {
     pub fn new(theme: &Theme, message: &MessageContent, style: Room) -> Self {
         match message {
             MessageContent::Text(message) => {
-                let text = ExpandableText::new(theme, message, TextSize::Md, TextStyle::Primary, Align::Left, None);
-                let background = match style {
-                    Room::Group(Direction::Sent) | Room::Direct(Direction::Sent) => Some(theme.colors().get(colors::Brand)),
-                    Room::Group(Direction::Received) | Room::Direct(Direction::Received) => Some(theme.colors().get(colors::Background::Secondary)),
-                    Room::Room => None,
-                };
+                let chars = message.chars().collect::<Vec<char>>();
+                if chars.len() == 1 && is_emoji_grapheme(message) {
+                    let text = Text::new(theme, message, TextSize::H1, TextStyle::Primary, Align::Left, None);
+                    _TextMessage::Emoji{layout: Stack::center(), text}
+                } else {
+                    let text = ExpandableText::new(theme, message, TextSize::Md, TextStyle::Primary, Align::Left, None);
+                    let background = match style {
+                        Room::Group(Direction::Sent) | Room::Direct(Direction::Sent) => Some(theme.colors().get(colors::Brand)),
+                        Room::Group(Direction::Received) | Room::Direct(Direction::Received) => Some(theme.colors().get(colors::Background::Secondary)),
+                        Room::Room => None,
+                    };
 
-                let width = Size::custom(move |h: Vec<(f32, f32)>| (h.last().unwrap().0, (h.last().unwrap().1 + 24.0).max(42.0)));
-                let height = Size::custom(move |h: Vec<(f32, f32)>| (h.last().unwrap().0, h.last().unwrap().1));
-                let layout = Stack::new(Offset::Center, Offset::Center, width, height, Padding::default());
-                _TextMessage::Text{layout, background: background.map(|c| Rectangle::new(c, 18.0, None)), text: Bin(Stack::default(), text)}
+                    let width = Size::custom(move |h: Vec<(f32, f32)>| (h.last().unwrap().0, (h.last().unwrap().1 + 24.0).max(42.0)));
+                    let height = Size::custom(move |h: Vec<(f32, f32)>| (h.last().unwrap().0, h.last().unwrap().1));
+                    let layout = Stack::new(Offset::Center, Offset::Center, width, height, Padding::default());
+                    _TextMessage::Text{layout, background: background.map(|c| Rectangle::new(c, 18.0, None)), text: Bin(Stack::default(), text)}
+                }
             },
             MessageContent::Sticker(sticker) => {
                 let sticker_size = 120.0;
@@ -260,6 +269,8 @@ impl _TextMessage {
                 _TextMessage::Sticker{layout, image: Image { shape, image: sticker.image(), color: None }}
             },
             MessageContent::Gif(gif) => _TextMessage::Gif{layout: Stack::default(), gif: GifPlayer::message(theme, gif)},
+            MessageContent::Photo(photo) => _TextMessage::Photo{layout: Stack::default(), photo: PhotoView::message(theme, photo)},
+            MessageContent::Video(video) => _TextMessage::Video{layout: Stack::default(), video: VideoView::message(theme, video)},
         }
         
     }
@@ -282,5 +293,7 @@ pub enum Room {
 pub enum MessageContent {
     Text(String),
     Sticker(Sticker),
-    Gif(Gif)
+    Gif(Gif),
+    Photo(Photo),
+    Video(Video),
 }

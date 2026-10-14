@@ -148,6 +148,28 @@ impl TextEditor {
         self.2.1.display(display)
     }
 
+    /// Puts `text` in at the cursor, as typing it would.
+    pub fn insert(&mut self, text: &str) {
+        // `cursor` is a byte offset into the text (as the canvas lays it out).
+        let content = &mut self.1.0.spans[0];
+        let index = clamp_to_boundary(content, self.1.0.inner.cursor.unwrap_or(content.len()));
+        content.insert_str(index, text);
+        self.1.0.inner.cursor = Some(index + text.len());
+        self.sync();
+    }
+
+    /// Deletes the character before the cursor, as backspace would.
+    pub fn delete_back(&mut self) {
+        let content = &mut self.1.0.spans[0];
+        let index = clamp_to_boundary(content, self.1.0.inner.cursor.unwrap_or(content.len()));
+        let cursor = match previous_grapheme(content, index) {
+            Some(start) => { content.replace_range(start..index, ""); start },
+            None => index,
+        };
+        self.1.0.inner.cursor = Some(cursor);
+        self.sync();
+    }
+
     pub fn set_text(&mut self, text: &str) {
         self.1.0.spans[0] = text.to_string();
         self.1.0.inner.cursor = Some(text.len());
@@ -246,36 +268,15 @@ impl OnEvent for TextEditor {
             }
             self.sync();
         } else if let Some(KeyboardEvent{state: KeyboardState::Pressed | KeyboardState::Repeated, key, ..}) = event.downcast_ref() {
-            let character = match key {
-                Key::Character(c) => Some(c.clone()),
-                Key::Enter => Some("\n".to_string()),
-                Key::Space => Some(" ".to_string()),
+            match key {
+                Key::Character(c) => self.insert(c),
+                Key::Enter => self.insert("\n"),
+                Key::Space => self.insert(" "),
                 // The on-screen keyboard and keypad send `Delete` for backspace,
                 // so both keys delete the character before the cursor.
-                Key::Delete | Key::Backspace => None,
-                _ => {return vec![event];}
-            };
-
-            // `cursor` is a byte offset into the text (as the canvas lays it out).
-            let text = &mut self.1.0.spans[0];
-            let index = clamp_to_boundary(text, self.1.0.inner.cursor.unwrap_or(text.len()));
-
-            let cursor = match character {
-                Some(c) => {
-                    text.insert_str(index, &c);
-                    index + c.len()
-                }
-                None => match previous_grapheme(text, index) {
-                    Some(start) => {
-                        text.replace_range(start..index, "");
-                        start
-                    }
-                    None => index,
-                },
-            };
-
-            self.1.0.inner.cursor = Some(cursor);
-            self.sync();
+                Key::Delete | Key::Backspace => self.delete_back(),
+                _ => {},
+            }
         }
 
         vec![event]
