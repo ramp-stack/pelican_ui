@@ -1,8 +1,7 @@
-use prism::event::{OnEvent, Event, TickEvent};
+use prism::event::OnEvent;
 use prism::canvas::{Align, Image};
 use prism::layout::{Column, Stack, Row, Padding, Offset, Size};
-use prism::drawable::{Component, SizedTree};
-use prism::display::EitherOr;
+use prism::drawable::Component;
 use prism::Context;
 
 use ptsd::interactions;
@@ -12,9 +11,6 @@ use crate::theme::{Theme, Color, Icons};
 use crate::components::text::{Text, TextSize, ExpandableText, TextStyle};
 use crate::components::Icon;
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
-
-use std::sync::Arc;
-
 
 /// ## List Item
 ///

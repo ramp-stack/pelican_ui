@@ -1,9 +1,9 @@
 use prism::{drawables, Context, IS_MOBILE, IS_WEB};
-use prism::event::{self, Event, OnEvent, MouseEvent, MouseState, TickEvent};
+use prism::event::{self, Event, OnEvent, TickEvent};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
 use prism::display::Bin;
-use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size,  ScrollAnchor};
+use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size};
 use prism::emitters::Scrollable;
 
 use crate::Callback;
@@ -11,13 +11,11 @@ use crate::theme::{Theme, Icons};
 use crate::components::{Rectangle, TextInput, TextInputEvent, QRCodeScannedEvent, Profile};
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
-use crate::components::avatar::{AvatarGroup, AvatarContent};
+use crate::components::avatar::AvatarGroup;
 use crate::interface::system::{MobileKeyboard, KeyboardFullScreen, KeyboardPages};
 use crate::interface::message_bar::MessageBar;
 use crate::interface::navigation::{RootInfo, Navigator};
-use crate::interface::navigation::FlowContainer;
 use crate::components::Alert;
-
 
 use ptsd::interfaces::{Body, Navigator as PTSDNavigator};
 use ptsd::navigation::{NavigationEvent, AppPage};
@@ -276,7 +274,7 @@ impl OnEvent for Content {
                 self.last_input = Some(i);
             }
 
-            let event = InterfaceEvent::Disable(!(self.validation)(ctx, self.children.1.inner().iter_mut().map(|c| c).collect()));
+            let event = InterfaceEvent::Disable(!(self.validation)(ctx, self.children.1.inner().iter_mut().collect()));
             ctx.emit(event);
         } else if let Some(InterfaceEvent::FocusTextInput(true)) = event.downcast_ref::<InterfaceEvent>() {
             let mut total_height = 0.0;
@@ -366,7 +364,7 @@ impl Header {
         Self::_new(theme, title, Some((Icons::Close, Box::new(closure))), None, TextSize::H4)
     }
 
-    pub fn messaging(ctx: &mut Context, theme: &Theme, title: String, profiles: Vec<Profile>, exact_len: usize, info: Option<Box<dyn Callback>>) -> Self {
+    pub fn messaging(theme: &Theme, title: String, profiles: Vec<Profile>, exact_len: usize, info: Option<Box<dyn Callback>>) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| (0..exact_len).for_each(|_| ctx.emit(NavigationEvent::Pop));
         let l_icon = HeaderIcon::new(theme, Icons::Left, closure);
         let r_icon = info.map(|i| HeaderIcon::new(theme, Icons::Info, i)).unwrap_or_default(); // this needs to navigate to info page
@@ -387,7 +385,7 @@ impl Header {
         r_icon: Option<(Icons, Box<dyn Callback>)>,
         size: TextSize,
     ) -> Self {
-        let text = ExpandableText::new(theme, &title, size, TextStyle::Heading, Align::Center, Some(1));
+        let text = ExpandableText::new(theme, title, size, TextStyle::Heading, Align::Center, Some(1));
 
         let l_icon = l_icon.map(|(n, c)| HeaderIcon::new(theme, n, c)).unwrap_or_default();
         let r_icon = r_icon.map(|(n, c)| HeaderIcon::new(theme, n, c)).unwrap_or_default();

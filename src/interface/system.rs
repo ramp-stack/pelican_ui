@@ -119,7 +119,7 @@ impl GrowingGrid {
     /// Whether the bottom of what's built is within a few rows of showing.
     fn near_end(&self, sized: &SizedTree) -> bool {
         Self::measure(sized).is_none_or(|(scrolled, showing, height)| {
-            scrolled + showing + 4 as f32 * (self.4 + 12.0) >= height
+            scrolled + showing + 4.0 * (self.4 + 12.0) >= height
         })
     }
 

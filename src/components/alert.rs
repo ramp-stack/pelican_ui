@@ -1,5 +1,4 @@
 use prism::event::OnEvent;
-use prism::Context;
 use prism::drawable::Component;
 use prism::layout::{Row, Offset, Size, Padding};
 use prism::canvas::{Image, Align};

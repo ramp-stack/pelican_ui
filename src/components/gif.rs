@@ -19,7 +19,6 @@ use crate::theme::{Theme, Color};
 use crate::components::Rectangle;
 
 static API_KEY: OnceLock<String> = OnceLock::new();
-
 static CACHE: Mutex<GifCache> = Mutex::new(GifCache { entries: BTreeMap::new(), recent: VecDeque::new(), bytes: 0 });
 
 lazy_static::lazy_static! {
@@ -195,7 +194,7 @@ pub fn load_gif(url: &str, crop: Option<(u32, u32)>) -> Option<Arc<GifFrames>> {
             .and_then(|bytes| GifDecoder::new(std::io::Cursor::new(bytes)).ok())
             .map(|decoder| decoder.into_frames().take(90).map_while(Result::ok).map(|frame| {
                 let (numer, denom) = frame.delay().numer_denom_ms();
-                let ms = if denom == 0 { 0 } else { numer / denom };
+                let ms = numer.checked_div(denom).unwrap_or(0);
                 let image = frame.into_buffer();
                 let image = match crop {
                     Some((aw, ah)) => {

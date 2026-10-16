@@ -1,6 +1,6 @@
 use prism::event::{OnEvent, TickEvent, Event, self};
 use prism::canvas::Align;
-use prism::drawable::{Component, SizedTree, Drawable};
+use prism::drawable::{Component, SizedTree};
 use prism::{Context};
 use prism::layout::{Padding, Column, Offset, Size, Row, Stack, Area};
 use prism::display::{EitherOr, Opt, Bin};
@@ -71,7 +71,7 @@ impl TextInput {
             48.0,
         );
 
-        if let Some(h) = help_text {if h.is_empty() {help_text = None}};
+        if let Some(h) = help_text && h.is_empty() {help_text = None};
         let error = ExpandableText::new(theme, "", TextSize::Sm, TextStyle::Error, Align::Left, None); 
         let help = help_text.map(|t| ExpandableText::new(theme, t, TextSize::Sm, TextStyle::Secondary, Align::Left, None));
 

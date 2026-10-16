@@ -1,7 +1,5 @@
-use prism::event::{OnEvent, Event};
-use prism::drawable::Component;
-use prism::layout::{Area, Stack, Offset, Size, Padding};
-use prism::canvas::{Image, ShapeType};
+use prism::event::Event;
+use prism::layout::Area;
 use prism::Context;
 
 use image::{DynamicImage, RgbaImage};
@@ -13,10 +11,7 @@ use serde::{Serialize, Serializer, Deserialize, Deserializer};
 use maverick_os::air::{Metadata, Contract, Id, Name, Instance};
 
 use std::sync::Arc;
-use std::hash::{Hash, Hasher};
-
-use crate::theme::Theme;
-use crate::components::Rectangle;
+use std::hash::Hash;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Sticker {

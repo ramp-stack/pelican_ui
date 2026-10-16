@@ -5,10 +5,9 @@ use prism::drawable::Component;
 use prism::canvas::Align;
 use prism::layout::{Column, Row, Padding, Offset, Size};
 use ptsd::theme::TextSize;
-use crate::Callback;
 use crate::components::text::{Text, ExpandableText, TextStyle};
 use crate::components::button::{QuickActions, ActionData};
-use crate::theme::{Theme, Icons};
+use crate::theme::Theme;
 
 /// ## Data Item
 ///

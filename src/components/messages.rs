@@ -1,3 +1,4 @@
+#![allow(clippy::large_enum_variant)]
 use prism::event::{OnEvent, Event, TickEvent};
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
 use prism::drawable::{Component, SizedTree};
@@ -8,12 +9,7 @@ use ptsd::utils::Timestamp;
 use prism::Context;
 use serde::{Deserialize, Serialize};
 
-use chrono::{Local, Duration};
-
-use std::sync::Arc;
-use image::RgbaImage;
-
-use crate::theme::{Theme, Icons};
+use crate::theme::Theme;
 use crate::components::Rectangle;
 use crate::components::{Sticker, Gif, GifPlayer, Photo, PhotoView, Video, VideoView};
 
@@ -24,7 +20,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use maverick_os::air::Name;
 
-use crate::components::avatar::{AvatarSize, AvatarContent, AvatarIconStyle, Avatar};
+use crate::components::avatar::{AvatarSize, AvatarContent, Avatar};
 use crate::components::text::{Text, ExpandableText, TextSize, TextStyle};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -227,16 +223,10 @@ pub enum _TextMessage {
 }
 
 impl OnEvent for _TextMessage {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() {
-            match self {
-                _TextMessage::Text{text, ..} => {
-                    let w = text.inner().0.inner().size().0.min(250.0) + 4.0;
-                    *text.get_layout() = Stack::new(Offset::Center, Offset::Center, Size::Static(w), Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));
-                },
-                _ => {}
-            }
-            
+    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+        if event.downcast_ref::<TickEvent>().is_some() && let _TextMessage::Text{text, ..} = self {
+            let w = text.inner().0.inner().size().0.min(250.0) + 4.0;
+            *text.get_layout() = Stack::new(Offset::Center, Offset::Center, Size::Static(w), Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));
         }
         vec![event]
     }

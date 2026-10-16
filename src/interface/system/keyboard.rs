@@ -613,7 +613,7 @@ impl _Paginator {
         let start = match page {
             0 => "first",
             1 => "second",
-            2 | _ => "third"
+            _ => "third"
         };
 
         _Paginator(Stack::default(), Enum::new(vec![

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use image::RgbaImage;
-use include_dir::{include_dir, Dir, DirEntry};
+use include_dir::{include_dir, Dir};
 
 use std::fmt;
 use std::fmt::Display;

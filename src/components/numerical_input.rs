@@ -175,7 +175,7 @@ impl SlotDisplay {
     pub fn display_number(theme: &Theme, mut number: Box<dyn NumberGetter>) -> Self {
         let a = number();
         let mut slots: Vec<Slot> = Vec::new();
-        a.to_string().chars().into_iter().for_each(|c| slots.push(Slot::new(theme, SlotType::Fixed(c))));
+        a.to_string().chars().for_each(|c| slots.push(Slot::new(theme, SlotType::Fixed(c))));
         SlotDisplay(Row::center(0.0), slots, false, Some((number, false)), a, theme.clone())
     }
 
@@ -207,13 +207,11 @@ impl SlotDisplay {
 impl OnEvent for SlotDisplay { 
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
         if event.downcast_ref::<TickEvent>().is_some() {
-            if let Some((mut getter, is_currency)) = self.3.clone() {
-                if self.4 != getter() {
-                    let theme = self.5.clone();
-                    match is_currency {
-                        true => *self = Self::display_currency(&theme, getter.clone()),
-                        false => *self = Self::display_number(&theme, getter.clone()),
-                    }
+            if let Some((mut getter, is_currency)) = self.3.clone() && self.4 != getter() {
+                let theme = self.5.clone();
+                match is_currency {
+                    true => *self = Self::display_currency(&theme, getter.clone()),
+                    false => *self = Self::display_number(&theme, getter.clone()),
                 }
             }
         } else if let Some(e) = event.downcast_ref::<event::TextInput>() && self.2 && let event::TextInput::Edited(key) = e {
@@ -271,11 +269,9 @@ impl OnEvent for SlotDisplay {
                                 },
                                 // Decimal places: unlike the integer part, a leading zero is
                                 // a real digit here (e.g. the 0 in $1.05), so always accept it.
-                                SlotType::TriggeredGhostInputWithDefault(inputs, limit, _, is_on) if *is_on => {
-                                    if inputs.len() < *limit {
-                                        inputs.push(character.chars().next().unwrap());
-                                        edited = true;
-                                    }
+                                SlotType::TriggeredGhostInputWithDefault(inputs, limit, _, is_on) if *is_on && inputs.len() < *limit => {
+                                    inputs.push(character.chars().next().unwrap());
+                                    edited = true;
                                 },
                                 _ => {} // later...
                             }

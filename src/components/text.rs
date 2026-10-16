@@ -50,7 +50,7 @@ impl Text {
         let (color, font) = style.get(theme);
         let size = theme.fonts().get_size(text_size);
         let inner = BasicText{
-            spans: vec![Span::new(text.to_string(), size, Some(size*1.25), font.into(), color.into(), 0.0)], 
+            spans: vec![Span::new(text.to_string(), size, Some(size*1.25), font, color.into(), 0.0)], 
             align,
             max_lines,
             cursor: None,
