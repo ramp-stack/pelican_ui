@@ -10,8 +10,8 @@ mod emoji;
 mod sticker;
 mod gif;
 
-pub use keyboard::{KeyboardPages, KeyboardFullScreen, MobileKeyboard};
-pub(crate) use keyboard::{BarKey, TEXT_FIELD_GROUP, KeyboardShowing, KeyboardPage, DesktopPanels, MobileKeyboardEvent};
+pub use keyboard::{KeyboardPages, Panels, KeyboardFullScreen, MobileKeyboard};
+pub(crate) use keyboard::{TEXT_FIELD_GROUP, KeyboardShowing, KeyboardPage, MobileKeyboardEvent};
 
 use prism::event::{MouseEvent, OnEvent, Event, MouseState, MouseButton};
 use prism::canvas::{Image, Instruction};
@@ -24,45 +24,18 @@ use crate::theme::Color;
 use crate::components::text::Text;
 use crate::components::{Rectangle, Sticker, Gif, GifPlayer};
 
-// ---------------------------------------------------------------------------
-// Emoji, sticker and GIF pages
-//
-// Emoji show one page of cells at a time, in a fixed grid, and turn pages
-// with a sideways swipe. Stickers and GIFs are in columns that scroll up and
-// down, built a few rows at a time as you near the bottom. Either way only
-// what you've reached is built, so the pages cost about the same however
-// many emoji, stickers or GIFs there are.
-//
-// The sticker and GIF pages have square cells in rows that scroll, 4 stickers
-// or 3 GIFs to a row, as big as fills the width (see [`cell_side`]). Both
-// pages are as tall as 2 rows of GIFs and the GIF bar (see [`tray_height`]),
-// so the keyboard doesn't change height between them.
-// ---------------------------------------------------------------------------
-
-/// Width of the outline drawn over a sticker or GIF while it's pressed.
-const STICKER_OUTLINE: f32 = 3.0;
-
-/// A page lays out for this width until it knows how wide it is (its first
-/// frame showing).
 const ASSUMED_WIDTH: f32 = 374.0;
-
-/// Space between stickers or GIFs, and around them.
-const GRID_SPACING: f32 = 12.0;
-const GRID_PADDING: f32 = 12.0;
-/// Sticker and GIF rows are built this many at a time, once the bottom of
-/// the ones built is this close to showing.
-const LOAD_ROWS: usize = 4;
 
 /// The side of a square cell, `columns` to a row filling `width`: the width
 /// less the grid's padding at the sides and spacing between, shared out.
 fn cell_side(width: f32, columns: usize) -> f32 {
-    let gaps = 2.0 * GRID_PADDING + (columns - 1) as f32 * GRID_SPACING;
+    let gaps = 2.0 * 12.0 + (columns - 1) as f32 * 12.0;
     ((width - gaps) / columns as f32).floor().max(1.0)
 }
 
 /// The height of the sticker and GIF pages, `width` wide.
 fn tray_height(width: f32) -> f32 {
-    GRID_PADDING + 2.0 * (cell_side(width, 3) + GRID_SPACING) + 48.0
+    12.0 + 2.0 * (cell_side(width, 3) + 12.0) + 48.0
 }
 
 /// A page's width from its sized tree, once it's been laid out.
@@ -71,8 +44,6 @@ fn laid_out_width(sized: &SizedTree) -> Option<f32> {
     (sized.0.0 > 100.0).then_some(sized.0.0)
 }
 
-/// A press that moves less than this is a tap.
-const TAP_SLOP: f32 = 12.0;
 /// Sideways travel that turns the page.
 const SWIPE_DISTANCE: f32 = 40.0;
 
@@ -115,7 +86,7 @@ impl GrowingGrid {
 
     /// Empties it, keeping how far it's scrolled for the cells built next.
     fn empty(&mut self) {
-        self.1.0.1 = PanelGrid::empty(GRID_SPACING);
+        self.1.0.1 = PanelGrid::empty(12.0);
         self.2 = 0;
     }
 
@@ -133,7 +104,7 @@ impl GrowingGrid {
         for chunk in cells.chunks(columns) {
             let mut row = chunk.to_vec();
             while row.len() < columns { row.push(PanelCell::blank(PanelCell::square(self.4))); }
-            self.1.0.1.push_row(row, GRID_SPACING);
+            self.1.0.1.push_row(row, 12.0);
         }
     }
 
@@ -148,16 +119,16 @@ impl GrowingGrid {
     /// Whether the bottom of what's built is within a few rows of showing.
     fn near_end(&self, sized: &SizedTree) -> bool {
         Self::measure(sized).is_none_or(|(scrolled, showing, height)| {
-            scrolled + showing + LOAD_ROWS as f32 * (self.4 + GRID_SPACING) >= height
+            scrolled + showing + 4 as f32 * (self.4 + 12.0) >= height
         })
     }
 
     /// The rows that are (at least partly) showing.
     fn showing_rows(&self, sized: &SizedTree) -> std::ops::Range<usize> {
         let Some((scrolled, showing, _)) = Self::measure(sized) else { return 0..0 };
-        let row = self.4 + GRID_SPACING;
-        let first = ((scrolled - GRID_PADDING - self.4) / row).floor() + 1.0;
-        let last = ((scrolled + showing - GRID_PADDING) / row).ceil();
+        let row = self.4 + 12.0;
+        let first = ((scrolled - 12.0 - self.4) / row).floor() + 1.0;
+        let last = ((scrolled + showing - 12.0) / row).ceil();
         first.max(0.0) as usize..last.max(0.0) as usize
     }
 }
@@ -219,7 +190,7 @@ impl OnEvent for GridScroll {}
 
 impl GridScroll {
     fn new() -> Self {
-        GridScroll(Column::new(0.0, Offset::Start, Size::Fit, Padding::default(), Some(ScrollAnchor::Start)), PanelGrid::empty(GRID_SPACING))
+        GridScroll(Column::new(0.0, Offset::Start, Size::Fit, Padding::default(), Some(ScrollAnchor::Start)), PanelGrid::empty(12.0))
     }
 }
 
@@ -312,7 +283,7 @@ fn track_touch(touch: &mut Option<PanelTouch>, grid: &mut PanelGrid, place: Opti
             if dx.abs() >= SWIPE_DISTANCE && dx.abs() > dy.abs() {
                 // Finger moving left shows the next page, right the previous one.
                 end = Some(TouchEnd::Turn(dx < 0.0));
-            } else if dx.hypot(dy) < TAP_SLOP
+            } else if dx.hypot(dy) < 12.0
                 && let Some(action) = t.cell.and_then(|c| grid.cell(c)).and_then(|cell| cell.3.clone())
             {
                 end = Some(TouchEnd::Tap(action));
@@ -322,7 +293,7 @@ fn track_touch(touch: &mut Option<PanelTouch>, grid: &mut PanelGrid, place: Opti
     }
 
     // Once a press has moved too far to be a tap, stop highlighting its cell.
-    if let Some(t) = *touch && t.travel.0.hypot(t.travel.1) >= TAP_SLOP {
+    if let Some(t) = *touch && t.travel.0.hypot(t.travel.1) >= 12.0 {
         grid.highlight(t.cell, false);
     }
     end
@@ -349,7 +320,7 @@ impl PanelGrid {
     }
 
     fn empty(spacing: f32) -> Self {
-        PanelGrid(Column::new(spacing, Offset::Start, Size::Fill, Padding::new(GRID_PADDING), None), Vec::new())
+        PanelGrid(Column::new(spacing, Offset::Start, Size::Fill, Padding::new(12.0), None), Vec::new())
     }
 
     fn push_row(&mut self, cells: Vec<PanelCell>, spacing: f32) {
@@ -418,7 +389,7 @@ impl PanelCell {
 
     /// Drawn over a sticker or GIF while it's pressed (inside its edge).
     fn outline(radius: f32) -> Opt<Rectangle> {
-        Opt::new(Rectangle::new(Color::TRANSPARENT, radius, Some((STICKER_OUTLINE, Color::WHITE))), false)
+        Opt::new(Rectangle::new(Color::TRANSPARENT, radius, Some((1.0, Color::WHITE))), false)
     }
 
     /// Shows the cell as pressed: an outline over a sticker or GIF, or a

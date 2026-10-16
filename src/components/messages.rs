@@ -20,6 +20,8 @@ use crate::components::{Sticker, Gif, GifPlayer, Photo, PhotoView, Video, VideoV
 use ptsd::interactions;
 use crate::Callback;
 
+use unicode_segmentation::UnicodeSegmentation;
+
 use maverick_os::air::Name;
 
 use crate::components::avatar::{AvatarSize, AvatarContent, AvatarIconStyle, Avatar};
@@ -244,8 +246,7 @@ impl _TextMessage {
     pub fn new(theme: &Theme, message: &MessageContent, style: Room) -> Self {
         match message {
             MessageContent::Text(message) => {
-                let chars = message.chars().collect::<Vec<char>>();
-                if chars.len() == 1 && is_emoji_grapheme(message) {
+                if message.graphemes(true).count() == 1 && is_emoji_grapheme(message) {
                     let text = Text::new(theme, message, TextSize::H1, TextStyle::Primary, Align::Left, None);
                     _TextMessage::Emoji{layout: Stack::center(), text}
                 } else {

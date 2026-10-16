@@ -31,7 +31,7 @@ impl Theme {
     fn new(assets: &Vec<Dir<'static>>, mut inner: ptsd::Theme, is_dark: bool, color: Color) -> Self {
         Icons::map(&mut inner.icons);
         Button::map(&mut inner.colors, is_dark, color);
-        Theme(inner, BrandResources::new(&assets))
+        Theme(inner, BrandResources::new(assets))
     }
 
     pub fn colors(&self) -> &ColorResources {&self.0.colors}
