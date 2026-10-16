@@ -1,5 +1,3 @@
-//! The sticker page.
-
 use prism::event::{MouseEvent, TickEvent, OnEvent, Event, PickedPhoto};
 use prism::canvas::{Image, ShapeType};
 use prism::Context;
@@ -9,7 +7,8 @@ use prism::layout::{Stack, Size};
 use maverick_os::air::Instance;
 
 use crate::theme::{Theme, Color, Icons};
-use crate::components::{Rectangle, Icon, Sticker, SendStickerEvent, StickerPack, StickerPackAction};
+use crate::Task;
+use crate::components::{Rectangle, Icon, Sticker, SendEvent, StickerPack, StickerPackAction};
 
 use super::{GrowingGrid, PanelCell, CellFace, CellAction, PanelTouch, TouchEnd, GridPlace, track_touch};
 use super::{cell_side, tray_height, laid_out_width, ASSUMED_WIDTH};
@@ -22,6 +21,7 @@ pub struct StickerPanel {
     #[skip] pack: Option<Instance<StickerPack>>,
     #[skip] stickers: Vec<Sticker>,
     #[skip] waiting_for_photo: bool,
+    #[skip] making: Option<Task<Option<Sticker>>>,
     #[skip] side: Option<f32>,
     #[skip] theme: Theme,
 }
@@ -35,6 +35,7 @@ impl StickerPanel {
             pack: None,
             stickers: Vec::new(),
             waiting_for_photo: false,
+            making: None,
             side: None,
             theme: theme.clone(),
         }
@@ -45,6 +46,10 @@ impl OnEvent for StickerPanel {
     fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             let pack = self.pack.get_or_insert_with(|| StickerPack::mine(ctx));
+            if let Some(made) = self.making.as_ref().and_then(|task| task.take()) {
+                self.making = None;
+                if let Some(sticker) = made { pack.send(StickerPackAction::Add(sticker)); }
+            }
             let width = laid_out_width(sized);
             let resized = width.is_some_and(|w| self.side.is_none_or(|s| (s - cell_side(w, 4)).abs() >= 0.5));
             let mut count = self.grid.built();
@@ -84,14 +89,13 @@ impl OnEvent for StickerPanel {
             }
         } else if let Some(PickedPhoto(photo)) = event.downcast_ref::<PickedPhoto>() && self.waiting_for_photo {
             self.waiting_for_photo = false;
-            if let Some(sticker) = Sticker::from_photo(photo) && let Some(pack) = &mut self.pack {
-                pack.send(StickerPackAction::Add(sticker));
-            }
+            let photo = photo.clone();
+            self.making = Some(Task::spawn(move || Sticker::from_photo(&photo)));
         } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
             match track_touch(&mut self.touch, self.grid.grid(), GridPlace::find(sized, &[0, 0, 0]), mouse) {
                 Some(TouchEnd::Tap(CellAction::Sticker(sticker))) => {
                     ctx.trigger_haptic();
-                    ctx.emit(SendStickerEvent(sticker));
+                    ctx.emit(SendEvent::Sticker(sticker));
                 }
                 Some(TouchEnd::Tap(CellAction::NewSticker)) => {
                     self.waiting_for_photo = true;

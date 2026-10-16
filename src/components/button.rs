@@ -51,13 +51,6 @@ impl QuickActions {
     }
 }
 
-// struct QuickActionApplied;
-// impl Event for QuickActionApplied {
-//     fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-//         children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-//     }
-// }
-
 #[derive(Debug, Component, Clone)]
 pub struct IconButtonGroup(Row, Vec<SecondaryIconButton>);
 impl OnEvent for IconButtonGroup {}
@@ -69,17 +62,6 @@ impl IconButtonGroup {
     }
 }
 
-
-/// ## Primary Button
-///
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/primary_buttons.png"
-///      alt="Primary Button Example"
-///      width="250">
-///
-/// ### Example
-/// ```rust
-/// let button = PrimaryButton::new(ctx, "Label", |ctx: &mut Context| println!("This button has been clicked!"), false);
-/// ```
 #[derive(Debug, Component, Clone)]
 pub struct PrimaryButton(Stack, pub interactions::Button);
 impl OnEvent for PrimaryButton {}
@@ -103,16 +85,6 @@ impl PrimaryButton {
     }
 }
 
-/// ## Secondary Button
-///
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/secondary_buttons.png"
-///      alt="Secondary Button Example"
-///      width="250">
-///
-/// ### Example
-/// ```rust
-/// let button = SecondaryButton::medium(ctx, "edit", "Copy", Some("Copied"), |ctx: &mut Context| println!("This button has been clicked!"));
-/// ```
 #[derive(Debug, Component, Clone)]
 pub struct SecondaryButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryButton {}
@@ -155,16 +127,6 @@ impl SecondaryButton {
     }
 }
 
-/// ## Secondary Icon Button
-///
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/secondary_icons.png"
-///      alt="Secondary Icons Example"
-///      width="250">
-///
-/// ### Example
-/// ```rust
-/// let button = SecondaryIconButton::new(ctx, "info", |ctx: &mut Context| println!("This button has been clicked!"));
-/// ```
 #[derive(Debug, Component, Clone)]
 pub struct SecondaryIconButton(Stack, pub interactions::Button);
 impl OnEvent for SecondaryIconButton {}
@@ -198,16 +160,6 @@ impl SecondaryIconButton {
     }
 }
 
-/// ## Ghost Icon Button
-///
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/ghost_icons.png"
-///      alt="Ghost Icons Example"
-///      width="250">
-///
-/// ### Example
-/// ```rust
-/// let button = GhostIconButton::new(ctx, "explore", |ctx: &mut Context| println!("This button has been clicked!"));
-/// ```
 #[derive(Debug, Component, Clone)]
 pub struct GhostIconButton(Stack, pub interactions::Button);
 impl OnEvent for GhostIconButton {}
@@ -281,11 +233,9 @@ impl ButtonContent {
     }
 }
 
-/// Various button styles.
 #[derive(Eq, Clone, Copy, Debug, PartialEq)]
 pub enum ButtonStyle {Primary, Secondary, Ghost}
 
-/// Available button width behaviors.
 #[derive(Eq, Clone, Copy, Debug, PartialEq)]
 pub enum ButtonWidth {Fit, Fill}
 impl ButtonWidth{
@@ -297,11 +247,9 @@ impl ButtonWidth{
     }
 }
 
-/// Available button sizes and their corresponding layout, font, and icon properties.
 #[derive(Eq, Clone, Copy, Debug, PartialEq)]
 pub enum ButtonSize {Large, Medium}
 impl ButtonSize {
-    /// Regular button sizing
     pub fn get(&self) -> (f32, f32, Padding) {
         match self {
             ButtonSize::Medium => (4.0, 32.0, Padding(12.0, 0.0, 12.0, 0.0)),
@@ -309,7 +257,6 @@ impl ButtonSize {
         }
     }
 
-    /// Regular button font size
     pub fn font(&self) -> TextSize {
         match self {
             ButtonSize::Medium => TextSize::Md,
@@ -317,7 +264,6 @@ impl ButtonSize {
         }
     }
 
-    /// Regular button icon size
     pub fn icon(&self) -> f32 {
         match self {
             ButtonSize::Medium => 16.0,
@@ -325,7 +271,6 @@ impl ButtonSize {
         }
     }
 
-    /// Icon button outer size, inner icon size, and corner radius
     pub fn icon_button(&self, style: ButtonStyle) -> (f32, f32, f32) {
         match (style, self) {
             (ButtonStyle::Secondary, ButtonSize::Large) => (52.0, 32.0, 12.0),

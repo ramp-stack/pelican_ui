@@ -13,18 +13,6 @@ use image::buffer::ConvertBuffer;
 use qrcode::{QrCode, EcLevel};
 use std::sync::Arc;
 
-/// ## QR Code
-///
-/// Renders a scannable QR code with a centered brand/logo overlay.
-///
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/qr_code.png"
-///      alt="QR Code Example"
-///      width="400">
-///
-/// ### Example
-/// ```rust
-/// let qr = QRCode::new(ctx, "https://ramp-stack.com/pelican_ui");
-/// ```
 #[derive(Debug, Component, Clone)]
 pub struct QRCode(Stack, Rectangle, Image, Option<Bin<Stack, Image>>, #[skip] Option<String>, #[skip] Arc<RgbaImage>);
 impl OnEvent for QRCode {
@@ -36,8 +24,6 @@ impl OnEvent for QRCode {
                     let image: Arc<RgbaImage> = code.convert().into();
                     self.2 = Image{shape, image, color: None};
                 }
-                // Too much data to encode: show the error image rather than the
-                // placeholder code, and drop the logo overlay.
                 None => {
                     self.2 = Image{shape, image: self.5.clone(), color: None};
                     self.3 = None;
@@ -60,7 +46,6 @@ impl QRCode {
             Stack(Offset::Center, Offset::Center, Size::Static(qr_size), Size::Static(qr_size), Padding::default()),
             Rectangle::new(Color::WHITE, 8.0, None),
             Image{shape: ShapeType::RoundedRectangle(0.0, (300.0 - 16.0, 300.0 - 16.0), 0.0, 8.0), image: dummy_qr_code, color: None},
-            // QRModules::new(ctx, data, qr_size, logo_size),  - NO CUSTOM STYLIZATION FOR THIS RELEASE
             Some(Bin(layout, AspectRatioImage::new(app_icon, (logo_size, logo_size)))),
             Some(data.to_string()),
             theme.brand().error.clone(),
@@ -72,8 +57,6 @@ impl QRCode {
     }
 }
 
-/// Renders `data` as a QR code, or returns `None` if it's too long to encode
-/// (about 1.2 KB at the error-correction level used here).
 pub fn generate_qr_code(data: &str) -> Option<RgbImage> {
     let scale: usize = 60;
     let fg = [0u8, 0, 0];
@@ -89,16 +72,12 @@ pub fn generate_qr_code(data: &str) -> Option<RgbImage> {
     let logo_start = (module_count - logo_modules) / 2;
     let logo_end = logo_start + logo_modules;
 
-    // Raw RGB buffer, already white.
     let mut buf = vec![255u8; img_size * img_size * 3];
 
-    // Precompute one circular tile.
     let dot_rows = build_dot_rows(scale, fg);
 
-    // Precompute which modules to skip.
     let skip = build_skip_mask(module_count, logo_start, logo_end);
 
-    // Stamp dark modules.
     for y in 0..module_count {
         let py = y * scale;
         for x in 0..module_count {
@@ -110,7 +89,6 @@ pub fn generate_qr_code(data: &str) -> Option<RgbImage> {
         }
     }
 
-    // Finder patterns last.
     for &(fx, fy) in &[
         (0, 0),
         (0, module_count - 7),
@@ -143,7 +121,6 @@ fn build_skip_mask(module_count: usize, logo_start: usize, logo_end: usize) -> V
     skip
 }
 
-// Each row contains x byte offsets within the tile that should be painted.
 fn build_dot_rows(scale: usize, color: [u8; 3]) -> Vec<Vec<(usize, [u8; 3])>> {
     let r = (scale / 2) as i32;
     let cx = r;

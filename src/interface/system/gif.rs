@@ -7,7 +7,8 @@ use prism::display::Bin;
 
 use crate::theme::{Theme, Icons};
 use crate::components::text::{ExpandableText, TextStyle, TextSize};
-use crate::components::{Gif, GifPlayer, GifBatch, GifError, SendGifEvent, Task, find_gifs};
+use crate::Task;
+use crate::components::{Gif, GifPlayer, GifBatch, GifError, SendEvent, find_gifs};
 use crate::components::{TextInput, Rectangle};
 use crate::components::button::GhostIconButton;
 
@@ -153,7 +154,7 @@ impl OnEvent for GifPanel {
                 MobileKeyboardEvent::CancelGifSearch => self.close_search(),
                 _ => {},
             }
-        } else if event.downcast_ref::<SendGifEvent>().is_some() {
+        } else if let Some(SendEvent::Gif(_)) = event.downcast_ref::<SendEvent>() {
             self.close_search();
         } else if let Some(KeyboardEvent{key: Key::Enter, state: KeyboardState::Pressed, ..}) = event.downcast_ref::<KeyboardEvent>()
             && self.search_field.as_ref().is_some_and(|field| field.1.has_focus())
@@ -164,7 +165,7 @@ impl OnEvent for GifPanel {
             let grid = sized.1.len().saturating_sub(1);
             if let Some(TouchEnd::Tap(CellAction::Gif(gif))) = track_touch(&mut self.touch, self.grid.grid(), GridPlace::find(sized, &[grid, 0, 0]), mouse) {
                 ctx.trigger_haptic();
-                ctx.emit(SendGifEvent(gif));
+                ctx.emit(SendEvent::Gif(gif));
             }
         }
         vec![event]

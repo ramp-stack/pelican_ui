@@ -1,6 +1,6 @@
 use prism::event::{OnEvent, Event, TickEvent};
 use prism::drawable::{Component, SizedTree};
-use prism::layout::{Area, Stack, Offset, Size, Padding};
+use prism::layout::{Stack, Offset, Size, Padding};
 use prism::canvas::{Image, ShapeType};
 use prism::Context;
 
@@ -12,13 +12,14 @@ use serde::{Serialize, Deserialize};
 
 use std::collections::{BTreeMap, VecDeque};
 use std::io::Read;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use crate::Task;
 use crate::theme::{Theme, Color};
 use crate::components::Rectangle;
 
-static API_KEY: OnceLock<String> = OnceLock::new();
+static API_KEY: Mutex<Option<String>> = Mutex::new(None);
 static CACHE: Mutex<GifCache> = Mutex::new(GifCache { entries: BTreeMap::new(), recent: VecDeque::new(), bytes: 0 });
 
 lazy_static::lazy_static! {
@@ -26,7 +27,7 @@ lazy_static::lazy_static! {
 }
 
 pub fn set_giphy_api_key(key: &str) {
-    let _ = API_KEY.set(key.to_string());
+    if let Ok(mut api_key) = API_KEY.lock() { *api_key = Some(key.to_string()); }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -36,39 +37,6 @@ pub struct Gif {
     pub width: u32,
     pub height: u32,
     pub preview: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct SendGifEvent(pub Gif);
-
-impl Event for SendGifEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
-
-pub struct Task<T>(Arc<Mutex<Option<T>>>);
-
-impl<T: Send + 'static> Task<T> {
-    pub fn spawn(work: impl FnOnce() -> T + Send + 'static) -> Self {
-        let slot = Arc::new(Mutex::new(None));
-        let result = slot.clone();
-        std::thread::spawn(move || {
-            let value = work();
-            if let Ok(mut slot) = result.lock() { *slot = Some(value); }
-        });
-        Task(slot)
-    }
-
-    pub fn take(&self) -> Option<T> { self.0.lock().ok()?.take() }
-}
-
-impl<T> Clone for Task<T> {
-    fn clone(&self) -> Self { Task(self.0.clone()) }
-}
-
-impl<T> std::fmt::Debug for Task<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "Task") }
 }
 
 #[derive(Debug, Clone)]
@@ -85,7 +53,7 @@ pub enum GifError {
 
 pub fn find_gifs(query: Option<String>, offset: usize) -> Task<Result<GifBatch, GifError>> {
     Task::spawn(move || {
-        let key = API_KEY.get().cloned()
+        let key = API_KEY.lock().ok().and_then(|key| key.clone())
             .or_else(|| option_env!("GIPHY_API_KEY").map(str::to_string))
             .filter(|key| !key.is_empty())
             .ok_or(GifError::NoApiKey)?;
@@ -233,17 +201,27 @@ pub fn load_gif(url: &str, crop: Option<(u32, u32)>) -> Option<Arc<GifFrames>> {
 }
 
 #[derive(Debug, Clone, Component)]
-pub struct GifPlayer(Stack, Option<Image>, Option<Rectangle>, #[skip] GifSource, #[skip] Option<Arc<GifFrames>>, #[skip] Instant, #[skip] usize, #[skip] bool);
-
-#[derive(Debug, Clone)]
-struct GifSource { url: String, crop: Option<(u32, u32)>, size: (f32, f32), radius: f32, placeholder: Color }
+pub struct GifPlayer {
+    layout: Stack,
+    image: Option<Image>,
+    placeholder: Option<Rectangle>,
+    #[skip] url: String,
+    #[skip] crop: Option<(u32, u32)>,
+    #[skip] size: (f32, f32),
+    #[skip] radius: f32,
+    #[skip] color: Color,
+    #[skip] frames: Option<Arc<GifFrames>>,
+    #[skip] started: Instant,
+    #[skip] shown: usize,
+    #[skip] live: bool,
+}
 
 impl GifPlayer {
     pub fn message(theme: &Theme, gif: &Gif) -> Self {
         let (w, h) = (gif.width.max(1) as f32, gif.height.max(1) as f32);
         let scale = (200.0 / w).min(280.0 / h);
-        let placeholder = theme.colors().get(ptsd::Background::Secondary);
-        Self::new(&gif.url, None, ((w * scale).round(), (h * scale).round()), 16.0, placeholder)
+        let color = theme.colors().get(ptsd::Background::Secondary);
+        Self::new(&gif.url, None, ((w * scale).round(), (h * scale).round()), 16.0, color)
     }
 
     pub fn thumbnail(gif: &Gif, size: (f32, f32)) -> Self {
@@ -254,50 +232,53 @@ impl GifPlayer {
         Self::new(url, Some((w / common, h / common)), size, 8.0, Color::from_hex("ffffff", 40))
     }
 
-    fn new(url: &str, crop: Option<(u32, u32)>, size: (f32, f32), radius: f32, placeholder: Color) -> Self {
-        let layout = Stack(Offset::Center, Offset::Center, Size::Static(size.0), Size::Static(size.1), Padding::default());
-        GifPlayer(
-            layout,
-            None,
-            Some(Rectangle::new(placeholder, radius, None)),
-            GifSource { url: url.to_string(), crop, size, radius, placeholder },
-            None,
-            Instant::now(),
-            usize::MAX,
-            true,
-        )
+    fn new(url: &str, crop: Option<(u32, u32)>, size: (f32, f32), radius: f32, color: Color) -> Self {
+        GifPlayer {
+            layout: Stack(Offset::Center, Offset::Center, Size::Static(size.0), Size::Static(size.1), Padding::default()),
+            image: None,
+            placeholder: Some(Rectangle::new(color, radius, None)),
+            url: url.to_string(),
+            crop,
+            size,
+            radius,
+            color,
+            frames: None,
+            started: Instant::now(),
+            shown: usize::MAX,
+            live: true,
+        }
     }
 
     pub fn set_live(&mut self, live: bool) {
-        if live == self.7 { return; }
-        self.7 = live;
+        if live == self.live { return; }
+        self.live = live;
         if !live {
-            self.1 = None;
-            self.2 = Some(Rectangle::new(self.3.placeholder, self.3.radius, None));
-            self.4 = None;
-            self.6 = usize::MAX;
+            self.image = None;
+            self.placeholder = Some(Rectangle::new(self.color, self.radius, None));
+            self.frames = None;
+            self.shown = usize::MAX;
         }
     }
 }
 
 impl OnEvent for GifPlayer {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() && self.7 {
-            if self.4.is_none() && let Some(frames) = load_gif(&self.3.url, self.3.crop) {
-                self.4 = Some(frames);
-                self.5 = Instant::now();
-                self.2 = None;
+        if event.downcast_ref::<TickEvent>().is_some() && self.live {
+            if self.frames.is_none() && let Some(frames) = load_gif(&self.url, self.crop) {
+                self.frames = Some(frames);
+                self.started = Instant::now();
+                self.placeholder = None;
             }
 
-            if let Some(frames) = &self.4 {
-                let (index, frame) = frames.frame_at(self.5.elapsed());
-                if index != self.6 {
-                    self.6 = index;
-                    match &mut self.1 {
+            if let Some(frames) = &self.frames {
+                let (index, frame) = frames.frame_at(self.started.elapsed());
+                if index != self.shown {
+                    self.shown = index;
+                    match &mut self.image {
                         Some(image) => image.image = frame.clone(),
                         None => {
-                            let shape = ShapeType::RoundedRectangle(0.0, self.3.size, 0.0, self.3.radius);
-                            self.1 = Some(Image { shape, image: frame.clone(), color: None });
+                            let shape = ShapeType::RoundedRectangle(0.0, self.size, 0.0, self.radius);
+                            self.image = Some(Image { shape, image: frame.clone(), color: None });
                         }
                     }
                 }

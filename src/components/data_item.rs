@@ -9,36 +9,6 @@ use crate::components::text::{Text, ExpandableText, TextStyle};
 use crate::components::button::{QuickActions, ActionData};
 use crate::theme::Theme;
 
-/// ## Data Item
-///
-/// A component for presenting information in a clear, structured format.
-///  
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/data_item.png"
-///      alt="Data Item Example"
-///      width="400">
-///
-/// ### Example
-/// ```rust
-/// let data = DataItem::text(ctx, 
-///     "Confirm Shipping Address",
-///     Some("Confirm the address below matches your shipping address."),
-///     Some(vec![
-///         SecondaryButton::medium(ctx, "edit, "Edit Address", |ctx: &mut Context| println!("Editing address...")),
-///     ]),
-/// );
-///
-/// let data = DataItem::table(
-///     ctx, "Confirm Shipping Address",
-///     Some(vec![
-///         ("Street", "123 Feather Ln"),
-///         ("City", "Nestville"),
-///         ("ZIP", "44556"),
-///     ]), 
-///     Some(vec![
-///         SecondaryButton::medium(ctx, "edit, "Edit Address", |ctx: &mut Context| println!("Editing address...")),
-///     ]),
-/// );
-/// ```
 #[derive(Debug, Component, Clone)]
 pub struct DataItem(Column, Text, Option<ExpandableText>, Option<ExpandableText>, Option<Table>, Option<QuickActions>);
 impl OnEvent for DataItem {}

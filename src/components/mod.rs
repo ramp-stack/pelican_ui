@@ -4,13 +4,13 @@ pub mod list_item;
 pub mod text;
 
 mod media;
-pub use media::{Photo, PhotoView, Video, VideoView, AttachButton, SendPhotoEvent, SendVideoEvent, VideoClip};
+pub use media::{Photo, PhotoView, Video, VideoView, NewVideo, AttachButton, VideoClip};
 
 mod alert;
 pub use alert::Alert;
 
 mod text_input;
-pub use text_input::{TextInput, TextInputEvent};
+pub use text_input::{TextInput, TextInputEvent, SubmitFn, ValidFn};
 
 mod radio;
 pub use radio::RadioSelector;
@@ -31,7 +31,7 @@ mod qr_code;
 pub use qr_code::QRCode;
 
 mod qr_scanner;
-pub use qr_scanner::{QRCodeScanner, QRCodeScannedEvent, CameraEvent};
+pub use qr_scanner::{QRCodeScanner, QRCodeScannedEvent};
 
 mod data_item;
 pub use data_item::DataItem;
@@ -49,7 +49,7 @@ mod searchbar;
 pub use searchbar::{SearchBar, SearchbarEvent};
 
 mod sticker;
-pub use sticker::{Sticker, SendStickerEvent, StickerPack, StickerPackAction};
+pub use sticker::{Sticker, StickerView, StickerPack, StickerPackAction};
 
 mod gif;
-pub use gif::{Gif, GifPlayer, GifFrames, GifBatch, GifError, SendGifEvent, Task, find_gifs, load_gif, set_giphy_api_key};
+pub use gif::{Gif, GifPlayer, GifFrames, GifBatch, GifError, find_gifs, load_gif, set_giphy_api_key};

@@ -2,7 +2,7 @@
 use prism::event::{OnEvent, Event, TickEvent};
 use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
 use prism::drawable::{Component, SizedTree};
-use prism::canvas::{Align, Image, ShapeType, is_emoji_grapheme};
+use prism::canvas::{Align, is_emoji_grapheme};
 use prism::display::Bin;
 use ptsd::colors;
 use ptsd::utils::Timestamp;
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::theme::Theme;
 use crate::components::Rectangle;
-use crate::components::{Sticker, Gif, GifPlayer, Photo, PhotoView, Video, VideoView};
+use crate::components::{Sticker, StickerView, Gif, GifPlayer, Photo, PhotoView, Video, VideoView, NewVideo};
 
 use ptsd::interactions;
 use crate::Callback;
@@ -31,11 +31,11 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn new(username: &str, _pfp: &str, name: Name) -> Self {
+    pub fn new(username: &str, pfp: &str, name: Name) -> Self {
         Profile {
             username: username.to_string(),
             name,
-            pfp: AvatarContent::default(), //Some(Arc::new(image::open(&format!("./{}", pfp.to_string())).unwrap().into()))
+            pfp: AvatarContent::from_string(pfp),
         }
     }
 
@@ -78,7 +78,6 @@ impl MessageGroups {
                     false => Room::Direct(direction),
                 };
 
-                // println!("ROOM TYPE {:?} because {:?}", room_type, members.len());
                 new.push(MessageGroup::new(theme, collection.clone(), t, a, room_type));
 
                 collection.clear();
@@ -210,14 +209,8 @@ pub enum _TextMessage {
         text: Bin<Stack, ExpandableText>
     },
     Emoji {layout: Stack, text: Text},
-    Sticker {
-        layout: Stack,
-        image: Image,
-    },
-    Gif {
-        layout: Stack,
-        gif: GifPlayer,
-    },
+    Sticker { layout: Stack, sticker: StickerView },
+    Gif { layout: Stack, gif: GifPlayer },
     Photo { layout: Stack, photo: PhotoView },
     Video { layout: Stack, video: VideoView }
 }
@@ -253,12 +246,7 @@ impl _TextMessage {
                     _TextMessage::Text{layout, background: background.map(|c| Rectangle::new(c, 18.0, None)), text: Bin(Stack::default(), text)}
                 }
             },
-            MessageContent::Sticker(sticker) => {
-                let sticker_size = 120.0;
-                let layout = Stack(Offset::Center, Offset::Center, Size::Static(sticker_size), Size::Static(sticker_size), Padding::default());
-                let shape = ShapeType::RoundedRectangle(0.0, (sticker_size, sticker_size), 0.0, 16.0);
-                _TextMessage::Sticker{layout, image: Image { shape, image: sticker.image(), color: None }}
-            },
+            MessageContent::Sticker(sticker) => _TextMessage::Sticker{layout: Stack::default(), sticker: StickerView::message(sticker)},
             MessageContent::Gif(gif) => _TextMessage::Gif{layout: Stack::default(), gif: GifPlayer::message(theme, gif)},
             MessageContent::Photo(photo) => _TextMessage::Photo{layout: Stack::default(), photo: PhotoView::message(theme, photo)},
             MessageContent::Video(video) => _TextMessage::Video{layout: Stack::default(), video: VideoView::message(theme, video)},
@@ -288,3 +276,13 @@ pub enum MessageContent {
     Photo(Photo),
     Video(Video),
 }
+
+#[derive(Debug, Clone)]
+pub enum SendEvent {
+    Sticker(Sticker),
+    Gif(Gif),
+    Photo(Photo),
+    Video(NewVideo),
+}
+
+prism::impl_event_all_children!(SendEvent);

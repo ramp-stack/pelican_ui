@@ -64,21 +64,6 @@ pub struct BrandResources {
     pub images: HashMap<String, Arc<RgbaImage>>,
 }
 
-// impl Default for BrandResources {
-//     fn default() -> Self {
-//         let dir = Assets::new(include_dir!("resources/brand"));
-
-        // BrandResources {
-        //     logo: dir.get_asset_image("logo").unwrap(),
-        //     wordmark: dir.get_asset_image("wordmark").unwrap(),
-        //     app_icon: dir.get_asset_image("app_icon").unwrap(),
-        //     error: dir.get_asset_image("error").unwrap(),
-        //     qr_code: Arc::new(dir.load_png("qr_code.png").unwrap()),
-        //     images: HashMap::default(),
-        // }
-//     }
-// }
-
 impl BrandResources {
     fn new(directory: &Vec<Dir<'static>>) -> Self {
         let layers: Vec<_> = directory.iter().cloned()
@@ -118,7 +103,6 @@ impl BrandResources {
     }
 }
 
-
 #[derive(Copy, Clone, Debug)]
 pub struct ButtonColors {
     pub primary: ButtonColorSet,
@@ -150,7 +134,6 @@ impl ButtonColorScheme {
         }
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Variant { Primary, Secondary, Ghost }

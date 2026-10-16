@@ -3,7 +3,7 @@ use prism::event::{self, Event, OnEvent, TickEvent};
 use prism::drawable::{Drawable, Component, SizedTree};
 use prism::canvas::Align;
 use prism::display::Bin;
-use prism::layout::{Area, Column, Stack, Row, Padding, Offset, Size};
+use prism::layout::{Column, Stack, Row, Padding, Offset, Size};
 use prism::emitters::Scrollable;
 
 use crate::Callback;
@@ -12,7 +12,7 @@ use crate::components::{Rectangle, TextInput, TextInputEvent, QRCodeScannedEvent
 use crate::components::text::{TextStyle, TextSize, ExpandableText};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
 use crate::components::avatar::AvatarGroup;
-use crate::interface::system::{MobileKeyboard, KeyboardFullScreen, KeyboardPages};
+use crate::interface::system::{MobileKeyboard, MobileKeyboardEvent};
 use crate::interface::message_bar::MessageBar;
 use crate::interface::navigation::{RootInfo, Navigator};
 use crate::components::Alert;
@@ -21,36 +21,9 @@ use ptsd::interfaces::{Body, Navigator as PTSDNavigator};
 use ptsd::navigation::{NavigationEvent, AppPage};
 use ptsd::utils::ValidationFn;
 pub use ptsd::navigation::Pages;
-use ptsd::interfaces::ShowKeyboard;
 
+crate::closure_trait!(OnEventFn, FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>);
 
-pub trait OnEventFn: FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>> + 'static {
-    fn clone_box(&self) -> Box<dyn OnEventFn>;
-}
-
-impl PartialEq for dyn OnEventFn{fn eq(&self, _: &Self) -> bool {true}}
-
-impl<F> OnEventFn for F where F: FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>> + Clone + 'static {
-    fn clone_box(&self) -> Box<dyn OnEventFn> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn OnEventFn> {
-    fn clone(&self) -> Self {
-        self.as_ref().clone_box()
-    }
-}
-
-impl std::fmt::Debug for dyn OnEventFn {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "OnEventFn Closure")
-    }
-}
-
-/// The top-level interface of an app built with Pelican.
-///
-/// This interface automatically adapts to the platform.
 #[derive(Component, Clone)]
 pub struct Interface {
     layout: Stack,
@@ -61,30 +34,15 @@ pub struct Interface {
 
 impl OnEvent for Interface {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        // if IS_MOBILE && self.layout.4 == Padding(0.0, 0.0, 0.0, 0.0) {
-        //     ctx.emit(Hardware::GetSafeArea);
-        // }
 
         if let Some(InterfaceEvent::Disable(disable)) = event.downcast_ref::<InterfaceEvent>() {
             ctx.emit(event::Button::Disable(*disable));
-        } //else if let Some(HardwareEvent::SafeArea(b, l, t, r)) = event.downcast_ref::<HardwareEvent>() {
-        //     self.layout = Stack::new(Offset::default(), Offset::default(), Size::default(), Size::default(), Padding(*l, *t, *r, *b));
-        //     println!("Setting padding to {:?}", self.layout.4);
-        // }
+        }
 
         if let ptsd::interfaces::Interface::Mobile{keyboard, ..} = &mut self.inner {
             let showing = keyboard.is_showing();
-            if let Some(keyboard) = keyboard.inner().downcast_mut::<MobileKeyboard>() {
-                if let Some(event::Selectable::Pressed(id, group)) = event.downcast_ref::<event::Selectable>() {
-                    keyboard.selected(id, group);
-                } else if let Some(pages) = event.downcast_ref::<KeyboardPages>() {
-                    keyboard.set_pages(ctx, *pages);
-                } else if let Some(ShowKeyboard(false)) = event.downcast_ref::<ShowKeyboard>() && keyboard.searching_gifs() {
-                    return vec![];
-                } else if event.downcast_ref::<TickEvent>().is_some() {
-                    if !showing { keyboard.hidden(ctx); }
-                    keyboard.announce(ctx, showing);
-                }
+            if let Some(keyboard) = keyboard.inner().downcast_mut::<MobileKeyboard>() && !keyboard.on_interface_event(ctx, &*event, showing) {
+                return vec![];
             }
         }
 
@@ -110,16 +68,16 @@ impl Interface {
             layout: Stack::default(),
             background: Rectangle::new(theme.colors().get(ptsd::Background::Primary), 0.0, None),
             inner: match IS_WEB {
-                true => { // web
+                true => {
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::web(theme, roots)) as Box<dyn PTSDNavigator>);
                     ptsd::interfaces::Interface::web(ctx, navigator, Screen::web(Pages::new(pages)))
                 },
-                false if IS_MOBILE => { // mobile
+                false if IS_MOBILE => {
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::mobile(theme, roots)) as Box<dyn PTSDNavigator>);
                     let keyboard = MobileKeyboard::new(ctx, theme);
                     ptsd::interfaces::Interface::mobile(ctx, navigator, Screen::mobile(Pages::new(pages)), keyboard)
                 },
-                false => { // desktop
+                false => {
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::desktop(theme, roots)) as Box<dyn PTSDNavigator>);
                     ptsd::interfaces::Interface::desktop(ctx, navigator, Screen::desktop(theme, Pages::new(pages)))
                 }
@@ -127,19 +85,8 @@ impl Interface {
             on_event: Some(on_event),
         }
     }
-
-    fn _inner(&mut self) -> &mut Box<dyn AppPage> {
-        self.inner.pages().current()
-    }
 }
 
-/// # Page
-///
-/// A Page is a UI container that holds [`Header`], [`Content`], and optional [`Bumper`] components.
-///
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/page.png"
-///      alt="Page Example"
-///      width="250">
 #[derive(Debug, Component, Clone)]
 pub struct Page {
     layout: Column,
@@ -151,7 +98,6 @@ pub struct Page {
 impl OnEvent for Page {}
 
 impl Page {
-    /// Creates a new [`Page`] from an optional [`Header`], [`Content`], and optional [`Bumper`]
     pub fn new(header: Header, content: Content, bumper: Option<Bumper>) -> Self {
         Page {
             layout: Column::new(12.0, Offset::Center, Size::Fill, Padding(24.0, 0.0, 24.0, 0.0), None),
@@ -162,32 +108,15 @@ impl Page {
     }
 }
 
-/// # Content
-///
-/// The main portion of a page, placed between an optional [`Header`] and an optional [`Bumper`]
-/// 
-/// Contents are vertical scrollables and can contain unlimited children.
-/// Content components can only be used inside [`Page`] components.
-///
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/content.png"
-///      alt="Content Example"
-///      width="250">
-///
-/// ```rust
-/// let text = Text::new(ctx, "Set up a name, description, and team before starting your project.", TextStyle::Primary, text_size, Align::Center);
-/// let content = Content::new(ctx, Offset::Center, vec![Box::new(text)]);
-/// ```
 #[derive(Debug, Component, Clone)]
 pub struct Content {
     layout: Stack,
     pub children: Scrollable<ContentChildren>,
     #[skip] validation: Box<dyn ValidationFn>,
-    /// Index of the text input that was focused most recently.
     #[skip] last_input: Option<usize>,
 }
 
 impl Content {
-    /// Creates a new `Content` component with a specified `Offset` (start, center, or end) and a list of `Box<dyn Drawable>` children.
     pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>, validation: Box<dyn ValidationFn>) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let children = if offset == Offset::End { Scrollable::end(ContentChildren::new(children)) } else { Scrollable::new(ContentChildren::new(children)) };
@@ -199,29 +128,14 @@ impl Content {
         }
     }
 
-    /// Find an item in the content. Will return the first instance of the type.
-    ///
-    /// ```rust
-    /// let text = content.find::<Text>().expect("Could not find text in content");
-    /// ```
     pub fn find<T: std::any::Any>(&mut self) -> Option<&mut T> {
         self.children.1.inner().iter_mut().find_map(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
-    /// Find an item in the bumper at a specific index.
-    ///
-    /// ```rust
-    /// let text_input = content.find_at::<TextInput>(0).expect("Could not find text input at first index in content");
-    /// ```
     pub fn find_at<T: std::any::Any>(&mut self, i: usize) -> Option<&mut T> {
         self.children.1.inner().get_mut(i).and_then(|item| (**item).as_any_mut().downcast_mut::<T>())
     }
 
-    /// Remove an item from the content. Will remove the first instance of the type.
-    ///
-    /// ```rust
-    /// let text = content.remove::<Text>().expect("Could not remove text from content");
-    /// ```
     pub fn remove<T: std::any::Any>(&mut self) -> Option<T> {
         if let Some(pos) = self.children.1.inner().iter().position(|item| (**item).as_any().is::<T>()) {
             let boxed = self.children.1.inner().remove(pos);
@@ -237,8 +151,6 @@ impl Content {
 
 impl OnEvent for Content {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        // Pasted text and scanned QR codes go to one text input, not to every one
-        // on the page: the focused input, else the last focused, else the first.
         let routed = if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
             Some(data.clone())
         } else if let Some(QRCodeScannedEvent(data)) = event.downcast_ref::<QRCodeScannedEvent>() {
@@ -253,7 +165,6 @@ impl OnEvent for Content {
                 .map(|(i, _)| i)
                 .collect::<Vec<_>>();
 
-            // No direct text inputs: let the event reach nested ones (e.g. a search bar).
             if inputs.is_empty() { return vec![event]; }
 
             let focused = inputs.iter().copied().find(|&i| {
@@ -280,7 +191,6 @@ impl OnEvent for Content {
             let mut total_height = 0.0;
             for c in self.children_mut().iter_mut() {
                 if let Some(input) = c.downcast_mut::<TextInput>() && input.is_focused {
-                    println!("Found child focused");
                     ctx.emit(event::Scrollable::ScrollTo(total_height));
                     break;
                 } else {
@@ -288,22 +198,6 @@ impl OnEvent for Content {
                     total_height += size.0.max_height();
                 }
             }
-        // } else if let Some(events::InputField::Select(id, true)) = event.downcast_ref::<events::InputField>() {
-        //     if roost_ui::IS_MOBILE {
-        //         let mut total_height = 0.0;
-        //         for item in self.items().iter_mut() {
-        //             match item.as_any_mut().downcast_mut::<TextInput>() {
-        //                 Some(input) if input.inner.5 == *id => {
-        //                     self.0.set_scroll(total_height);
-        //                     break;
-        //                 }
-        //                 _ => {
-        //                     let size = item.request_size(ctx);
-        //                     total_height += size.max_height();
-        //                 }
-        //             }
-        //         }
-        //     }
         } 
         vec![event]
     }
@@ -315,7 +209,6 @@ impl OnEvent for ContentChildren {}
 impl ContentChildren {
     pub fn new(children: Vec<Box<dyn Drawable>>) -> Self {
         let layout = Column::new(24.0, Offset::Center, Size::Fit, Padding::default(), None);
-        // if anchor == ScrollAnchor::End { layout.set_scroll(f32::MAX); }
         ContentChildren(layout, children)
     }
 
@@ -323,19 +216,6 @@ impl ContentChildren {
     pub fn column(&mut self) -> &mut Column {&mut self.0}
 }
 
-
-/// # Header
-///
-/// The top section of a page that displays the page title 
-/// and may include supporting elements like navigation, 
-/// search, or action buttons, helping users understand where 
-/// they are and what they can do.
-///
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/header.png"
-///      alt="Header Example"
-///      width="250">
-///
-/// Header components can only be used inside [`Page`] components.
 #[derive(Debug, Component, Clone)]
 pub struct Header {
     layout: Row,
@@ -347,18 +227,15 @@ pub struct Header {
 impl OnEvent for Header {}
 
 impl Header {
-    /// A `Header` preset used for home pages.
     pub fn home(theme: &Theme, title: &str, icon: Option<(Icons, Box<dyn Callback>)>) -> Self {
         Self::_new(theme, title, None, icon, TextSize::H3)
     }
 
-    /// A `Header` preset used for in-flow pages.
     pub fn stack(theme: &Theme, title: &str, icon: Option<(Icons, Box<dyn Callback>)>) -> Self {
         let closure = |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::Pop);
         Self::_new(theme, title, Some((Icons::Left, Box::new(closure))), icon, TextSize::H4)
     }
 
-    /// A `Header` preset used for end-of-flow pages.
     pub fn stack_end(theme: &Theme, title: &str) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::Reset);
         Self::_new(theme, title, Some((Icons::Close, Box::new(closure))), None, TextSize::H4)
@@ -367,7 +244,7 @@ impl Header {
     pub fn messaging(theme: &Theme, title: String, profiles: Vec<Profile>, exact_len: usize, info: Option<Box<dyn Callback>>) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| (0..exact_len).for_each(|_| ctx.emit(NavigationEvent::Pop));
         let l_icon = HeaderIcon::new(theme, Icons::Left, closure);
-        let r_icon = info.map(|i| HeaderIcon::new(theme, Icons::Info, i)).unwrap_or_default(); // this needs to navigate to info page
+        let r_icon = info.map(|i| HeaderIcon::new(theme, Icons::Info, i)).unwrap_or_default();
 
         let layout = Row::new(16.0, Offset::Center, Size::Fit, Padding(0.0, 16.0, 0.0, 16.0));
         Header {
@@ -411,10 +288,6 @@ impl MessageHeader {
     }
 }
 
-/// # Header Icon
-/// 
-/// Optionally contains an icon, otherwise just reserves the space.
-/// These are only to be used in [`Header`] components.
 #[derive(Debug, Component, Clone)]
 pub struct HeaderIcon {
     layout: Stack,
@@ -440,7 +313,6 @@ pub struct Bumper {layout: Stack, background: Rectangle, content: BumperContent}
 impl OnEvent for Bumper {}
 
 impl Bumper {
-    /// A `Bumper` preset used for home pages.
     pub fn home(theme: &Theme, first: Option<(String, Box<dyn Callback>)>, second: Option<(String, Box<dyn Callback>)>) -> Self {
         let mut content: Vec<Box<dyn Drawable>> = vec![];
         if let Some((l, c)) = first {content.push(Box::new(PrimaryButton::new(theme, &l, c))); }
@@ -449,7 +321,6 @@ impl Bumper {
         Bumper { layout, background, content: BumperContent::new(content) }
     }
 
-    /// A `Bumper` preset used for in-flow pages.
     pub fn stack(
         theme: &Theme,
         label: Option<&str>, 
@@ -462,7 +333,6 @@ impl Bumper {
         Bumper { layout, background, content: BumperContent::new(content) }
     }
 
-    /// A `Bumper` preset used for end-of-flow pages.
     pub fn stack_end(theme: &Theme, exact_pages: Option<usize>) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| match exact_pages {
             Some(num) => (0..num).for_each(|_| ctx.emit(NavigationEvent::Pop)),
@@ -474,18 +344,14 @@ impl Bumper {
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
     }
 
-    /// A `Bumper` preset for a chat: the message field, with a toolbar under
-    /// it for emoji, stickers, GIFs, and photos and videos (see [`MessageBar`]).
-    pub fn input(theme: &Theme, placeholder: &str, on_submit: impl FnMut(&mut Context, &mut String) + 'static, valid: impl FnMut(&mut Context, &mut String) -> bool + 'static) -> Self {
+    pub fn input(theme: &Theme, placeholder: &str, on_submit: impl FnMut(&mut Context, &mut String) + Clone + 'static, valid: impl FnMut(&mut Context, &mut String) -> bool + Clone + 'static) -> Self {
         let bar = MessageBar::new(theme, placeholder, on_submit, valid);
         let (layout, background) = Self::layout(theme);
-        // Less below: the toolbar's icons have room around them already.
         let mut content = BumperContent::new(vec![Box::new(bar)]);
         content.layout.padding().3 = 8.0;
         Bumper { layout, background, content }
     }
 
-    /// The chat's message bar, for a `Bumper` made with [`Bumper::input`].
     pub fn message_bar(&mut self) -> Option<&mut MessageBar> {
         self.content.children.first_mut().and_then(|child| child.downcast_mut::<MessageBar>())
     }
@@ -529,31 +395,21 @@ impl BumperContent {
     }
 }
 
-/// Adjust the scroll value of a [`Scroll`] layout.
 #[derive(Debug, Clone)]
 pub enum AdjustScrollEvent {
     Vertical(f32),
     Horizontal(f32),
 }
 
-impl Event for AdjustScrollEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
+prism::impl_event_all_children!(AdjustScrollEvent);
 
-/// Adjust the scroll value of a [`Scroll`] layout.
 #[derive(Debug, Clone)]
 pub enum InterfaceEvent {
     Disable(bool),
     FocusTextInput(bool)
 }
 
-impl Event for InterfaceEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
+prism::impl_event_all_children!(InterfaceEvent);
 
 #[derive(Debug, Component, Clone)]
 pub struct Screen(Stack, Pages, Option<Bin<Stack, Rectangle>>);
@@ -562,7 +418,7 @@ impl OnEvent for Screen {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![1];}
        
-        if let Some(KeyboardFullScreen(full)) = event.downcast_ref::<KeyboardFullScreen>() {
+        if let Some(MobileKeyboardEvent::FullScreen(full)) = event.downcast_ref::<MobileKeyboardEvent>() {
             self.0.3 = if *full { Size::Static(0.0) } else { Size::Fit };
         }
         vec![event]

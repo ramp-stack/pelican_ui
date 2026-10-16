@@ -1,10 +1,11 @@
-use prism::event::Event;
-use prism::layout::Area;
+use prism::event::OnEvent;
+use prism::drawable::Component;
+use prism::layout::{Stack, Offset, Size, Padding};
+use prism::canvas::{Image, ShapeType};
 use prism::Context;
 
-use image::{DynamicImage, RgbaImage};
-use image::imageops::{self, FilterType};
-use image::codecs::jpeg::JpegEncoder;
+use image::RgbaImage;
+use image::imageops;
 
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 
@@ -13,46 +14,33 @@ use maverick_os::air::{Metadata, Contract, Id, Name, Instance};
 use std::sync::Arc;
 use std::hash::Hash;
 
+use crate::components::Photo;
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Sticker {
     bytes: Arc<[u8]>,
     image: Arc<RgbaImage>,
 }
 
-
 impl Serialize for Sticker {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use base64::{engine::general_purpose, Engine as _};
-        serializer.serialize_str(&general_purpose::STANDARD.encode(&self.bytes))
+        crate::base64_bytes::serialize(&self.bytes, serializer)
     }
 }
 
 impl<'de> Deserialize<'de> for Sticker {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        use base64::{engine::general_purpose, Engine as _};
-        let encoded = String::deserialize(deserializer)?;
-        let bytes = general_purpose::STANDARD.decode(encoded).map_err(serde::de::Error::custom)?;
-        Ok(Sticker::from_bytes(bytes.clone()).unwrap_or_else(|| Sticker {
-            bytes: bytes.into(),
-            image: Arc::new(RgbaImage::new(1, 1)),
-        }))
+        let bytes = crate::base64_bytes::deserialize(deserializer)?;
+        Ok(Sticker::from_bytes(bytes.to_vec()).unwrap_or_else(|| Sticker { bytes, image: Arc::new(RgbaImage::new(1, 1)) }))
     }
 }
 
 impl Sticker {
     pub fn from_photo(photo: &RgbaImage) -> Option<Self> {
         let (w, h) = photo.dimensions();
-        if w == 0 || h == 0 { return None; }
-
         let side = w.min(h);
         let square = imageops::crop_imm(photo, (w - side) / 2, (h - side) / 2, side, side).to_image();
-        let image = imageops::resize(&square, 320, 320, FilterType::Triangle);
-
-        let mut bytes = Vec::new();
-        let rgb = DynamicImage::ImageRgba8(image.clone()).to_rgb8();
-        JpegEncoder::new_with_quality(&mut bytes, 80).encode_image(&rgb).ok()?;
-
-        Some(Sticker { bytes: bytes.into(), image: Arc::new(image) })
+        Sticker::from_bytes(Photo::encode(&square, 320, 80)?.jpeg().to_vec())
     }
 
     pub fn from_bytes(bytes: Vec<u8>) -> Option<Self> {
@@ -64,12 +52,16 @@ impl Sticker {
     pub fn bytes(&self) -> &[u8] { &self.bytes }
 }
 
-#[derive(Debug, Clone)]
-pub struct SendStickerEvent(pub Sticker);
+#[derive(Debug, Clone, Component)]
+pub struct StickerView(Stack, Image);
+impl OnEvent for StickerView {}
 
-impl Event for SendStickerEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
+impl StickerView {
+    pub fn message(sticker: &Sticker) -> Self {
+        StickerView(
+            Stack(Offset::Center, Offset::Center, Size::Static(120.0), Size::Static(120.0), Padding::default()),
+            Image { shape: ShapeType::RoundedRectangle(0.0, (120.0, 120.0), 0.0, 16.0), image: sticker.image(), color: None },
+        )
     }
 }
 

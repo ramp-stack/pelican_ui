@@ -12,28 +12,6 @@ use crate::components::text::{Text, TextSize, ExpandableText, TextStyle};
 use crate::components::Icon;
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 
-/// ## List Item
-///
-/// A component used for lists, menus, or settings screens.  
-/// Supports a title, optional flair (badge), subtitle, description, right-aligned  
-/// content, and avatar icons.  
-///
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/list_item.png"
-///      alt="List Item Example"
-///      width="400">
-///
-/// ### Example
-/// ```rust
-/// let item = ListItem::new(
-///     ctx,
-///     Some(AvatarContent::Icon("wifi", AvatarIconStyle::Success)),
-///     ListItemInfoLeft::new("Wi-Fi", "Home Network", None, None),
-///     Some(TitleSubtitle::new("Connected", "Secure, WPA2")),
-///     None,
-///     None,
-///     |ctx: &mut Context| println!("Clicked Wi-Fi")
-/// );
-/// ```
 #[derive(Debug, Component, Clone)]
 pub struct ListItem(Stack, interactions::Button, #[skip] String, #[skip] String);
 impl OnEvent for ListItem {}
@@ -165,8 +143,7 @@ impl Group {
     }
 }
 
-
-#[derive(Debug, Component, Clone)] // either instructions or the group
+#[derive(Debug, Component, Clone)]
 pub struct ListItemGroup(Stack, Option<ExpandableText>, Option<Group>);
 impl OnEvent for ListItemGroup {}
 
@@ -187,8 +164,7 @@ impl ListItemGroup {
     }
 }
 
-
-#[derive(Debug, Component, Clone)] // optional title, then the instructions or a group
+#[derive(Debug, Component, Clone)]
 pub struct ListItemSection(Column, Option<ExpandableText>, ListItemGroup);
 impl OnEvent for ListItemSection {}
 
@@ -198,5 +174,4 @@ impl ListItemSection {
         ListItemSection(Column::start(16.0), text, ListItemGroup::new(theme, instructions, items, label.is_some()))
     }
 
-    // pub fn group(&mut self) -> &mut ListItemGroup { &mut self.2.left() }
 }

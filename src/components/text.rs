@@ -29,15 +29,11 @@ pub struct Text {
 impl OnEvent for Text {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            // let (color, font) = self.style.get(ctx);
             self.inner.align = self.align;
             self.inner.max_lines = self.max_lines;
             self.inner.spans.iter_mut().enumerate().for_each(|(i, s)| {
                 s.text = self.spans[i].to_string();
-                // s.font_size = self.size.get(ctx);
                 s.line_height = Some(s.font_size * 1.25);
-                // s.color = color.into();
-                // s.font = font.clone().into();
                 s.kerning = self.kerning;
             });
         }
@@ -66,7 +62,6 @@ impl Text {
     pub fn inner(&self) -> &BasicText {&self.inner}
 }
 
-
 #[derive(Clone, Copy, Debug)]
 pub enum TextStyle {
     Heading,
@@ -82,7 +77,7 @@ impl TextStyle {
         let heading = theme.fonts().get_font(FontStyle::Heading).unwrap();
         let text = theme.fonts().get_font(FontStyle::Text).unwrap();
         let label = theme.fonts().get_font(FontStyle::Label).unwrap();
-        let keyboard = theme.fonts().get_font(FontStyle::Text).unwrap(); // change to keybord (medium weight)
+        let keyboard = theme.fonts().get_font(FontStyle::Text).unwrap();
         let colors = theme.colors();
         match self {
             TextStyle::Heading => (colors.get(theme::Text::Heading), heading.clone()),
@@ -148,9 +143,7 @@ impl TextEditor {
         self.2.1.display(display)
     }
 
-    /// Puts `text` in at the cursor, as typing it would.
     pub fn insert(&mut self, text: &str) {
-        // `cursor` is a byte offset into the text (as the canvas lays it out).
         let content = &mut self.1.0.spans[0];
         let index = clamp_to_boundary(content, self.1.0.inner.cursor.unwrap_or(content.len()));
         content.insert_str(index, text);
@@ -158,7 +151,6 @@ impl TextEditor {
         self.sync();
     }
 
-    /// Deletes the character before the cursor, as backspace would.
     pub fn delete_back(&mut self) {
         let content = &mut self.1.0.spans[0];
         let index = clamp_to_boundary(content, self.1.0.inner.cursor.unwrap_or(content.len()));
@@ -257,10 +249,8 @@ fn previous_grapheme(text: &str, index: usize) -> Option<usize> {
 impl OnEvent for TextEditor {
     fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            // A new frame: no pointer events handled in it yet.
             self.5 = FrameInput::default();
 
-            // A press held long enough becomes a scrub.
             if let Some(t) = self.4.pressed_at && !self.4.active && t.elapsed() >= Duration::from_millis(300) {
                 self.4.active = true;
                 let pointer = self.4.pointer;
@@ -272,8 +262,6 @@ impl OnEvent for TextEditor {
                 Key::Character(c) => self.insert(c),
                 Key::Enter => self.insert("\n"),
                 Key::Space => self.insert(" "),
-                // The on-screen keyboard and keypad send `Delete` for backspace,
-                // so both keys delete the character before the cursor.
                 Key::Delete | Key::Backspace => self.delete_back(),
                 _ => {},
             }
@@ -301,46 +289,6 @@ impl TextCursor {
     pub fn x_offset(&mut self) -> &mut Offset { &mut self.0.0 }
     pub fn y_offset(&mut self) -> &mut Offset { &mut self.0.1 }
 }
-
-// // /// # Bulleted Text
-// // ///
-// // /// A component for rendering lists with bullet points.
-// // ///
-// // /// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/bulleted_text.png"
-// // ///      alt="Bulleted Text Example"
-// // ///      width="400">
-// // ///
-// // /// ## Example
-// // ///```rust
-// // /// let text_size = ctx.theme.fonts.size.md;
-// // /// let items = vec!["Feed the chairs at midnight.", "Borrow a broom from the moon.", "Vacuum the car inside out.", "Hide the clock beneath the carpet."];
-// // /// let list = BulletedText::new(ctx, items, TextStyle::Primary, text_size);
-// // ///```
-// // #[derive(Debug, Component)]
-// // pub struct BulletedText(Column, Vec<BulletedTextContent>);
-
-// // impl OnEvent for BulletedText {}
-
-// // impl BulletedText {
-// //     pub fn new(ctx: &mut Context, text: Vec<&str>, style: TextStyle, size: f32) -> Self {
-// //         let color = style.get(ctx).0;
-// //         let items = text.into_iter().map(|t| BulletedTextContent::new(ctx, t, color, style, size)).collect();
-// //         BulletedText(Column::center(8.0), items)
-// //     }
-// // }
-
-// // #[derive(Debug, Component)]
-// // struct BulletedTextContent(Row, Shape, ExpandableText);
-// // impl OnEvent for BulletedTextContent {}
-// // impl BulletedTextContent {
-// //     fn new(ctx: &mut Context, text: &str, color: Color, style: TextStyle, size: f32) -> Self {
-// //         BulletedTextContent(
-// //             Row::new(size*0.75, Offset::Center, Size::Fit, Padding::default()), // change this offset to be line_height - circle size / 2
-// //             Circle::new(size*0.2, color, false),
-// //             ExpandableText::new(ctx, text, style, size, Align::Left, None)
-// //         )
-// //     }
-// // }
 
 #[derive(Debug, Clone, Default)]
 struct Scrub { pressed_at: Option<Instant>, pointer: (f32, f32), moved: (f32, f32), active: bool }

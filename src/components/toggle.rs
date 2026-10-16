@@ -11,7 +11,6 @@ use crate::components::{Rectangle, Circle};
 
 use ptsd::interactions;
 
-/// Toggle
 #[derive(Debug, Component, Clone)]
 pub struct Toggle(Column, ExpandableText, pub interactions::Toggle);
 impl OnEvent for Toggle {}
@@ -54,4 +53,3 @@ impl _Toggle {
         _Toggle(layout, background, handle)
     }
 }
-

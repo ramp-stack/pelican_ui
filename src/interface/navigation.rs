@@ -15,7 +15,6 @@ use crate::components::text::{TextStyle, Text};
 use crate::components::avatar::{Avatar, AvatarContent, AvatarSize};
 use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, IconButton};
 
-
 #[derive(Debug, Clone)]
 pub struct RootInfo {
     pub(crate) icon: Icons,
@@ -43,7 +42,6 @@ impl RootInfo {
         }
     }
 }
-
 
 #[derive(Debug, Component, Clone)]
 pub struct NavigatorSelectable(Stack, interactions::Selectable);
@@ -89,16 +87,6 @@ impl NavigatorSelectable {
         NavigatorSelectable(Stack::default(), interactions::Selectable::new(default, selected, is_selected, false, callback, group_id))
     }
 }
-
-// /// Selects the [`NavigationButton`] with the given [`uuid::Uuid`].
-// #[derive(Debug, Clone)]
-// pub struct NavigatorSelect(pub uuid::Uuid);
-
-// impl Event for NavigatorSelect {
-//     fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-//         children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-//     }
-// }
 
 #[derive(Debug, Component, Clone)]
 pub(crate) enum Navigator {
@@ -184,7 +172,6 @@ impl Navigator {
         }
     }
 
-
     pub(crate) fn web(theme: &Theme, navigation: Vec<RootInfo>) -> Self {
         let mut buttons = Vec::new();
         let group_id = uuid::Uuid::new_v4();
@@ -206,7 +193,6 @@ impl Navigator {
         }
     }
 }
-
 
 #[derive(Debug, Component, Clone)]
 pub struct MobileNavigatorContent(Row, Vec<NavigatorSelectable>);
@@ -238,5 +224,4 @@ impl ButtonRow {
         ButtonRow(Row::center(8.0), buttons)
     }
 
-    // fn buttons(&mut self) -> &mut Vec<NavigatorSelectable> {&mut self.1}
 }

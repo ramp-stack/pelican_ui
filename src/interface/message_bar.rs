@@ -1,18 +1,16 @@
 use prism::{Context, IS_MOBILE};
 use prism::event::{self, Event, OnEvent, MouseEvent, MouseState, MouseButton, TickEvent};
 use prism::drawable::{Component, Drawable, SizedTree};
-use prism::layout::{Area, Column, Row, Stack, Offset, Size, Padding};
+use prism::layout::{Column, Row, Stack, Offset, Size, Padding};
 use prism::display::{Bin, Opt};
 
 use ptsd::interactions;
 use ptsd::interfaces::ShowKeyboard;
 
-use std::sync::{Arc, Mutex};
-
 use crate::theme::{self, Theme, Icons, Variant, ButtonColorScheme};
-use crate::components::{TextInput, AttachButton, SendGifEvent};
+use crate::components::{TextInput, AttachButton, SendEvent, SubmitFn, ValidFn};
 use crate::components::button::{GhostIconButton, IconButton, ButtonSize, ButtonStyle};
-use crate::interface::system::{KeyboardPages, KeyboardPage, KeyboardShowing, MobileKeyboardEvent, Panels, TEXT_FIELD_GROUP};
+use crate::interface::system::{KeyboardPages, KeyboardPage, MobileKeyboardEvent, Panels, TEXT_FIELD_GROUP};
 
 #[derive(Debug, Component, Clone)]
 pub struct MessageBar {
@@ -29,10 +27,10 @@ impl MessageBar {
     pub fn new(
         theme: &Theme,
         placeholder: &str,
-        on_submit: impl FnMut(&mut Context, &mut String) + 'static,
-        valid: impl FnMut(&mut Context, &mut String) -> bool + 'static,
+        on_submit: impl FnMut(&mut Context, &mut String) + Clone + 'static,
+        valid: impl FnMut(&mut Context, &mut String) -> bool + Clone + 'static,
     ) -> Self {
-        let send = (Icons::Send, Arc::new(Mutex::new(on_submit)) as _, Arc::new(Mutex::new(valid)) as _);
+        let send = (Icons::Send, Box::new(on_submit) as Box<dyn SubmitFn>, Box::new(valid) as Box<dyn ValidFn>);
 
         let group = uuid::Uuid::new_v4();
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
@@ -138,14 +136,14 @@ impl OnEvent for MessageBar {
                     ctx.emit(ShowKeyboard(true));
                 },
             }
-        } else if let Some(KeyboardShowing(showing)) = event.downcast_ref::<KeyboardShowing>() {
+        } else if let Some(MobileKeyboardEvent::Showing(showing)) = event.downcast_ref::<MobileKeyboardEvent>() {
             for button in &mut self.toolbar.buttons {
                 let selected = *showing == Some(button.page);
                 if button.button.is_selected() != selected { button.button = button.looks[selected as usize].clone(); }
             }
             self.toolbar.hide.1.display(showing.is_some());
         } else if searching_gifs
-            && (matches!(event.downcast_ref::<MobileKeyboardEvent>(), Some(MobileKeyboardEvent::CancelGifSearch)) || event.downcast_ref::<SendGifEvent>().is_some())
+            && (matches!(event.downcast_ref::<MobileKeyboardEvent>(), Some(MobileKeyboardEvent::CancelGifSearch)) || matches!(event.downcast_ref::<SendEvent>(), Some(SendEvent::Gif(_))))
         {
             focus = true;
         }
@@ -193,8 +191,4 @@ pub(crate) enum MessageBarEvent {
     Key(event::Key),
 }
 
-impl Event for MessageBarEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
+prism::impl_event_all_children!(MessageBarEvent);

@@ -36,10 +36,6 @@ impl NumericalInput {
         NumericalInput(layout, input)
     }
 
-    /// The entered value, e.g. `"$1,250.00"`, `"25-12"` or `"09:30"`.
-    ///
-    /// Date and time inputs return an empty string until every slot is filled in,
-    /// so an empty or half-typed date can't be mistaken for one made of zeros.
     pub fn value(&self) -> String {
         let mut out = String::new();
 
@@ -220,7 +216,6 @@ impl OnEvent for SlotDisplay {
             let mut start = 0;
 
             match key {
-                // Both keys delete from the end, like the keypad's delete button.
                 Key::Delete | Key::Backspace => {
                     reversed = true;
                     slots = self.1.clone().into_iter().rev().collect::<Vec<_>>();
@@ -248,7 +243,7 @@ impl OnEvent for SlotDisplay {
                             SlotType::InputWithDefault(inputs, _, _, _) => {if inputs.pop().is_some() { edited = true; }},
                             SlotType::GhostInputWithDefault(inputs, _, _) => {if inputs.pop().is_some() { edited = true; }},
                             SlotType::TriggeredGhostInputWithDefault(inputs, _, _, _) => {if inputs.pop().is_some() { edited = true; }}
-                            _ => {} // later...
+                            _ => {}
                         }
                     },
                     Key::Character(character) => {
@@ -267,20 +262,18 @@ impl OnEvent for SlotDisplay {
                                         edited = true;
                                     }
                                 },
-                                // Decimal places: unlike the integer part, a leading zero is
-                                // a real digit here (e.g. the 0 in $1.05), so always accept it.
                                 SlotType::TriggeredGhostInputWithDefault(inputs, limit, _, is_on) if *is_on && inputs.len() < *limit => {
                                     inputs.push(character.chars().next().unwrap());
                                     edited = true;
                                 },
-                                _ => {} // later...
+                                _ => {}
                             }
                         } else if let SlotType::TriggersGhost(trigger, is_on) = &mut slot.2 && *trigger.to_string() == character {
                             *is_on = true;
                             edited = true;
                         }
                     },
-                    _ => {} // don't care
+                    _ => {}
                 }
 
                 if edited {
@@ -334,7 +327,7 @@ impl OnEvent for SlotDisplay {
 }
 
 #[derive(Clone, Debug, Component)]
-pub struct Slot(Stack, Opt<EitherOr<Text, Text>>, #[skip] SlotType); // text<primary, ghost>
+pub struct Slot(Stack, Opt<EitherOr<Text, Text>>, #[skip] SlotType);
 impl OnEvent for Slot {}
 impl Slot {
     pub fn new(theme: &Theme, ty: SlotType) -> Self {
@@ -357,13 +350,13 @@ impl Slot {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum SlotType {
-    Fixed(char), // $ (cannot be deleted)
-    TriggersGhost(char, bool), // .
-    GhostInputWithDefault(String, usize, char), // 0
-    TriggeredGhostInputWithDefault(String, usize, char, bool), // 0
-    ConditionalVisual(char), // , / - (add conditional callback here)
-    InputWithDefault(String, usize, char, InputFormat), // 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
-    ConditionalInput(Option<char>), // (add contditianal callback here)
+    Fixed(char),
+    TriggersGhost(char, bool),
+    GhostInputWithDefault(String, usize, char),
+    TriggeredGhostInputWithDefault(String, usize, char, bool),
+    ConditionalVisual(char),
+    InputWithDefault(String, usize, char, InputFormat),
+    ConditionalInput(Option<char>),
 }
 
 impl SlotType {
@@ -389,7 +382,7 @@ impl SlotType {
                     false => SlotVisual::Primary(chars.to_string()),
                 }
             },
-            SlotType::ConditionalVisual(c) => SlotVisual::Primary(c.to_string()), // check cond
+            SlotType::ConditionalVisual(c) => SlotVisual::Primary(c.to_string()),
             SlotType::InputWithDefault(chars, _, default, format) => {
                 SlotVisual::Primary(match chars.to_string().is_empty() {
                     true => default.to_string(),
@@ -423,24 +416,4 @@ pub enum InputFormat {
     Time,
 }
 
-pub trait NumberGetter: FnMut() -> f64 + 'static {
-    fn clone_box(&self) -> Box<dyn NumberGetter>;
-}
-
-impl<F> NumberGetter for F where F: FnMut() -> f64 + Clone + 'static {
-    fn clone_box(&self) -> Box<dyn NumberGetter> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn NumberGetter> {
-    fn clone(&self) -> Self {
-        self.as_ref().clone_box()
-    }
-}
-
-impl std::fmt::Debug for dyn NumberGetter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "NumberGetter")
-    }
-}
+crate::closure_trait!(NumberGetter, FnMut() -> f64);

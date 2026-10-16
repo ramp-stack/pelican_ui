@@ -2,7 +2,7 @@ use prism::event::{self, MouseEvent, TickEvent, KeyboardState, KeyboardEvent, On
 use prism::canvas::{Align, Image};
 use prism::{emitters, Context, IS_MOBILE};
 use prism::drawable::{Drawable, Component, SizedTree};
-use prism::layout::{Layout, Stack, Column, Row, Offset, Size, Padding, Area};
+use prism::layout::{Layout, Stack, Column, Row, Offset, Size, Padding};
 use prism::display::{Bin, Enum, Opt};
 use std::time::{Duration, Instant};
 
@@ -12,7 +12,7 @@ use ptsd::interactions;
 use crate::theme::{Theme, Color, Icons};
 
 use crate::components::text::{Text, TextStyle, TextSize};
-use crate::components::{Rectangle, Icon, SendGifEvent};
+use crate::components::{Rectangle, Icon, SendEvent};
 
 use crate::components::button::GhostIconButton;
 
@@ -57,32 +57,19 @@ impl KeyboardPages {
     pub const NONE: Self = KeyboardPages { emoji: false, stickers: false, gifs: false, toolbar: false };
 }
 
-impl Event for KeyboardPages {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct KeyboardShowing(pub Option<KeyboardPage>);
-
-impl Event for KeyboardShowing {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct KeyboardFullScreen(pub bool);
-
-impl Event for KeyboardFullScreen {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
-
 #[derive(Component, Debug, Clone)]
-pub struct MobileKeyboard(Stack, Rectangle, KeyboardContent, #[skip] bool, #[skip] usize, #[skip] KeyboardPage, #[skip] Theme, #[skip] GifSearch, #[skip] KeyboardPages, #[skip] Option<Option<KeyboardPage>>);
+pub struct MobileKeyboard {
+    layout: Stack,
+    background: Rectangle,
+    content: KeyboardContent,
+    #[skip] caps: bool,
+    #[skip] keys_page: usize,
+    #[skip] page: KeyboardPage,
+    #[skip] theme: Theme,
+    #[skip] gif_search: GifSearch,
+    #[skip] pages: KeyboardPages,
+    #[skip] announced: Option<Option<KeyboardPage>>,
+}
 
 impl OnEvent for MobileKeyboard {
     fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
@@ -91,80 +78,79 @@ impl OnEvent for MobileKeyboard {
         let mut refresh = false;
 
         if let Some(KeyboardEvent{key: event::Key::Character(_), state: KeyboardState::Pressed, ..}) = event.downcast_ref::<KeyboardEvent>()
-            && self.3 && (self.5 == KeyboardPage::Keys || self.7.open) {
-            self.3 = false;
+            && self.caps && (self.page == KeyboardPage::Keys || self.gif_search.open) {
+            self.caps = false;
             refresh = true;
         } else if let Some(ShowKeyboard(true)) = event.downcast_ref::<ShowKeyboard>() {
             refresh = true;
-        } else if event.downcast_ref::<KeyboardPages>().is_some() && !self.7.open {
-            page = Some(self.5);
-        } else if self.7.open && (event.downcast_ref::<SendGifEvent>().is_some() || matches!(event.downcast_ref::<MobileKeyboardEvent>(), Some(MobileKeyboardEvent::CancelGifSearch))) {
-            self.7.open = false;
+        } else if self.gif_search.open && (matches!(event.downcast_ref::<SendEvent>(), Some(SendEvent::Gif(_))) || matches!(event.downcast_ref::<MobileKeyboardEvent>(), Some(MobileKeyboardEvent::CancelGifSearch))) {
+            self.gif_search.open = false;
             page = Some(KeyboardPage::Gifs);
-            ctx.emit(KeyboardFullScreen(false));
-            if let Some((id, group)) = self.7.return_to.take() { ctx.emit(event::Selectable::Pressed(id, group)); }
+            ctx.emit(MobileKeyboardEvent::FullScreen(false));
+            if let Some((id, group)) = self.gif_search.return_to.take() { ctx.emit(event::Selectable::Pressed(id, group)); }
         } else if let Some(e) = event.downcast_ref::<MobileKeyboardEvent>() {
             match e {
+                MobileKeyboardEvent::Pages(_) if !self.gif_search.open => page = Some(self.page),
                 MobileKeyboardEvent::Paginator(n) => {
-                    self.4 = *n;
+                    self.keys_page = *n;
                     refresh = true;
                 },
                 MobileKeyboardEvent::Capslock(caps) => {
-                    self.3 = *caps;
+                    self.caps = *caps;
                     refresh = true;
                 },
-                MobileKeyboardEvent::Toggle(p) => page = Some(if self.5 == *p { KeyboardPage::Keys } else { *p }),
-                MobileKeyboardEvent::Show(p) if !self.7.open => {
-                    self.8 = KeyboardPages::TOOLBAR;
+                MobileKeyboardEvent::Toggle(p) => page = Some(if self.page == *p { KeyboardPage::Keys } else { *p }),
+                MobileKeyboardEvent::Show(p) if !self.gif_search.open => {
+                    self.pages = KeyboardPages::TOOLBAR;
                     page = Some(*p);
                 },
-                MobileKeyboardEvent::StartGifSearch if !self.7.open && self.5 == KeyboardPage::Gifs => {
-                    self.7.open = true;
-                    self.7.return_to = self.7.focused.clone();
-                    self.2.2.inner().gifs.inner().set_full(true);
-                    self.2.1 = None;
+                MobileKeyboardEvent::StartGifSearch if !self.gif_search.open && self.page == KeyboardPage::Gifs => {
+                    self.gif_search.open = true;
+                    self.gif_search.return_to = self.gif_search.focused.clone();
+                    self.content.panels.inner().gifs.inner().set_full(true);
+                    self.content.header = None;
                     search_keys = Some(true);
-                    ctx.emit(KeyboardFullScreen(true));
+                    ctx.emit(MobileKeyboardEvent::FullScreen(true));
                 },
-                MobileKeyboardEvent::SubmitGifSearch if self.7.open => search_keys = Some(false),
+                MobileKeyboardEvent::SubmitGifSearch if self.gif_search.open => search_keys = Some(false),
                 _ => {},
             }
         }
 
         if refresh {
-            match self.7.open {
+            match self.gif_search.open {
                 true => search_keys = Some(true),
-                false => page = Some(self.5),
+                false => page = Some(self.page),
             }
         }
 
         if let Some(page) = page {
             let page = match page {
-                KeyboardPage::Emoji if !self.8.emoji => KeyboardPage::Keys,
-                KeyboardPage::Stickers if !self.8.stickers => KeyboardPage::Keys,
-                KeyboardPage::Gifs if !self.8.gifs => KeyboardPage::Keys,
+                KeyboardPage::Emoji if !self.pages.emoji => KeyboardPage::Keys,
+                KeyboardPage::Stickers if !self.pages.stickers => KeyboardPage::Keys,
+                KeyboardPage::Gifs if !self.pages.gifs => KeyboardPage::Keys,
                 page => page,
             };
-            self.5 = page;
-            let panels = self.2.2.inner();
+            self.page = page;
+            let panels = self.content.panels.inner();
             panels.gifs.inner().close_search();
             panels.gifs.inner().set_full(false);
             if page != KeyboardPage::Keys { panels.show(page); }
-            self.2.2.display(page != KeyboardPage::Keys);
-            self.2.3 = (page == KeyboardPage::Keys).then(|| KeyRows::new(&self.6, self.4, self.3, KeyTarget::Input));
-            self.2.1 = (!self.8.toolbar).then(|| KeyboardHeader(
+            self.content.panels.display(page != KeyboardPage::Keys);
+            self.content.keys = (page == KeyboardPage::Keys).then(|| KeyRows::new(&self.theme, self.keys_page, self.caps, KeyTarget::Input));
+            self.content.header = (!self.pages.toolbar).then(|| KeyboardHeader(
                 Column::start(0.0),
-                KeyboardIcons::new(&self.6, page, self.8),
+                KeyboardIcons::new(&self.theme, page, self.pages),
                 Bin(
                     Stack(Offset::default(), Offset::default(), Size::Fit, Size::Static(1.0), Padding(0.0, 0.0, 0.0, 2.0)),
-                    Rectangle::new(self.6.colors().get(ptsd::Outline::Secondary), 0.0, None),
+                    Rectangle::new(self.theme.colors().get(ptsd::Outline::Secondary), 0.0, None),
                 ),
             ));
-            self.2.0.padding().1 = if self.2.1.is_none() && page == KeyboardPage::Keys { 22.0 } else { 8.0 };
+            self.content.layout.padding().1 = if self.content.header.is_none() && page == KeyboardPage::Keys { 22.0 } else { 8.0 };
         }
 
         if let Some(show) = search_keys {
-            self.2.3 = show.then(|| KeyRows::new(&self.6, self.4, self.3, KeyTarget::GifSearch));
+            self.content.keys = show.then(|| KeyRows::new(&self.theme, self.keys_page, self.caps, KeyTarget::GifSearch));
         }
 
         vec![event]
@@ -175,45 +161,53 @@ impl MobileKeyboard {
     pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
         let color = theme.colors().get(ptsd::Background::Secondary);
         let (bottom, _, _, _) = ctx.get_safe_area();
-        MobileKeyboard(
-            Stack(Offset::Start, Offset::Start, Size::Fill, Size::custom(|heights: Vec<(f32, f32)>| heights[1]), Padding::default()),
-            Rectangle::new(color, 0.0, None),
-            KeyboardContent(
-                Column::new(0.0, Offset::Center, Size::Fit, Padding::new(8.0), None),
-                None,
-                Opt::new(Panels::new(theme), false),
-                Some(KeyRows::new(theme, 0, false, KeyTarget::Input)),
-                Bin(Stack(Offset::Start, Offset::Start, Size::Fill, Size::Static(bottom), Padding::default()), Rectangle::new(color, 0.0, None)),
-            ),
-            false, 0, KeyboardPage::Keys, theme.clone(), GifSearch::default(), KeyboardPages::default(), None,
-        )
-    }
-
-    pub fn set_pages(&mut self, _ctx: &mut Context, pages: KeyboardPages) {
-        if !self.7.open { self.8 = pages; }
-    }
-
-    pub fn searching_gifs(&self) -> bool { self.7.open }
-
-    pub fn announce(&mut self, ctx: &mut Context, showing: bool) {
-        let now = showing.then_some(self.5);
-        if self.9 != Some(now) {
-            self.9 = Some(now);
-            ctx.emit(KeyboardShowing(now));
+        MobileKeyboard {
+            layout: Stack(Offset::Start, Offset::Start, Size::Fill, Size::custom(|heights: Vec<(f32, f32)>| heights[1]), Padding::default()),
+            background: Rectangle::new(color, 0.0, None),
+            content: KeyboardContent {
+                layout: Column::new(0.0, Offset::Center, Size::Fit, Padding::new(8.0), None),
+                header: None,
+                panels: Opt::new(Panels::new(theme), false),
+                keys: Some(KeyRows::new(theme, 0, false, KeyTarget::Input)),
+                safe_area: Bin(Stack(Offset::Start, Offset::Start, Size::Fill, Size::Static(bottom), Padding::default()), Rectangle::new(color, 0.0, None)),
+            },
+            caps: false,
+            keys_page: 0,
+            page: KeyboardPage::Keys,
+            theme: theme.clone(),
+            gif_search: GifSearch::default(),
+            pages: KeyboardPages::default(),
+            announced: None,
         }
     }
 
-    pub fn hidden(&mut self, ctx: &mut Context) {
-        if std::mem::take(&mut self.7.open) { ctx.emit(KeyboardFullScreen(false)); }
-    }
-
-    pub fn selected(&mut self, id: &str, group: &str) {
-        if group == TEXT_FIELD_GROUP { self.7.focused = Some((id.to_string(), group.to_string())); }
+    pub fn on_interface_event(&mut self, ctx: &mut Context, event: &dyn Event, showing: bool) -> bool {
+        if let Some(event::Selectable::Pressed(id, group)) = event.downcast_ref::<event::Selectable>() && group == TEXT_FIELD_GROUP {
+            self.gif_search.focused = Some((id.clone(), group.clone()));
+        } else if let Some(MobileKeyboardEvent::Pages(pages)) = event.downcast_ref::<MobileKeyboardEvent>() && !self.gif_search.open {
+            self.pages = *pages;
+        } else if let Some(ShowKeyboard(false)) = event.downcast_ref::<ShowKeyboard>() && self.gif_search.open {
+            return false;
+        } else if event.downcast_ref::<TickEvent>().is_some() {
+            if !showing && std::mem::take(&mut self.gif_search.open) { ctx.emit(MobileKeyboardEvent::FullScreen(false)); }
+            let now = showing.then_some(self.page);
+            if self.announced != Some(now) {
+                self.announced = Some(now);
+                ctx.emit(MobileKeyboardEvent::Showing(now));
+            }
+        }
+        true
     }
 }
 
 #[derive(Component, Debug, Clone)]
-struct KeyboardContent(Column, Option<KeyboardHeader>, Opt<Panels>, Option<KeyRows>, Bin<Stack, Rectangle>);
+struct KeyboardContent {
+    layout: Column,
+    header: Option<KeyboardHeader>,
+    panels: Opt<Panels>,
+    keys: Option<KeyRows>,
+    safe_area: Bin<Stack, Rectangle>,
+}
 impl OnEvent for KeyboardContent {}
 
 #[derive(Component, Debug, Clone)]
@@ -653,6 +647,9 @@ impl std::fmt::Debug for _Paginator {
 
 #[derive(Debug, Clone)]
 pub(crate) enum MobileKeyboardEvent {
+    Pages(KeyboardPages),
+    Showing(Option<KeyboardPage>),
+    FullScreen(bool),
     Capslock(bool),
     Paginator(usize),
     Toggle(KeyboardPage),
@@ -663,8 +660,4 @@ pub(crate) enum MobileKeyboardEvent {
     SubmitGifSearch,
 }
 
-impl Event for MobileKeyboardEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
+prism::impl_event_all_children!(MobileKeyboardEvent);

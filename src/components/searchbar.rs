@@ -1,7 +1,7 @@
 use prism::event::{Event, TickEvent, OnEvent};
 use prism::{Context};
 use prism::drawable::{Component, SizedTree};
-use prism::layout::{Area, Wrap, Stack, Column};
+use prism::layout::{Wrap, Stack, Column};
 
 use ptsd::interactions;
 
@@ -165,11 +165,7 @@ pub enum SearchbarEvent {
     Store(ListItem, Name),
 }
 
-impl Event for SearchbarEvent {
-    fn pass(self: Box<Self>, _ctx: &mut Context, children: &[Area]) -> Vec<Option<Box<dyn Event>>> {
-        children.iter().map(|_| Some(self.clone() as Box<dyn Event>)).collect()
-    }
-}
+prism::impl_event_all_children!(SearchbarEvent);
 
 #[derive(Component, Debug, Clone)]
 pub struct SearchBarListItem(Stack, pub interactions::Button, #[skip] Name, #[skip] (String, String), #[skip] ListItem);
@@ -184,4 +180,3 @@ impl SearchBarListItem {
 
     pub fn id(&self) -> Name {self.2}
 }
-

@@ -10,21 +10,6 @@ use crate::theme::{Theme, Icons};
 use crate::components::list_item::ListItem;
 use crate::components::list_item::ListItemInfoLeft;
 
-/// A column of selectable radio-style list items.
-///
-/// # Example
-///
-///<img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/selector.png"
-///      alt="Radio Example"
-///      width="400">
-///
-/// ```rust
-/// let selector = RadioSelector::new(ctx, 0, vec![
-///     ("Light Mode", "Bright theme with light background", |_| println!("Selected Light Mode")),
-///     ("Dark Mode", "Dim theme for low-light environments", |_| println!("Selected Dark Mode")),
-///     ("System Default", "Match the system appearance setting", |_| println!("Selected System Default")),
-/// ]);
-/// ```
 #[derive(Component, Debug, Clone)]
 pub struct RadioSelector(Column, pub Vec<interactions::Selectable>);
 impl OnEvent for RadioSelector {}
@@ -40,7 +25,6 @@ impl RadioSelector {
             let callback = Box::new(move |ctx: &mut Context| (c)(ctx, &theme));
             interactions::Selectable::new(default, selected, i == index, false, callback, group_id)
         }).collect::<Vec<_>>();
-
 
         RadioSelector(Column::center(0.0), selectables)
     }
@@ -63,4 +47,3 @@ impl RadioSelector {
         0
     }
 }
-

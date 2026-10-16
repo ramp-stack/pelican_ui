@@ -4,20 +4,9 @@ use prism::canvas::{ShapeType, Image, Area as CanvasArea, Item as CanvasItem, In
 
 use crate::theme::{Theme, Color, Icons};
 
-// use std::io::BufWriter;
 use std::sync::Arc;
 
-// use image::codecs::png::PngEncoder;
-// use image::ImageEncoder;
 use image::RgbaImage;
-// use image::ColorType;
-
-// use fast_image_resize::{IntoImageView, Resizer};
-// use fast_image_resize::images::Image as FirImage;
-// use image::GenericImageView;
-// use base64::{engine::general_purpose, Engine};
-
-// pub struct Images(Vec<)
 
 #[derive(Clone, Debug)]
 pub struct Icon;
@@ -28,16 +17,6 @@ impl Icon {
     }
 }
 
-/// ## Aspect Ratio Image
-/// <img src="https://raw.githubusercontent.com/ramp-stack/pelican_ui_std/main/src/examples/ar_image.png"
-///      alt="AsRa Image Example"
-///      width="400">
-///
-/// ### Example
-/// ```rust
-/// let img = ctx.theme.brand.illustrations.get("fish_image");
-/// let image = AspectRatioImage::new(img, (100.0, 100.0));
-/// ```
 #[derive(Clone, Debug)]
 pub struct AspectRatioImage;
 impl AspectRatioImage {
@@ -53,58 +32,6 @@ impl AspectRatioImage {
     }
 }
 
-// /// Encode an RgbaImage or image bytes as [`general_purpose::STANDARD`].
-// /// Then, later decode as [`resources::Image`] or [`RgbaImage`].
-// pub struct EncodedImage;
-// impl EncodedImage {
-//     pub fn encode(bytes: Vec<u8>, orientation: ImageOrientation) -> Option<String> {
-//         if let Ok(dynamic) = image::load_from_memory(&bytes) {
-//             let src_image = orientation.apply_to(image::DynamicImage::ImageRgba8(dynamic.to_rgba8()));
-//             let (w, h) = src_image.dimensions();
-//             let s = 256.0 / w.min(h) as f32;
-//             let (w, h) = ((w as f32 * s) as u32, (h as f32 * s) as u32);
-//             let mut dst_image = FirImage::new(w, h, src_image.pixel_type().unwrap());
-//             Resizer::new().resize(&src_image, &mut dst_image, None).unwrap();
-
-//             let mut result_buf = BufWriter::new(Vec::new());
-//             PngEncoder::new(&mut result_buf).write_image(dst_image.buffer(), w, h, src_image.color().into()).unwrap();
-//             let result_buf = result_buf.into_inner().unwrap(); 
-//             return Some(general_purpose::STANDARD.encode(&result_buf))
-//         }
-//         None
-//     }
-
-//     pub fn decode(ctx: &mut Context, bytes: &String) -> Arc<RgbaImage> {
-//         let png_bytes = general_purpose::STANDARD.decode(bytes).unwrap();
-//         image::load_from_memory(&png_bytes).unwrap().into()
-//     }
-
-//     pub fn encode_rgba(image: RgbaImage) -> String {
-//         let (width, height) = image.dimensions();
-//         let raw = image.into_raw();
-
-//         let mut result_buf = BufWriter::new(Vec::new());
-//         PngEncoder::new(&mut result_buf)
-//             .write_image(&raw, width, height, ColorType::Rgba8.into())
-//             .unwrap();
-
-//         let png_bytes = result_buf.into_inner().unwrap();
-//         general_purpose::STANDARD.encode(&png_bytes)
-//     }
-
-//     pub fn decode_rgba(data: &str) -> RgbaImage {
-//         let png_bytes = general_purpose::STANDARD
-//             .decode(data)
-//             .expect("Base64 decode failed");
-
-//         image::load_from_memory_with_format(&png_bytes, image::ImageFormat::Png)
-//             .expect("Failed to load PNG")
-//             .to_rgba8()
-//     }
-// }
-
-/// A wrapper around an [`Image`] that optionally supports custom dimensions.  
-/// If no size is provided, the image defaults to `(0.0, 0.0)` and will expand according to its container.
 #[derive(Debug, Clone)]
 pub struct ExpandableImage(Image, Option<(f32, f32)>);
 
