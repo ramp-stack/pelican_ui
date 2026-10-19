@@ -1,8 +1,12 @@
-use prism::event::{OnEvent, Event, TickEvent, PickedMedia};
-use prism::drawable::{Component, SizedTree};
-use prism::layout::{Stack, Offset, Size, Padding};
-use prism::canvas::{Align, Image, ShapeType};
-use prism::display::Bin;
+use prism::events::{Event, DynEvent, TickEvent};
+use prism::drawable::Component;
+use ptsd::layout::{Stack, Offset, Size, Padding};
+use prism::drawable::{text::Align, shape::Variant};
+use prism::hardware::{Media, Picked, Player};
+use crate::components::images::MaskedImage;
+use std::cell::RefCell;
+use std::rc::Rc;
+use ptsd::display::Bin;
 use prism::Context;
 
 use ptsd::interactions;
@@ -11,7 +15,7 @@ use image::{RgbaImage, DynamicImage, ColorType};
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
 
-use maverick_os::air::{Contract, Metadata, Id, Name};
+use prism::air::{Contract, Metadata, Id, Name};
 
 use serde::{Serialize, Deserialize};
 
@@ -24,8 +28,6 @@ use crate::theme::{Theme, Color, Icons};
 use crate::components::{Rectangle, Icon, SendEvent};
 use crate::components::button::GhostIconButton;
 use crate::components::text::{Text, TextSize, TextStyle};
-
-static CACHE: Mutex<PhotoCache> = Mutex::new(PhotoCache { entries: BTreeMap::new(), recent: VecDeque::new(), bytes: 0, decoding: 0 });
 
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Photo {
@@ -40,7 +42,7 @@ impl Photo {
         Self::encode(image, 1600, 82)
     }
 
-    pub(crate) fn encode(image: &RgbaImage, side: u32, quality: u8) -> Option<Self> {
+    pub fn encode(image: &RgbaImage, side: u32, quality: u8) -> Option<Self> {
         let (w, h) = image.dimensions();
         if w == 0 || h == 0 { return None; }
         let scale = (side as f32 / w.max(h) as f32).min(1.0);
@@ -84,10 +86,10 @@ pub struct VideoClip {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Mp4(#[serde(with = "crate::base64_bytes")] Arc<[u8]>);
+pub struct Mp4(#[serde(with = "crate::base64_bytes")] Arc<Vec<u8>>);
 
 impl Mp4 {
-    pub fn new(mp4: Arc<[u8]>) -> Self { Mp4(mp4) }
+    pub fn new(mp4: Arc<Vec<u8>>) -> Self { Mp4(mp4) }
     pub fn id(&self) -> Id { Id::hash(&self.0[..]) }
 }
 
@@ -115,11 +117,11 @@ impl Contract for VideoClip {
 
 impl VideoClip {
     pub fn listen(ctx: &mut Context) {
-        let _ = ctx.list::<VideoClip>();
+        let _ = ctx.air.instances::<VideoClip>().list();
     }
 
-    pub fn find(ctx: &mut Context, id: Id) -> Option<Arc<[u8]>> {
-        ctx.list::<VideoClip>().values().find_map(|clip| {
+    pub fn find(ctx: &mut Context, id: Id) -> Option<Arc<Vec<u8>>> {
+        ctx.air.instances::<VideoClip>().list().values().find_map(|clip| {
             let clip = clip.pending();
             (clip.id == id).then(|| clip.mp4.0.clone())
         })
@@ -128,7 +130,7 @@ impl VideoClip {
 
 #[derive(Clone)]
 pub struct NewVideo {
-    pub mp4: Arc<[u8]>,
+    pub mp4: Arc<Vec<u8>>,
     pub poster: Photo,
     pub duration: Duration,
 }
@@ -143,8 +145,8 @@ impl NewVideo {
     pub fn share(&self, ctx: &mut Context, members: &[Name]) -> Video {
         let mp4 = Mp4(self.mp4.clone());
         let clip = mp4.id();
-        let instance = ctx.create::<VideoClip>(mp4);
-        let me = ctx.me();
+        let instance = ctx.air.instances::<VideoClip>().create(mp4);
+        let me = ctx.air.me();
         for member in members.iter().chain((!members.contains(&me)).then_some(&me)) {
             instance.share(*member);
         }
@@ -153,9 +155,10 @@ impl NewVideo {
 }
 
 #[derive(Debug, Clone, Component)]
+#[on_dyn_event]
 pub struct PhotoView {
     layout: Stack,
-    image: Option<Image>,
+    image: Option<MaskedImage>,
     placeholder: Option<Rectangle>,
     #[skip] photo: Photo,
     #[skip] size: (f32, f32),
@@ -176,15 +179,14 @@ impl PhotoView {
     }
 }
 
-impl OnEvent for PhotoView {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl PhotoView {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if self.image.is_none() && event.downcast_ref::<TickEvent>().is_some() && let Ok(mut photos) = CACHE.lock() {
             let key = Arc::as_ptr(&self.photo.jpeg) as *const u8 as usize;
             let same = |weak: &Weak<[u8]>| weak.upgrade().is_some_and(|jpeg| Arc::ptr_eq(&jpeg, &self.photo.jpeg));
             match photos.entries.get(&key) {
                 Some((weak, Decoded::Ready(image))) if same(weak) => {
-                    let shape = ShapeType::RoundedRectangle(0.0, self.size, 0.0, 16.0);
-                    self.image = Some(Image { shape, image: image.clone(), color: None });
+                    self.image = Some(MaskedImage(image.clone(), Variant::RoundedRectangle(16.0)));
                     self.placeholder = None;
                     if let Some(i) = photos.recent.iter().position(|k| *k == key) && i + 1 != photos.recent.len() {
                         let shown = photos.recent.remove(i).unwrap();
@@ -233,9 +235,11 @@ impl OnEvent for PhotoView {
 }
 
 #[derive(Debug, Clone, Component)]
+#[on_dyn_event]
 pub struct VideoView {
     layout: Stack,
-    button: interactions::Button,
+    button: Option<interactions::Button>,
+    player: Option<Player>,
     loading: Option<Bin<Stack, Badge>>,
     #[skip] id: uuid::Uuid,
     #[skip] video: Video,
@@ -264,7 +268,11 @@ impl VideoView {
         let callback = move |ctx: &mut Context| ctx.emit(VideoViewEvent::Play(id));
         VideoView {
             layout: Stack(Offset::Center, Offset::Center, Size::Static(size.0), Size::Static(size.1), Padding::default()),
-            button: interactions::Button::new_triggers_on_release(face, None::<VideoFace>, None::<VideoFace>, None::<VideoFace>, None::<VideoFace>, callback, false),
+            button: Some(interactions::Button::new_triggers_on_release(
+                face, None::<VideoFace>, None::<VideoFace>, None::<VideoFace>, None::<VideoFace>,
+                callback, false,
+            )),
+            player: None,
             loading: None,
             id,
             video: video.clone(),
@@ -274,15 +282,29 @@ impl VideoView {
     }
 }
 
-impl OnEvent for VideoView {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl VideoView {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         let tapped = matches!(event.downcast_ref::<VideoViewEvent>(), Some(VideoViewEvent::Play(id)) if *id == self.id);
         if tapped || (self.waiting && event.downcast_ref::<TickEvent>().is_some()) {
             match VideoClip::find(ctx, self.video.clip) {
                 Some(mp4) => {
                     self.waiting = false;
                     self.loading = None;
-                    ctx.play_video(mp4);
+                    let player = ctx.hardware.video(mp4.as_ref().clone())
+                        .ok_or_else(|| "Invalid video".to_string())
+                        .and_then(|video| Player::new(&video));
+                    match player {
+                        Ok(player) => {
+                            player.start();
+                            self.button = None;
+                            self.player = Some(player);
+                        }
+                        Err(_) => {
+                            self.loading = Some(Bin(
+                                Stack::fill(), Badge::label(&self.theme, "Unable to play video"),
+                            ));
+                        }
+                    }
                 },
                 None => {
                     self.waiting = true;
@@ -295,20 +317,77 @@ impl OnEvent for VideoView {
     }
 }
 
+#[derive(Clone, Component)]
+#[on_dyn_event]
+pub struct AttachButton {
+    layout: Stack,
+    button: GhostIconButton,
+    #[skip] id: uuid::Uuid,
+    #[skip] picked: Rc<RefCell<Option<Picked<Media>>>>,
+    #[skip] preparing: VecDeque<Task<Option<SendEvent>>>,
+}
+
+impl AttachButton {
+    pub fn new(theme: &Theme) -> Self {
+        let id = uuid::Uuid::new_v4();
+        let mut button = GhostIconButton::new(theme, Icons::Photos, move |ctx: &mut Context, _: &Theme| ctx.emit(AttachButtonEvent::Pick(id)));
+        button.1.set_trigger_on_release();
+        AttachButton { layout: Stack::default(), button, id, picked: Rc::new(RefCell::new(None)), preparing: VecDeque::new() }
+    }
+}
+
+impl std::fmt::Debug for AttachButton {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AttachButton").field("button", &self.button).finish()
+    }
+}
+
+impl AttachButton {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
+        if matches!(event.downcast_ref::<AttachButtonEvent>(), Some(AttachButtonEvent::Pick(id)) if *id == self.id) {
+            *self.picked.borrow_mut() = Some(ctx.hardware.pick::<Media>());
+        } else if event.downcast_ref::<TickEvent>().is_some() {
+            let picked = self.picked.borrow_mut().as_mut().and_then(Picked::try_get);
+            if let Some(result) = picked {
+                self.picked.borrow_mut().take();
+                if let Ok(media) = result {
+                    self.preparing.push_back(Task::spawn(move || match media {
+                        Media::Image(image) => Photo::from_image(&image).map(SendEvent::Photo),
+                        Media::Video(video) => {
+                            let poster = Photo::encode(&video.thumbnail(), 640, 75)?;
+                            Some(SendEvent::Video(NewVideo {
+                                mp4: video.bytes().clone(), poster,
+                                duration: video.duration().unwrap_or_default(),
+                            }))
+                        },
+                    }));
+                }
+            }
+            while let Some(prepared) = self.preparing.front().and_then(|task| task.take()) {
+                self.preparing.pop_front();
+                if let Some(send) = prepared {ctx.emit(send);}
+            }
+        }
+        vec![event]
+    }
+}
+
 #[derive(Debug, Clone)]
 enum VideoViewEvent {
     Play(uuid::Uuid),
 }
 
-prism::impl_event_all_children!(VideoViewEvent);
+impl Event for VideoViewEvent {
+    fn pass(&self, _ctx: &mut Context, children: &mut [prism::events::ChildEvent<'_, Self>]) {
+        for child in children {*child.event = Some(self.clone());}
+    }
+}
 
 #[derive(Debug, Clone, Component)]
 struct VideoFace(Stack, PhotoView, Bin<Stack, Badge>, Bin<Stack, Badge>);
-impl OnEvent for VideoFace {}
 
 #[derive(Debug, Clone, Component)]
-struct Badge(Stack, Rectangle, Option<Image>, Option<Text>);
-impl OnEvent for Badge {}
+struct Badge(Stack, Rectangle, Option<Icon>, Option<Text>);
 
 impl Badge {
     fn play(theme: &Theme) -> Self {
@@ -334,55 +413,16 @@ impl Badge {
     }
 }
 
-#[derive(Debug, Clone, Component)]
-pub struct AttachButton {
-    layout: Stack,
-    button: GhostIconButton,
-    #[skip] id: uuid::Uuid,
-    #[skip] waiting_for_media: bool,
-    #[skip] preparing: VecDeque<Task<Option<SendEvent>>>,
-}
-
-impl AttachButton {
-    pub fn new(theme: &Theme) -> Self {
-        let id = uuid::Uuid::new_v4();
-        let mut button = GhostIconButton::new(theme, Icons::Photos, move |ctx: &mut Context, _: &Theme| ctx.emit(AttachButtonEvent::Pick(id)));
-        button.1.set_trigger_on_release();
-        AttachButton { layout: Stack::default(), button, id, waiting_for_media: false, preparing: VecDeque::new() }
-    }
-}
-
-impl OnEvent for AttachButton {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if matches!(event.downcast_ref::<AttachButtonEvent>(), Some(AttachButtonEvent::Pick(id)) if *id == self.id) {
-            self.waiting_for_media = true;
-            ctx.pick_media();
-        } else if let Some(media) = event.downcast_ref::<PickedMedia>() && self.waiting_for_media {
-            self.waiting_for_media = false;
-            let media = media.clone();
-            self.preparing.push_back(Task::spawn(move || match media {
-                PickedMedia::Photo(image) => Photo::from_image(&image).map(SendEvent::Photo),
-                PickedMedia::Video(video) => {
-                    let poster = Photo::encode(&video.poster, 640, 75)?;
-                    Some(SendEvent::Video(NewVideo { mp4: video.mp4.as_slice().into(), poster, duration: video.duration }))
-                },
-            }));
-        } else if event.downcast_ref::<TickEvent>().is_some() {
-            while let Some(prepared) = self.preparing.front().and_then(|task| task.take()) {
-                self.preparing.pop_front();
-                if let Some(send) = prepared { ctx.emit(send); }
-            }
-        }
-        vec![event]
-    }
-}
-
 #[derive(Debug, Clone)]
 enum AttachButtonEvent {
     Pick(uuid::Uuid),
 }
 
-prism::impl_event_all_children!(AttachButtonEvent);
+impl Event for AttachButtonEvent {
+    fn pass(&self, _ctx: &mut Context, children: &mut [prism::events::ChildEvent<'_, Self>]) {
+        for child in children {*child.event = Some(self.clone());}
+    }
+}
 
 struct PhotoCache {
     entries: BTreeMap<usize, (Weak<[u8]>, Decoded)>,
@@ -392,3 +432,5 @@ struct PhotoCache {
 }
 
 enum Decoded { Loading, Ready(Arc<RgbaImage>), Failed }
+
+static CACHE: Mutex<PhotoCache> = Mutex::new(PhotoCache { entries: BTreeMap::new(), recent: VecDeque::new(), bytes: 0, decoding: 0 });

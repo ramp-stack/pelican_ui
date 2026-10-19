@@ -1,4 +1,9 @@
-use prism::{event, event::{Event, OnEvent, Key, TickEvent}, display::{Opt, EitherOr}, Context, canvas::{Align, Image}, layout::{Stack, Row, Padding, Size, Offset, Column}, drawable::{Component, SizedTree}, emitters};
+use prism::events::{DynEvent, Key, TickEvent};
+use prism::drawable::{Component, text::Align};
+use prism::Context;
+use ptsd::{events as event, emitters};
+use ptsd::display::{Opt, EitherOr};
+use ptsd::layout::{Stack, Row, Padding, Size, Offset, Column};
 use crate::components::text::{Text, ExpandableText, TextStyle};
 use crate::components::Icon;
 use crate::theme::{Theme, Icons};
@@ -6,7 +11,6 @@ use ptsd::{colors, TextSize};
 
 #[derive(Debug, Clone, Component)]
 pub struct NumericalInput(Stack, _NumericalInput);
-impl OnEvent for NumericalInput {}
 impl NumericalInput {
     pub fn numerical(theme: &Theme, instructions: &str) -> Self {
         NumericalInput::new(theme, instructions, SlotDisplay::currency(theme))
@@ -73,33 +77,34 @@ impl NumericalInput {
 }
 
 #[derive(Clone, Debug, Component)]
+#[on_dyn_event]
 pub struct _NumericalInput {
     layout: Column,
-    inner: emitters::TextInput<SlotDisplay>, 
-    _subtext: EitherOr<ExpandableText, NumericalInputError>, 
+    inner: emitters::TextInput<SlotDisplay>,
+    _subtext: EitherOr<ExpandableText, NumericalInputError>,
     #[skip] pub error: Option<String>,
     #[skip] pub subtext: (Option<String>, String),
 }
 
-impl OnEvent for _NumericalInput {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl _NumericalInput {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             if let Some(e) = &self.error {
                 if !e.is_empty() {
                     self._subtext.right().2.spans[0] = e.to_string();
-                    self._subtext.display_left(false); 
+                    self._subtext.display_left(false);
                 } else {
-                    self._subtext.left().0.spans[0] = self.subtext.1.to_string(); 
-                    self._subtext.display_left(true); 
+                    self._subtext.left().0.spans[0] = self.subtext.1.to_string();
+                    self._subtext.display_left(true);
                 }
             } else {
                 if let Some(h) = &self.subtext.0 {
-                    self._subtext.left().0.spans[0] = h.to_string(); 
+                    self._subtext.left().0.spans[0] = h.to_string();
                 } else {
-                    self._subtext.left().0.spans[0] = self.subtext.1.to_string(); 
+                    self._subtext.left().0.spans[0] = self.subtext.1.to_string();
                 }
 
-                self._subtext.display_left(true); 
+                self._subtext.display_left(true);
             }
         }
         vec![event]
@@ -123,8 +128,7 @@ impl _NumericalInput {
 }
 
 #[derive(Clone, Debug, Component)]
-pub struct NumericalInputError(Row, Image, Text);
-impl OnEvent for NumericalInputError {}
+pub struct NumericalInputError(Row, Icon, Text);
 impl NumericalInputError {
     pub fn new(theme: &Theme) -> Self {
         let error = theme.colors().get(ptsd::Status::Danger);
@@ -135,13 +139,14 @@ impl NumericalInputError {
 }
 
 #[derive(Clone, Debug, Component)]
+#[on_dyn_event]
 pub struct SlotDisplay(Row, Vec<Slot>, #[skip] bool, #[skip] Option<(Box<dyn NumberGetter>, bool)>, #[skip] f64, #[skip] Theme);
 impl SlotDisplay {
     pub fn currency(theme: &Theme) -> Self {
         let slots = vec![
             Slot::new(theme, SlotType::Fixed('$')),
-            Slot::new(theme, SlotType::InputWithDefault(String::new(), 6, '0', InputFormat::Numerical)), 
-            Slot::new(theme, SlotType::TriggersGhost('.', false)), 
+            Slot::new(theme, SlotType::InputWithDefault(String::new(), 6, '0', InputFormat::Numerical)),
+            Slot::new(theme, SlotType::TriggersGhost('.', false)),
             Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
             Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
         ];
@@ -151,8 +156,8 @@ impl SlotDisplay {
 
     pub fn number(theme: &Theme) -> Self {
         let slots = vec![
-            Slot::new(theme, SlotType::InputWithDefault(String::new(), 6, '0', InputFormat::Numerical)), 
-            Slot::new(theme, SlotType::TriggersGhost('.', false)), 
+            Slot::new(theme, SlotType::InputWithDefault(String::new(), 6, '0', InputFormat::Numerical)),
+            Slot::new(theme, SlotType::TriggersGhost('.', false)),
             Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
             Slot::new(theme, SlotType::TriggeredGhostInputWithDefault(String::new(), 1, '0', false)),
         ];
@@ -200,8 +205,8 @@ impl SlotDisplay {
     }
 }
 
-impl OnEvent for SlotDisplay { 
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> { 
+impl SlotDisplay {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             if let Some((mut getter, is_currency)) = self.3.clone() && self.4 != getter() {
                 let theme = self.5.clone();
@@ -328,7 +333,6 @@ impl OnEvent for SlotDisplay {
 
 #[derive(Clone, Debug, Component)]
 pub struct Slot(Stack, Opt<EitherOr<Text, Text>>, #[skip] SlotType);
-impl OnEvent for Slot {}
 impl Slot {
     pub fn new(theme: &Theme, ty: SlotType) -> Self {
         let ghost = theme.colors().get(colors::Text::Secondary);

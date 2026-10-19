@@ -1,21 +1,22 @@
+use prism::events::DynEvent;
 mod keyboard;
 mod emoji;
 mod sticker;
 mod gif;
 
 pub use keyboard::{KeyboardPages, Panels, MobileKeyboard};
-pub(crate) use keyboard::{TEXT_FIELD_GROUP, KeyboardPage, MobileKeyboardEvent};
+pub use keyboard::{TEXT_FIELD_GROUP, KeyboardPage, MobileKeyboardEvent};
 
-use prism::event::{MouseEvent, OnEvent, Event, MouseState, MouseButton};
-use prism::canvas::{Image, Instruction};
+use prism::events::{MouseEvent, MouseState, MouseButton};
+use prism::drawable::Instruction;
 use prism::Context;
-use prism::drawable::{Drawable, Component, SizedTree, RequestTree, Rect};
-use prism::layout::{Stack, Column, Row, Offset, Size, Padding, ScrollAnchor};
-use prism::display::Opt;
+use prism::drawable::{Drawable, Component, LayoutTree, RangeTree, Rect};
+use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding, ScrollAnchor};
+use ptsd::display::Opt;
 
 use crate::theme::Color;
 use crate::components::text::Text;
-use crate::components::{Rectangle, Sticker, Gif, GifPlayer};
+use crate::components::{Rectangle, Sticker, Gif, GifPlayer, Icon, MaskedImage};
 
 const ASSUMED_WIDTH: f32 = 374.0;
 
@@ -28,13 +29,14 @@ fn tray_height(width: f32) -> f32 {
     12.0 + 2.0 * (cell_side(width, 3) + 12.0) + 48.0
 }
 
-fn laid_out_width(sized: &SizedTree) -> Option<f32> {
+fn laid_out_width(sized: &LayoutTree) -> Option<f32> {
     (sized.0.0 > 100.0).then_some(sized.0.0)
 }
 
 const SWIPE_DISTANCE: f32 = 40.0;
 
 #[derive(Component, Debug, Clone)]
+#[on_dyn_event]
 struct GrowingGrid(Stack, Clip<GridScroll>, #[skip] usize, #[skip] usize, #[skip] f32, #[skip] Option<bool>);
 
 impl GrowingGrid {
@@ -81,19 +83,19 @@ impl GrowingGrid {
         }
     }
 
-    fn measure(sized: &SizedTree) -> Option<(f32, f32, f32)> {
+    fn measure(sized: &LayoutTree) -> Option<(f32, f32, f32)> {
         let (_, scroll) = sized.1.first()?;
         let (grid_offset, grid) = scroll.1.first()?;
         Some((-grid_offset.1, scroll.0.1, grid.0.1))
     }
 
-    fn near_end(&self, sized: &SizedTree) -> bool {
+    fn near_end(&self, sized: &LayoutTree) -> bool {
         Self::measure(sized).is_none_or(|(scrolled, showing, height)| {
             scrolled + showing + 4.0 * (self.4 + 12.0) >= height
         })
     }
 
-    fn showing_rows(&self, sized: &SizedTree) -> std::ops::Range<usize> {
+    fn showing_rows(&self, sized: &LayoutTree) -> std::ops::Range<usize> {
         let Some((scrolled, showing, _)) = Self::measure(sized) else { return 0..0 };
         let row = self.4 + 12.0;
         let first = ((scrolled - 12.0 - self.4) / row).floor() + 1.0;
@@ -102,8 +104,8 @@ impl GrowingGrid {
     }
 }
 
-impl OnEvent for GrowingGrid {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl GrowingGrid {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
             match mouse.state {
                 MouseState::Pressed(MouseButton::Left) => self.5 = Some(mouse.position.is_some()),
@@ -120,21 +122,21 @@ impl OnEvent for GrowingGrid {
 struct Clip<D: Drawable + Clone>(D);
 
 impl<D: Drawable + Clone + 'static> Drawable for Clip<D> {
-    fn request_size(&self) -> RequestTree { self.0.request_size() }
+    fn size_range(&self) -> RangeTree { self.0.size_range() }
 
-    fn build(&self, size: (f32, f32), request: &RequestTree) -> SizedTree { self.0.build(size, request) }
+    fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree { self.0.layout(size, range) }
 
-    fn draw(&self, sized: &SizedTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
+    fn draw(&self, sized: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
         let Some(edges) = overlap(bound, (offset.0, offset.1, sized.0.0, sized.0.1)) else { return Vec::new() };
-        self.0.draw(sized, offset, edges).into_iter().filter_map(|Instruction(mut area, item)| {
-            area.bounds = Some(overlap(area.bounds.unwrap_or(edges), edges)?);
-            Some(Instruction(area, item))
+        self.0.draw(sized, offset, edges).into_iter().filter_map(|mut instruction| {
+            instruction.bound = overlap(instruction.bound, edges)?;
+            Some(instruction)
         }).collect()
     }
 
     fn name(&self) -> String { self.0.name() }
 
-    fn event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) { self.0.event(ctx, sized, event) }
+    fn event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) { self.0.event(ctx, sized, event) }
 }
 
 fn overlap(a: Rect, b: Rect) -> Option<Rect> {
@@ -145,7 +147,6 @@ fn overlap(a: Rect, b: Rect) -> Option<Rect> {
 
 #[derive(Component, Debug, Clone)]
 struct GridScroll(Column, PanelGrid);
-impl OnEvent for GridScroll {}
 
 impl GridScroll {
     fn new() -> Self {
@@ -164,11 +165,11 @@ enum TouchEnd {
 struct GridPlace<'a> {
     view: ((f32, f32), (f32, f32)),
     offset: (f32, f32),
-    grid: &'a SizedTree,
+    grid: &'a LayoutTree,
 }
 
 impl<'a> GridPlace<'a> {
-    fn find(page: &'a SizedTree, path: &[usize]) -> Option<Self> {
+    fn find(page: &'a LayoutTree, path: &[usize]) -> Option<Self> {
         let (&first, rest) = path.split_first()?;
         let (view_offset, view) = page.1.get(first)?;
         let mut offset = *view_offset;
@@ -233,7 +234,6 @@ fn track_touch(touch: &mut Option<PanelTouch>, grid: &mut PanelGrid, place: Opti
 
 #[derive(Component, Debug, Clone)]
 struct PanelGrid(Column, Vec<PanelRow>);
-impl OnEvent for PanelGrid {}
 
 impl PanelGrid {
     fn new(rows: usize, columns: usize, layout: Stack, spacing: f32, mut cell: impl FnMut(usize) -> Option<PanelCell>) -> Self {
@@ -266,7 +266,6 @@ impl PanelGrid {
 
 #[derive(Component, Debug, Clone)]
 struct PanelRow(Row, Vec<PanelCell>);
-impl OnEvent for PanelRow {}
 
 #[derive(Debug, Clone)]
 enum CellAction {
@@ -278,16 +277,14 @@ enum CellAction {
 
 #[derive(Component, Debug, Clone)]
 struct PanelCell(Stack, Opt<Rectangle>, Option<CellFace>, #[skip] Option<CellAction>);
-impl OnEvent for PanelCell {}
 
 #[derive(Component, Debug, Clone)]
 enum CellFace {
     Emoji {layout: Stack, text: Text},
-    Sticker {layout: Stack, image: Image, outline: Opt<Rectangle>},
-    NewSticker {layout: Stack, background: Rectangle, icon: Image, outline: Opt<Rectangle>},
+    Sticker {layout: Stack, image: MaskedImage, outline: Opt<Rectangle>},
+    NewSticker {layout: Stack, background: Rectangle, icon: Icon, outline: Opt<Rectangle>},
     Gif {layout: Stack, player: GifPlayer, outline: Opt<Rectangle>},
 }
-impl OnEvent for CellFace {}
 
 impl PanelCell {
     fn layout(width: f32, height: f32) -> Stack {

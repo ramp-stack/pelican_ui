@@ -4,9 +4,9 @@ Pelican UI is a Rust UI crate designed to enable developers to build application
 
 The crate is built on top of several underlying systems:
 
-- **Prism** — provides event handling, layout management, and rendering via `wgpu`
-- **PTSD** — provides navigation, interaction handling and theming
-- **AIR servers** — provide data storage and backend integration
+- **Prism** — provides drawing, events, and platform capability interfaces
+- **PTSD** — provides layouts, navigation, interactions, and theming
+- **AIR** — provides data storage and backend integration through Prism
 
 Together, these systems form the foundation on which Pelican UI defines its higher-level application structure and UI components.
 
@@ -51,11 +51,29 @@ Pelican UI is designed to be cross-platform and can be used to build application
 - Android
 - iOS
 
-## Examples
+## Demo
 
-Several demo projects are provided in the Pelican UI GitHub repository. These examples demonstrate common usage patterns and serve as a reference for building applications with the framework.
+Run the component studio from this crate:
 
-Developers are encouraged to explore these demos to understand how Pelican UI applications are structured and how the provided components and layout primitives are intended to be used.
+```sh
+cargo run --features demo --bin pelican_ui
+```
+
+The demo in `src/main.rs` includes buttons, sliders, toggles, checkboxes, radio groups,
+list items, avatars, text inputs, QR codes, and video playback with seeking. Controls
+emit events to the application, and pages retain their state when switching tabs.
+
+The library uses PTSD and Prism. RAMP is optional and is enabled only by the `demo`
+feature to run the native application; it is not required by library consumers.
+
+Applications using sticker packs or shared video clips must register their contracts:
+
+```rust,ignore
+fn contracts<A: prism::traits::Air>(contracts: prism::air::Contracts<A>) -> prism::air::Contracts<A> {
+    contracts.add::<pelican_ui::components::StickerPack>()
+        .add::<pelican_ui::components::VideoClip>()
+}
+```
 
 ## Discord
 

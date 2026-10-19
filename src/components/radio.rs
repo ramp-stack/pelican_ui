@@ -1,7 +1,6 @@
-use prism::event::OnEvent;
 use prism::Context;
 use prism::drawable::Component;
-use prism::layout::Column;
+use ptsd::layout::Column;
 
 use ptsd::interactions;
 
@@ -12,7 +11,6 @@ use crate::components::list_item::ListItemInfoLeft;
 
 #[derive(Component, Debug, Clone)]
 pub struct RadioSelector(Column, pub Vec<interactions::Selectable>);
-impl OnEvent for RadioSelector {}
 impl RadioSelector {
     pub fn new(theme: &Theme, index: usize, items: Vec<(&str, &str, Box<dyn Callback>)>) -> Self {
         let group_id = uuid::Uuid::new_v4();

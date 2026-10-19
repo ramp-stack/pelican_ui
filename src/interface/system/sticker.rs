@@ -1,40 +1,66 @@
-use prism::event::{MouseEvent, TickEvent, OnEvent, Event, PickedPhoto};
-use prism::canvas::{Image, ShapeType};
+use prism::drawable::Drawable;
+use prism::drawable::{RangeTree, Rect, Instruction};
+use prism::events::DynEvent;
+use prism::events::{MouseEvent, TickEvent};
+use prism::hardware::{Image, Picked};
+use prism::drawable::shape::Variant;
+use std::cell::RefCell;
+use std::rc::Rc;
 use prism::Context;
-use prism::drawable::{Component, SizedTree};
-use prism::layout::{Stack, Size};
+use prism::drawable::{Component, LayoutTree};
+use ptsd::layout::{Stack, Size};
 
-use maverick_os::air::Instance;
+use prism::air::Instance;
 
 use crate::theme::{Theme, Color, Icons};
 use crate::Task;
-use crate::components::{Rectangle, Icon, Sticker, SendEvent, StickerPack, StickerPackAction};
+use crate::components::{Rectangle, Icon, MaskedImage, Sticker, SendEvent, StickerPack, StickerPackAction};
 
 use super::{GrowingGrid, PanelCell, CellFace, CellAction, PanelTouch, TouchEnd, GridPlace, track_touch};
 use super::{cell_side, tray_height, laid_out_width, ASSUMED_WIDTH};
 
-#[derive(Component, Debug, Clone)]
-pub struct StickerPanel {
+#[derive(Debug, Clone)]
+pub struct StickerPanel(StickerPanelContent);
+
+impl StickerPanel {
+    pub fn new(theme: &Theme) -> Self {Self(StickerPanelContent::new(theme))}
+}
+
+impl Drawable for StickerPanel {
+    fn size_range(&self) -> RangeTree {self.0.size_range()}
+    fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
+        Drawable::layout(&mut self.0, size, range)
+    }
+    fn draw(&self, layout: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
+        self.0.draw(layout, offset, bound)
+    }
+    fn event(&mut self, ctx: &mut Context, layout: &LayoutTree, event: Box<dyn DynEvent>) {
+        for event in self.0.on_event(ctx, layout, event) {self.0.event(ctx, layout, event);}
+    }
+}
+
+#[derive(Component, Clone)]
+struct StickerPanelContent {
     layout: Stack,
     grid: GrowingGrid,
     #[skip] touch: Option<PanelTouch>,
     #[skip] pack: Option<Instance<StickerPack>>,
     #[skip] stickers: Vec<Sticker>,
-    #[skip] waiting_for_photo: bool,
+    #[skip] picking: Rc<RefCell<Option<Picked<Image>>>>,
     #[skip] making: Option<Task<Option<Sticker>>>,
     #[skip] side: Option<f32>,
     #[skip] theme: Theme,
 }
 
-impl StickerPanel {
+impl StickerPanelContent {
     pub fn new(theme: &Theme) -> Self {
-        StickerPanel {
+        StickerPanelContent {
             layout: Stack::default(),
             grid: GrowingGrid::new(tray_height(ASSUMED_WIDTH), 4),
             touch: None,
             pack: None,
             stickers: Vec::new(),
-            waiting_for_photo: false,
+            picking: Rc::new(RefCell::new(None)),
             making: None,
             side: None,
             theme: theme.clone(),
@@ -42,9 +68,16 @@ impl StickerPanel {
     }
 }
 
-impl OnEvent for StickerPanel {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl StickerPanelContent {
+    fn on_event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() {
+            let picked = self.picking.borrow_mut().as_mut().and_then(Picked::try_get);
+            if let Some(picked) = picked {
+                self.picking.borrow_mut().take();
+                if let Ok(photo) = picked {
+                    self.making = Some(Task::spawn(move || Sticker::from_photo(&photo)));
+                }
+            }
             let pack = self.pack.get_or_insert_with(|| StickerPack::mine(ctx));
             if let Some(made) = self.making.as_ref().and_then(|task| task.take()) {
                 self.making = None;
@@ -79,7 +112,7 @@ impl OnEvent for StickerPanel {
                         }, CellAction::NewSticker),
                         n => (CellFace::Sticker {
                             layout: PanelCell::square(side),
-                            image: Image {shape: ShapeType::RoundedRectangle(0.0, (side, side), 0.0, 12.0), image: self.stickers[n - 1].image(), color: None},
+                            image: MaskedImage(self.stickers[n - 1].image(), Variant::RoundedRectangle(12.0)),
                             outline: PanelCell::outline(12.0),
                         }, CellAction::Sticker(self.stickers[n - 1].clone())),
                     };
@@ -87,23 +120,24 @@ impl OnEvent for StickerPanel {
                 }).collect();
                 self.grid.append(cells);
             }
-        } else if let Some(PickedPhoto(photo)) = event.downcast_ref::<PickedPhoto>() && self.waiting_for_photo {
-            self.waiting_for_photo = false;
-            let photo = photo.clone();
-            self.making = Some(Task::spawn(move || Sticker::from_photo(&photo)));
         } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
             match track_touch(&mut self.touch, self.grid.grid(), GridPlace::find(sized, &[0, 0, 0]), mouse) {
                 Some(TouchEnd::Tap(CellAction::Sticker(sticker))) => {
-                    ctx.trigger_haptic();
+                    ctx.hardware.trigger_haptic();
                     ctx.emit(SendEvent::Sticker(sticker));
                 }
                 Some(TouchEnd::Tap(CellAction::NewSticker)) => {
-                    self.waiting_for_photo = true;
-                    ctx.pick_photo();
+                    *self.picking.borrow_mut() = Some(ctx.hardware.pick());
                 }
                 _ => {}
             }
         }
         vec![event]
+    }
+}
+
+impl std::fmt::Debug for StickerPanelContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StickerPanelContent").field("grid", &self.grid).finish_non_exhaustive()
     }
 }

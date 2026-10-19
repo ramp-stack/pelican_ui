@@ -1,7 +1,7 @@
-use prism::event::{Event, TickEvent, OnEvent};
+use prism::events::{Event, DynEvent, TickEvent};
 use prism::{Context};
-use prism::drawable::{Component, SizedTree};
-use prism::layout::{Wrap, Stack, Column};
+use prism::drawable::Component;
+use ptsd::layout::{Wrap, Stack, Column};
 
 use ptsd::interactions;
 
@@ -12,15 +12,16 @@ use crate::components::list_item::ListItem;
 use crate::components::button::{SecondaryButton, QuickActions};
 use crate::interface::system::KeyboardPages;
 
-use maverick_os::air::Name;
+use prism::air::Name;
 
 #[derive(Debug, Component, Clone)]
+#[on_dyn_event]
 pub struct SearchBar(Column, TextInput, Option<QuickActions>, SelectedItems, SearchableItems, #[skip] String);
-impl OnEvent for SearchBar {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() && self.1.value() != self.5 { 
+impl SearchBar {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
+        if event.downcast_ref::<TickEvent>().is_some() && self.1.value() != self.5 {
             self.5 = self.1.value().to_string();
-            self.4.sort(&self.5); 
+            self.4.sort(&self.5);
         }
         vec![event]
     }
@@ -38,9 +39,10 @@ impl SearchBar {
 }
 
 #[derive(Debug, Component, Clone)]
+#[on_dyn_event]
 pub struct SelectedItems(Wrap, Vec<SearchPill>, #[skip] Theme);
-impl OnEvent for SelectedItems {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl SelectedItems {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if let Some(event) = event.downcast_ref::<SearchbarEvent>() {
             match event {
                 SearchbarEvent::Remove(id) => {
@@ -77,9 +79,10 @@ impl SelectedItems {
 }
 
 #[derive(Debug, Component, Clone)]
+#[on_dyn_event]
 pub struct SearchableItems(Column, Vec<SearchBarListItem>, #[skip] Theme);
-impl OnEvent for SearchableItems {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl SearchableItems {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if let Some(event) = event.downcast_ref::<SearchbarEvent>() {
             match event {
                 SearchbarEvent::Select(id) => {
@@ -100,7 +103,7 @@ impl OnEvent for SearchableItems {
 
                             title = format!("{}...{}", start, end);
                         }
-                        
+
                         let fallback_item = ListItem::default(&self.2, title.clone());
                         ctx.emit(SearchbarEvent::Relist(fallback_item, id));
                     }
@@ -120,7 +123,7 @@ impl OnEvent for SearchableItems {
 
 impl SearchableItems {
     pub fn new(theme: &Theme, items: Vec<(ListItem, Name)>) -> Self {
-        SearchableItems(Column::default(), items.into_iter().map(|(item, id)| 
+        SearchableItems(Column::default(), items.into_iter().map(|(item, id)|
             SearchBarListItem::new(theme, item, Box::new(move |ctx: &mut Context, _theme: &Theme| {
                 ctx.emit(SearchbarEvent::Select(id))
             }), id)).collect::<Vec<_>>(), theme.clone()
@@ -150,7 +153,6 @@ impl SearchableItems {
 
 #[derive(Debug, Component, Clone)]
 pub struct SearchPill(Stack, SecondaryButton, #[skip] Name, #[skip] ListItem);
-impl OnEvent for SearchPill {}
 impl SearchPill {
     pub fn new(button: SecondaryButton, item: ListItem, id: Name) -> Self {
         SearchPill(Stack::default(), button, id, item)
@@ -165,11 +167,14 @@ pub enum SearchbarEvent {
     Store(ListItem, Name),
 }
 
-prism::impl_event_all_children!(SearchbarEvent);
+impl Event for SearchbarEvent {
+    fn pass(&self, _ctx: &mut Context, children: &mut [prism::events::ChildEvent<'_, Self>]) {
+        for child in children {*child.event = Some(self.clone());}
+    }
+}
 
 #[derive(Component, Debug, Clone)]
 pub struct SearchBarListItem(Stack, pub interactions::Button, #[skip] Name, #[skip] (String, String), #[skip] ListItem);
-impl OnEvent for SearchBarListItem {}
 impl SearchBarListItem {
     pub fn new(theme: &Theme, item: ListItem, mut callback: Box<dyn Callback>, id: Name) -> Self {
         let theme = theme.clone();

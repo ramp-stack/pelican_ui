@@ -1,8 +1,10 @@
-use prism::event::{OnEvent, Event, TickEvent, CameraFrame};
-use prism::canvas::{ShapeType, Image, Align};
+use prism::events::{Event, DynEvent, TickEvent};
+use prism::drawable::text::Align;
+use prism::hardware::{Image, Camera};
+use ptsd::display::Bin;
 use prism::Context;
-use prism::drawable::{Component, SizedTree};
-use prism::layout::{Column, Padding, Size, Offset, Stack};
+use prism::drawable::Component;
+use ptsd::layout::{Column, Padding, Size, Offset, Stack};
 
 use ptsd::theme::TextSize;
 use ptsd::navigation::NavigationEvent;
@@ -16,16 +18,17 @@ use image::DynamicImage;
 
 crate::closure_trait!(QrCodeFound, FnMut(&mut Context, String));
 
-#[derive(Debug, Component, Clone)]
+#[derive(Component, Clone)]
+#[on_dyn_event]
 pub struct QRCodeScanner {
     layout: Stack,
-    preview: Option<Image>,
+    preview: Option<Bin<Stack, Image>>,
     guide: QRGuide,
     #[skip] decoding: Option<Task<Option<String>>>,
     #[skip] found: Option<String>,
     #[skip] last: Option<String>,
     #[skip] on_find: Box<dyn QrCodeFound>,
-    #[skip] camera: Option<Box<dyn prism::Camera>>,
+    #[skip] camera: Option<Camera>,
 }
 
 impl QRCodeScanner {
@@ -45,11 +48,18 @@ impl QRCodeScanner {
     pub fn found(&self) -> Option<String> { self.found.clone() }
 }
 
-impl OnEvent for QRCodeScanner {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl std::fmt::Debug for QRCodeScanner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QRCodeScanner").field("found", &self.found).finish()
+    }
+}
+
+impl QRCodeScanner {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() {
-            if self.camera.is_none() {
-                self.camera = Some(ctx.start_camera());
+            if let Some(found) = self.decoding.as_ref().and_then(|task| task.take()) {
+                self.decoding = None;
+                self.found = found;
             }
             if let Some(code) = self.found.take() && self.last.as_ref() != Some(&code) {
                 self.last = Some(code.clone());
@@ -60,37 +70,45 @@ impl OnEvent for QRCodeScanner {
                     on_find(ctx, code.clone());
                     ctx.emit(QRCodeScannedEvent(code.clone()));
                 }));
+                return vec![event];
             }
-        } else if let Some(CameraFrame(image)) = event.downcast_ref::<CameraFrame>() {
-            if let Some(found) = self.decoding.as_ref().and_then(|task| task.take()) {
-                self.decoding = None;
-                self.found = found;
-            }
+            let camera = self.camera.get_or_insert_with(|| ctx.hardware.start_camera());
+            let image = camera.frame();
             if self.decoding.is_none() {
                 let image = image.clone();
                 self.decoding = Some(Task::spawn(move || {
                     let decoder = bardecoder::default_decoder();
-                    let decode = |image: DynamicImage| decoder.decode(&image).into_iter().flatten().find(|s| !s.is_empty());
-                    decode(DynamicImage::ImageRgba8(image.clone()))
-                        .or_else(|| decode(DynamicImage::ImageRgba8(image::imageops::flip_horizontal(&image))))
+                    let decode = |image: DynamicImage| {
+                        decoder.decode(&image).into_iter().flatten().find(|s| !s.is_empty())
+                    };
+                    decode(DynamicImage::ImageRgba8((*image).clone())).or_else(|| {
+                        decode(DynamicImage::ImageRgba8(image::imageops::flip_horizontal(image.as_ref())))
+                    })
                 }));
             }
-
             self.guide.1 = None;
             self.guide.3 = None;
-            self.preview = Some(Image {
-                shape: ShapeType::Rectangle(0.0, (300.0, 300.0), 0.0),
-                image: image.clone().into(),
-                color: None,
-            });
+            let layout = Stack(
+                Offset::Center, Offset::Center, Size::Static(300.0), Size::Static(300.0),
+                Padding::default(),
+            );
+            self.preview = Some(Bin(layout, image));
         }
         vec![event]
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct QRCodeScannedEvent(pub String);
+
+impl Event for QRCodeScannedEvent {
+    fn pass(&self, _ctx: &mut Context, children: &mut [prism::events::ChildEvent<'_, Self>]) {
+        for child in children {*child.event = Some(self.clone());}
+    }
+}
+
 #[derive(Debug, Component, Clone)]
 struct QRGuide(Stack, Option<Rectangle>, Rectangle, Option<Message>);
-impl OnEvent for QRGuide {}
 
 impl QRGuide {
     fn new(theme: &Theme) -> Self {
@@ -106,8 +124,7 @@ impl QRGuide {
 }
 
 #[derive(Debug, Component, Clone)]
-struct Message(Column, Image, Text);
-impl OnEvent for Message {}
+struct Message(Column, Icon, Text);
 
 impl Message {
     fn new(theme: &Theme, icon: Icons, msg: &str) -> Self {
@@ -117,8 +134,3 @@ impl Message {
         )
     }
 }
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct QRCodeScannedEvent(pub String);
-
-prism::impl_event_all_children!(QRCodeScannedEvent);

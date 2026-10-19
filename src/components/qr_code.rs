@@ -1,12 +1,14 @@
-use prism::event::{OnEvent, Event, TickEvent};
-use prism::canvas::{RgbaImage, ShapeType, Image};
-use prism::drawable::{Component, SizedTree};
-use prism::layout::{Padding, Size, Offset, Stack};
-use prism::display::Bin;
+use prism::events::{on_event, OnEvent, DynEvent, TickEvent};
+use prism::hardware::Image;
+use prism::drawable::shape::Variant;
+use image::RgbaImage;
+use prism::drawable::Component;
+use ptsd::layout::{Padding, Size, Offset, Stack};
+use ptsd::display::Bin;
 use prism::Context;
 
 use crate::theme::{Theme, Color};
-use crate::components::{Rectangle, AspectRatioImage};
+use crate::components::{Rectangle, AspectRatioImage, MaskedImage};
 
 use image::RgbImage;
 use image::buffer::ConvertBuffer;
@@ -14,24 +16,27 @@ use qrcode::{QrCode, EcLevel};
 use std::sync::Arc;
 
 #[derive(Debug, Component, Clone)]
-pub struct QRCode(Stack, Rectangle, Image, Option<Bin<Stack, Image>>, #[skip] Option<String>, #[skip] Arc<RgbaImage>);
-impl OnEvent for QRCode {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() && let Some(data) = self.4.take() {
-            let shape = ShapeType::RoundedRectangle(0.0, (300.0 - 16.0, 300.0 - 16.0), 0.0, 8.0);
+pub struct QRCode(
+    Stack, Rectangle, Bin<Stack, MaskedImage>, Option<Bin<Stack, Image>>,
+    #[skip] Option<String>, #[skip] Arc<RgbaImage>,
+);
+#[on_event]
+impl OnEvent<TickEvent> for QRCode {
+    fn on(&mut self, _ctx: &mut Context, event: TickEvent) -> Vec<Box<dyn DynEvent>> {
+        if let Some(data) = self.4.take() {
             match generate_qr_code(&data) {
                 Some(code) => {
                     let image: Arc<RgbaImage> = code.convert().into();
-                    self.2 = Image{shape, image, color: None};
+                    self.2.1.0 = image;
                 }
                 None => {
-                    self.2 = Image{shape, image: self.5.clone(), color: None};
+                    self.2.1.0 = self.5.clone();
                     self.3 = None;
                 }
             }
         }
 
-        vec![event]
+        prism::events![event]
     }
 }
 
@@ -41,12 +46,13 @@ impl QRCode {
         let dummy_qr_code = theme.brand().qr_code.clone();
         let qr_size = 300.0;
         let logo_size = 64.0;
-        let layout = Stack(Offset::Center, Offset::Center, Size::Static(qr_size-24.0), Size::Static(qr_size-24.0), Padding::default());
+        let layout = Stack(Offset::Center, Offset::Center,
+            Size::Static(qr_size - 16.0), Size::Static(qr_size - 16.0), Padding::default());
         QRCode (
             Stack(Offset::Center, Offset::Center, Size::Static(qr_size), Size::Static(qr_size), Padding::default()),
             Rectangle::new(Color::WHITE, 8.0, None),
-            Image{shape: ShapeType::RoundedRectangle(0.0, (300.0 - 16.0, 300.0 - 16.0), 0.0, 8.0), image: dummy_qr_code, color: None},
-            Some(Bin(layout, AspectRatioImage::new(app_icon, (logo_size, logo_size)))),
+            Bin(layout, MaskedImage(dummy_qr_code, Variant::RoundedRectangle(8.0))),
+            Some(AspectRatioImage::new(app_icon, (logo_size, logo_size))),
             Some(data.to_string()),
             theme.brand().error.clone(),
         )

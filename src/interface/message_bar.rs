@@ -1,8 +1,9 @@
-use prism::{Context, IS_MOBILE};
-use prism::event::{self, Event, OnEvent, MouseEvent, MouseState, MouseButton, TickEvent};
-use prism::drawable::{Component, Drawable, SizedTree};
-use prism::layout::{Column, Row, Stack, Offset, Size, Padding};
-use prism::display::{Bin, Opt};
+use prism::drawable::{RangeTree, Rect, Instruction};
+use prism::Context;
+use prism::events::{DynEvent, MouseEvent, MouseState, MouseButton, TickEvent};
+use prism::drawable::{Component, Drawable, LayoutTree};
+use ptsd::layout::{Column, Row, Stack, Offset, Size, Padding};
+use ptsd::display::{Bin, Opt};
 
 use ptsd::interactions;
 use ptsd::interfaces::ShowKeyboard;
@@ -12,8 +13,47 @@ use crate::components::{TextInput, AttachButton, SendEvent, SubmitFn, ValidFn};
 use crate::components::button::{GhostIconButton, IconButton, ButtonSize, ButtonStyle};
 use crate::interface::system::{KeyboardPages, KeyboardPage, MobileKeyboardEvent, Panels, TEXT_FIELD_GROUP};
 
+#[derive(Debug, Clone)]
+pub enum MessageBarEvent {
+    Page(KeyboardPage),
+    Hide,
+    Key(prism::events::Key),
+}
+
+impl prism::events::Event for MessageBarEvent {
+    fn pass(&self, _ctx: &mut Context, children: &mut [prism::events::ChildEvent<'_, Self>]) {
+        for child in children { *child.event = Some(self.clone()); }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MessageBar(MessageBarContent);
+
+impl MessageBar {
+    pub fn new(
+        theme: &Theme, placeholder: &str,
+        on_submit: impl FnMut(&mut Context, &mut String) + Clone + 'static,
+        valid: impl FnMut(&mut Context, &mut String) -> bool + Clone + 'static,
+    ) -> Self {Self(MessageBarContent::new(theme, placeholder, on_submit, valid))}
+
+    pub fn field(&mut self) -> &mut TextInput {self.0.field()}
+}
+
+impl Drawable for MessageBar {
+    fn size_range(&self) -> RangeTree {self.0.size_range()}
+    fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
+        Drawable::layout(&mut self.0, size, range)
+    }
+    fn draw(&self, layout: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
+        self.0.draw(layout, offset, bound)
+    }
+    fn event(&mut self, ctx: &mut Context, layout: &LayoutTree, event: Box<dyn DynEvent>) {
+        for event in self.0.on_event(ctx, layout, event) {self.0.event(ctx, layout, event);}
+    }
+}
+
 #[derive(Debug, Component, Clone)]
-pub struct MessageBar {
+struct MessageBarContent {
     layout: Column,
     field: TextInput,
     toolbar: Toolbar,
@@ -23,7 +63,7 @@ pub struct MessageBar {
     #[skip] checking: Option<u8>,
 }
 
-impl MessageBar {
+impl MessageBarContent {
     pub fn new(
         theme: &Theme,
         placeholder: &str,
@@ -36,7 +76,7 @@ impl MessageBar {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let highlighted = ButtonColorScheme { background: colors.pressed.background, ..colors.default };
         let pages = [(Icons::Keyboard, KeyboardPage::Keys), (Icons::Emoji, KeyboardPage::Emoji), (Icons::Sticker, KeyboardPage::Stickers), (Icons::Gif, KeyboardPage::Gifs)];
-        let buttons = pages.into_iter().filter(|(_, page)| IS_MOBILE || *page != KeyboardPage::Keys).map(|(icon, page)| {
+        let buttons = pages.into_iter().filter(|(_, page)| cfg!(any(target_os = "ios", target_os = "android")) || *page != KeyboardPage::Keys).map(|(icon, page)| {
             let [default, selected] = [colors.default, highlighted].map(|c| {
                 IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Medium, c.background, c.outline, c.label)
             });
@@ -50,7 +90,7 @@ impl MessageBar {
         let mut hide = GhostIconButton::new(theme, Icons::DownArrow, |ctx: &mut Context, _: &Theme| ctx.emit(MessageBarEvent::Hide));
         hide.1.set_trigger_on_release();
 
-        MessageBar {
+        MessageBarContent {
             layout: Column::new(12.0, Offset::Start, Size::Fill, Padding(0.0, 8.0, 0.0, 8.0), None),
             field: TextInput::new(theme, None, None, Some(placeholder), None, Some(send), KeyboardPages::TOOLBAR),
             toolbar: Toolbar {
@@ -59,7 +99,7 @@ impl MessageBar {
                 attach: AttachButton::new(theme),
                 hide: Bin(Stack(Offset::End, Offset::Center, Size::custom(|_: Vec<(f32, f32)>| (0.0, f32::MAX)), Size::Fit, Padding::default()), Opt::new(hide, false)),
             },
-            panels: (!IS_MOBILE).then(|| Opt::new(Panels::new(theme), false)),
+            panels: (!cfg!(any(target_os = "ios", target_os = "android"))).then(|| Opt::new(Panels::new(theme), false)),
             field_id: None,
             learning_id: false,
             checking: None,
@@ -69,8 +109,8 @@ impl MessageBar {
     pub fn field(&mut self) -> &mut TextInput { &mut self.field }
 }
 
-impl OnEvent for MessageBar {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl MessageBarContent {
+    fn on_event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         let searching_gifs = self.panels.as_mut().is_some_and(|panels| panels.is_showing() && panels.inner().gifs.inner().searching());
         let mut focus = false;
         let mut swallow = false;
@@ -81,8 +121,8 @@ impl OnEvent for MessageBar {
             });
             if on(0) {
                 self.learning_id = true;
-            } else if !IS_MOBILE && (on(1) || (on(2) && !searching_gifs)) {
-                let press = |(at, child): &((f32, f32), SizedTree)| {
+            } else if !cfg!(any(target_os = "ios", target_os = "android")) && (on(1) || (on(2) && !searching_gifs)) {
+                let press = |(at, child): &((f32, f32), LayoutTree)| {
                     let local = (p.0 - at.0, p.1 - at.1);
                     let inside = local.0 >= 0.0 && local.1 >= 0.0 && local.0 < child.0.0 && local.1 < child.0.1;
                     Box::new(MouseEvent { position: inside.then_some(local), state: MouseState::Pressed(MouseButton::Left) })
@@ -92,7 +132,7 @@ impl OnEvent for MessageBar {
                 focus = !self.field.has_focus();
                 swallow = true;
             }
-        } else if let Some(event::Selectable::Pressed(id, group)) = event.downcast_ref::<event::Selectable>()
+        } else if let Some(ptsd::events::Selectable::Pressed(id, group)) = event.downcast_ref::<ptsd::events::Selectable>()
             && group == TEXT_FIELD_GROUP && std::mem::take(&mut self.learning_id)
         {
             self.field_id = Some(id.clone());
@@ -104,8 +144,8 @@ impl OnEvent for MessageBar {
             };
         } else if let Some(MessageBarEvent::Key(key)) = event.downcast_ref::<MessageBarEvent>() {
             match key {
-                event::Key::Character(text) => self.field.insert(text),
-                event::Key::Delete | event::Key::Backspace => self.field.delete_back(),
+                prism::events::Key::Character(text) => self.field.insert(text),
+                prism::events::Key::Delete | prism::events::Key::Backspace => self.field.delete_back(),
                 _ => {},
             }
             focus = !self.field.has_focus();
@@ -128,7 +168,7 @@ impl OnEvent for MessageBar {
                 },
                 (None, None) => {
                     ctx.emit(ShowKeyboard(false));
-                    ctx.emit(event::TextInput::Focused(false));
+                    ctx.emit(ptsd::events::TextInput::Focused(false));
                 },
                 (None, Some(page)) => {
                     focus = !self.field.has_focus();
@@ -150,7 +190,7 @@ impl OnEvent for MessageBar {
 
         if focus {
             if let Some(id) = &self.field_id {
-                ctx.emit(event::Selectable::Pressed(id.clone(), TEXT_FIELD_GROUP.to_string()));
+                ctx.emit(ptsd::events::Selectable::Pressed(id.clone(), TEXT_FIELD_GROUP.to_string()));
                 self.checking = Some(3);
             } else if let Some((_, field)) = sized.1.first() {
                 self.learning_id = true;
@@ -173,7 +213,6 @@ struct Toolbar {
     attach: AttachButton,
     hide: Bin<Stack, Opt<GhostIconButton>>,
 }
-impl OnEvent for Toolbar {}
 
 #[derive(Debug, Component, Clone)]
 struct PageButton {
@@ -182,13 +221,3 @@ struct PageButton {
     #[skip] page: KeyboardPage,
     #[skip] looks: [interactions::Selectable; 2],
 }
-impl OnEvent for PageButton {}
-
-#[derive(Debug, Clone)]
-pub(crate) enum MessageBarEvent {
-    Page(KeyboardPage),
-    Hide,
-    Key(event::Key),
-}
-
-prism::impl_event_all_children!(MessageBarEvent);

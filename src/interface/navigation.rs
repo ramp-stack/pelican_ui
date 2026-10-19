@@ -1,9 +1,9 @@
-use prism::{Context, drawables};
-use prism::event::OnEvent;
+use prism::Context;
 use prism::drawable::Component;
-use prism::canvas::{Align, Image};
-use prism::display::Bin;
-use prism::layout::{Row, Column, Size, Padding, Offset, Stack};
+use prism::drawable::text::Align;
+use prism::hardware::Image;
+use ptsd::display::Bin;
+use ptsd::layout::{Row, Column, Size, Padding, Offset, Stack};
 
 use ptsd::interactions;
 
@@ -17,10 +17,10 @@ use crate::components::button::{Button, ButtonStyle, ButtonSize, ButtonWidth, Ic
 
 #[derive(Debug, Clone)]
 pub struct RootInfo {
-    pub(crate) icon: Icons,
-    pub(crate) label: String,
-    pub(crate) avatar: Option<AvatarContent>,
-    pub(crate) page: Option<Box<dyn AppPage>>,
+    pub icon: Icons,
+    pub label: String,
+    pub avatar: Option<AvatarContent>,
+    pub page: Option<Box<dyn AppPage>>,
 }
 
 impl RootInfo {
@@ -45,7 +45,6 @@ impl RootInfo {
 
 #[derive(Debug, Component, Clone)]
 pub struct NavigatorSelectable(Stack, interactions::Selectable);
-impl OnEvent for NavigatorSelectable {}
 impl NavigatorSelectable {
     pub fn desktop_icon(theme: &Theme, icon: Icons, label: &str, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, is_selected: bool, group_id: uuid::Uuid) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
@@ -54,7 +53,7 @@ impl NavigatorSelectable {
             let icon_size = ButtonSize::Large.icon();
             let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             let icon = Icon::new(theme, icon, Some(colors.label), icon_size);
-            Button::new(drawables![icon, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
+            Button::new(vec![Box::new(icon), Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
 
         let theme = theme.clone();
@@ -68,7 +67,7 @@ impl NavigatorSelectable {
             let font_size = ButtonSize::Large.font();
             let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
             let avatar = Avatar::new(theme, avatar.clone(), None, false, AvatarSize::Xs, None);
-            Button::new(drawables![avatar, text], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
+            Button::new(vec![Box::new(avatar), Box::new(text)], ButtonSize::Large, ButtonWidth::Fill, Offset::Start, colors.background, colors.outline)
         });
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
@@ -89,34 +88,33 @@ impl NavigatorSelectable {
 }
 
 #[derive(Debug, Component, Clone)]
-pub(crate) enum Navigator {
+pub enum Navigator {
     Desktop {
-        layout: Column, 
-        brandmark: Image, 
-        top: ButtonColumn, 
-        spacer: Option<Bin<Stack, Rectangle>>, 
+        layout: Column,
+        brandmark: Bin<Stack, Image>,
+        top: ButtonColumn,
+        spacer: Option<Bin<Stack, Rectangle>>,
         bottom: Option<ButtonColumn>
     },
 
     Mobile {
-        layout: Stack, 
-        background: Rectangle, 
+        layout: Stack,
+        background: Rectangle,
         content: MobileNavigatorContent
     },
 
     Web {
-        layout: Row, 
-        brandmark: Image, 
-        spacer: Bin<Stack, Rectangle>, 
+        layout: Row,
+        brandmark: Bin<Stack, Image>,
+        spacer: Bin<Stack, Rectangle>,
         content: ButtonRow
     }
 }
 
-impl OnEvent for Navigator {}
 impl ptsd::interfaces::Navigator for Navigator {}
 
 impl Navigator {
-    pub(crate) fn desktop(theme: &Theme, navigation: Vec<RootInfo>) -> Self {
+    pub fn desktop(theme: &Theme, navigation: Vec<RootInfo>) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let (mut top_col, mut bot_col) = (Vec::new(), Vec::new());
         let mut i = 0;
@@ -147,14 +145,14 @@ impl Navigator {
 
         Navigator::Desktop {
             layout: Column::new(32.0, Offset::Center, width, Padding(16.0, 32.0, 16.0, 32.0), None),
-            brandmark: AspectRatioImage::new(wordmark, (100.0, 25.0)), 
-            top: ButtonColumn::new(top_col), 
+            brandmark: AspectRatioImage::new(wordmark, (100.0, 25.0)),
+            top: ButtonColumn::new(top_col),
             spacer,
             bottom: (!bot_col.is_empty()).then_some(ButtonColumn::new(bot_col))
         }
     }
 
-    pub(crate) fn mobile(theme: &Theme, navigation: Vec<RootInfo>) -> Self {
+    pub fn mobile(theme: &Theme, navigation: Vec<RootInfo>) -> Self {
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let background = theme.colors().get(ptsd::Background::Primary);
 
@@ -166,13 +164,13 @@ impl Navigator {
         }
 
         Navigator::Mobile {
-            layout: Stack(Offset::Center, Offset::Start, Size::Fill, height, Padding::default()), 
+            layout: Stack(Offset::Center, Offset::Start, Size::Fill, height, Padding::default()),
             background: Rectangle::new(background, 0.0, None),
             content: MobileNavigatorContent::new(tabs)
         }
     }
 
-    pub(crate) fn web(theme: &Theme, navigation: Vec<RootInfo>) -> Self {
+    pub fn web(theme: &Theme, navigation: Vec<RootInfo>) -> Self {
         let mut buttons = Vec::new();
         let group_id = uuid::Uuid::new_v4();
 
@@ -196,7 +194,6 @@ impl Navigator {
 
 #[derive(Debug, Component, Clone)]
 pub struct MobileNavigatorContent(Row, Vec<NavigatorSelectable>);
-impl OnEvent for MobileNavigatorContent {}
 
 impl MobileNavigatorContent {
     fn new(tabs: Vec<NavigatorSelectable>) -> Self {
@@ -207,7 +204,6 @@ impl MobileNavigatorContent {
 
 #[derive(Debug, Component, Clone)]
 pub struct ButtonColumn(Column, Vec<NavigatorSelectable>);
-impl OnEvent for ButtonColumn {}
 
 impl ButtonColumn {
     fn new(buttons: Vec<NavigatorSelectable>) -> Self {
@@ -217,7 +213,6 @@ impl ButtonColumn {
 
 #[derive(Debug, Component, Clone)]
 pub struct ButtonRow(Row, Vec<NavigatorSelectable>);
-impl OnEvent for ButtonRow {}
 
 impl ButtonRow {
     fn new(buttons: Vec<NavigatorSelectable>) -> Self {

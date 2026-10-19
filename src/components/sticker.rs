@@ -1,7 +1,7 @@
-use prism::event::OnEvent;
 use prism::drawable::Component;
-use prism::layout::{Stack, Offset, Size, Padding};
-use prism::canvas::{Image, ShapeType};
+use ptsd::layout::{Stack, Offset, Size, Padding};
+use prism::drawable::shape::Variant;
+use crate::components::images::MaskedImage;
 use prism::Context;
 
 use image::RgbaImage;
@@ -9,7 +9,7 @@ use image::imageops;
 
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 
-use maverick_os::air::{Metadata, Contract, Id, Name, Instance};
+use prism::air::{Metadata, Contract, Id, Name, Instance};
 
 use std::sync::Arc;
 use std::hash::Hash;
@@ -30,7 +30,7 @@ impl Serialize for Sticker {
 
 impl<'de> Deserialize<'de> for Sticker {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let bytes = crate::base64_bytes::deserialize(deserializer)?;
+        let bytes: Arc<[u8]> = crate::base64_bytes::deserialize(deserializer)?;
         Ok(Sticker::from_bytes(bytes.to_vec()).unwrap_or_else(|| Sticker { bytes, image: Arc::new(RgbaImage::new(1, 1)) }))
     }
 }
@@ -53,14 +53,13 @@ impl Sticker {
 }
 
 #[derive(Debug, Clone, Component)]
-pub struct StickerView(Stack, Image);
-impl OnEvent for StickerView {}
+pub struct StickerView(Stack, MaskedImage);
 
 impl StickerView {
     pub fn message(sticker: &Sticker) -> Self {
         StickerView(
             Stack(Offset::Center, Offset::Center, Size::Static(120.0), Size::Static(120.0), Padding::default()),
-            Image { shape: ShapeType::RoundedRectangle(0.0, (120.0, 120.0), 0.0, 16.0), image: sticker.image(), color: None },
+            MaskedImage(sticker.image(), Variant::RoundedRectangle(16.0)),
         )
     }
 }
@@ -97,9 +96,9 @@ impl Contract for StickerPack {
 
 impl StickerPack {
     pub fn mine(ctx: &mut Context) -> Instance<StickerPack> {
-        let me = ctx.me();
-        let existing = ctx.list::<StickerPack>().into_values().find(|pack| pack.pending().owner == me);
-        existing.unwrap_or_else(|| ctx.create::<StickerPack>(me))
+        let me = ctx.air.me();
+        let existing = ctx.air.instances::<StickerPack>().list().into_values().find(|pack| pack.pending().owner == me);
+        existing.unwrap_or_else(|| ctx.air.instances::<StickerPack>().create(me))
     }
 }
 

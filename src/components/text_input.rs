@@ -1,9 +1,9 @@
-use prism::event::{OnEvent, TickEvent, Event, self};
-use prism::canvas::Align;
-use prism::drawable::{Component, SizedTree};
+use prism::events::{TickEvent, Event, DynEvent, self as event};
+use prism::drawable::text::Align;
+use prism::drawable::Component;
 use prism::Context;
-use prism::layout::{Padding, Column, Offset, Size, Row, Stack};
-use prism::display::{EitherOr, Opt, Bin};
+use ptsd::layout::{Padding, Column, Offset, Size, Row, Stack};
+use ptsd::display::{EitherOr, Opt, Bin};
 
 use ptsd::interactions;
 
@@ -22,6 +22,7 @@ crate::closure_trait!(ValidFn, FnMut(&mut Context, &mut String) -> bool);
 type SubmitButton = (Icons, Box<dyn SubmitFn>, Box<dyn ValidFn>);
 
 #[derive(Debug, Component, Clone)]
+#[on_dyn_event]
 pub struct TextInput {
     layout: Column,
     label: Option<Text>,
@@ -107,8 +108,8 @@ impl TextInput {
     }
 }
 
-impl OnEvent for TextInput {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl TextInput {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             self.is_focused = self.inner.is_focused();
             self.hint.display_left(self.error.is_none());
@@ -120,7 +121,21 @@ impl OnEvent for TextInput {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum TextInputEvent {
+    Submit(uuid::Uuid),
+    Edited(String, String),
+    Set(String),
+}
+
+impl Event for TextInputEvent {
+    fn pass(&self, _ctx: &mut Context, children: &mut [prism::events::ChildEvent<'_, Self>]) {
+        for child in children {*child.event = Some(self.clone());}
+    }
+}
+
 #[derive(Component, Clone)]
+#[on_dyn_event]
 struct _InputContent {
     layout: Row,
     default: Opt<Bin<Stack, TextEditor>>,
@@ -176,33 +191,9 @@ impl _InputContent {
     }
 }
 
-impl OnEvent for _InputContent {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(mouse) = event.downcast_ref::<event::MouseEvent>() {
-            let editor = sized.1.first().and_then(|(o1, opt)| {
-                let (o2, bin) = opt.1.first()?;
-                let (o3, editor) = bin.1.first()?;
-                Some(((o1.0 + o2.0 + o3.0, o1.1 + o2.1 + o3.1), editor.0))
-            });
-            if let Some((origin, size)) = editor {
-                let local = mouse.position.map(|p| (p.0 - origin.0, p.1 - origin.1));
-                let editor = self.default.inner().inner();
-                match mouse.state {
-                    event::MouseState::Pressed(event::MouseButton::Left) => {
-                        if let Some(p) = local && p.0 >= -origin.0 && p.0 <= size.0 {
-                            editor.pointer_pressed(p);
-                        }
-                    }
-                    event::MouseState::Moved => editor.pointer_moved(local, None),
-                    event::MouseState::Scroll(dx, dy) if crate::IS_MOBILE => editor.pointer_moved(local, Some((-dx, -dy))),
-                    event::MouseState::Released(_) => editor.pointer_released(),
-                    _ => {}
-                }
-            }
-            return vec![event];
-        }
-
-        if !crate::IS_MOBILE
+impl _InputContent {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
+        if !cfg!(any(target_os = "ios", target_os = "android"))
             && self.is_focused
             && self.on_submit.is_some()
             && let Some(event::KeyboardEvent{key: event::Key::Enter, state: event::KeyboardState::Pressed, ..}) = event.downcast_ref::<event::KeyboardEvent>()
@@ -213,10 +204,10 @@ impl OnEvent for _InputContent {
             self.set_value(data);
         } else if let Some(QRCodeScannedEvent(data)) = event.downcast_ref::<QRCodeScannedEvent>() {
             self.set_value(data);
-        } else if let Some(event::TextInput::Focused(x)) = event.downcast_ref::<event::TextInput>() {
+        } else if let Some(ptsd::events::TextInput::Focused(x)) = event.downcast_ref::<ptsd::events::TextInput>() {
             self.is_focused = *x;
-            if crate::IS_MOBILE {ctx.emit(InterfaceEvent::FocusTextInput(*x));}
-            if crate::IS_MOBILE && *x {ctx.emit(MobileKeyboardEvent::Pages(self.keyboard_pages));}
+            if cfg!(any(target_os = "ios", target_os = "android")) {ctx.emit(InterfaceEvent::FocusTextInput(*x));}
+            if cfg!(any(target_os = "ios", target_os = "android")) && *x {ctx.emit(MobileKeyboardEvent::Pages(self.keyboard_pages));}
         } else if event.downcast_ref::<TickEvent>().is_some() {
             if let Some(is_valid) = &mut self.is_valid && let Some(button) = &mut self.button {
                 button.1.disable(is_valid(ctx, &mut self.value));
@@ -243,12 +234,3 @@ impl OnEvent for _InputContent {
         vec![event]
     }
 }
-
-#[derive(Debug, Clone)]
-pub enum TextInputEvent {
-    Submit(uuid::Uuid),
-    Edited(String, String),
-    Set(String),
-}
-
-prism::impl_event_all_children!(TextInputEvent);

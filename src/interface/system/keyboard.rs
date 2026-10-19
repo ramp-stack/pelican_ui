@@ -1,9 +1,11 @@
-use prism::event::{self, MouseEvent, TickEvent, KeyboardState, KeyboardEvent, OnEvent, Event, Modifiers, MouseState, MouseButton};
-use prism::canvas::{Align, Image};
-use prism::{emitters, Context, IS_MOBILE};
-use prism::drawable::{Drawable, Component, SizedTree};
-use prism::layout::{Layout, Stack, Column, Row, Offset, Size, Padding};
-use prism::display::{Bin, Enum, Opt};
+use prism::events::DynEvent;
+use prism::events::{MouseEvent, TickEvent, KeyboardState, KeyboardEvent, Modifiers, MouseState, MouseButton};
+use prism::drawable::text::Align;
+use prism::Context;
+use ptsd::emitters;
+use prism::drawable::{Drawable, Component};
+use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding};
+use ptsd::display::{Bin, Enum, Opt};
 use std::time::{Duration, Instant};
 
 use ptsd::interfaces::ShowKeyboard;
@@ -21,9 +23,6 @@ use super::sticker::StickerPanel;
 use super::gif::{GifPanel, GifSearch};
 use crate::interface::message_bar::MessageBarEvent;
 
-#[derive(Debug, Clone, Default)]
-struct HoldRepeat { started: Option<Instant>, last: Option<Instant>, target: KeyTarget }
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum KeyTarget {
     #[default]
@@ -33,19 +32,19 @@ pub enum KeyTarget {
 }
 
 impl KeyTarget {
-    pub fn press(self, ctx: &mut Context, key: event::Key) {
+    pub fn press(self, ctx: &mut Context, key: prism::events::Key) {
         match (self, key) {
-            (KeyTarget::GifSearch, event::Key::Enter) => ctx.emit(MobileKeyboardEvent::SubmitGifSearch),
+            (KeyTarget::GifSearch, prism::events::Key::Enter) => ctx.emit(MobileKeyboardEvent::SubmitGifSearch),
             (KeyTarget::Bar, key) => ctx.emit(MessageBarEvent::Key(key)),
             (_, key) => ctx.emit(KeyboardEvent{key, state: KeyboardState::Pressed, modifiers: Modifiers::default()}),
         }
     }
 }
 
-pub(crate) const TEXT_FIELD_GROUP: &str = "123e4567-e89b-12d3-a456-426614174000";
+pub const TEXT_FIELD_GROUP: &str = "123e4567-e89b-12d3-a456-426614174000";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum KeyboardPage { Keys, Emoji, Stickers, Gifs }
+pub enum KeyboardPage { Keys, Emoji, Stickers, Gifs }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct KeyboardPages { pub emoji: bool, pub stickers: bool, pub gifs: bool, pub toolbar: bool }
@@ -57,7 +56,29 @@ impl KeyboardPages {
     pub const NONE: Self = KeyboardPages { emoji: false, stickers: false, gifs: false, toolbar: false };
 }
 
+#[derive(Debug, Clone)]
+pub enum MobileKeyboardEvent {
+    Pages(KeyboardPages),
+    Showing(Option<KeyboardPage>),
+    FullScreen(bool),
+    Capslock(bool),
+    Paginator(usize),
+    Toggle(KeyboardPage),
+    Show(KeyboardPage),
+    EmojiCategory(usize),
+    StartGifSearch,
+    CancelGifSearch,
+    SubmitGifSearch,
+}
+
+impl prism::events::Event for MobileKeyboardEvent {
+    fn pass(&self, _ctx: &mut Context, children: &mut [prism::events::ChildEvent<'_, Self>]) {
+        for child in children { *child.event = Some(self.clone()); }
+    }
+}
+
 #[derive(Component, Debug, Clone)]
+#[on_dyn_event]
 pub struct MobileKeyboard {
     layout: Stack,
     background: Rectangle,
@@ -71,13 +92,13 @@ pub struct MobileKeyboard {
     #[skip] announced: Option<Option<KeyboardPage>>,
 }
 
-impl OnEvent for MobileKeyboard {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl MobileKeyboard {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         let mut page = None;
         let mut search_keys = None;
         let mut refresh = false;
 
-        if let Some(KeyboardEvent{key: event::Key::Character(_), state: KeyboardState::Pressed, ..}) = event.downcast_ref::<KeyboardEvent>()
+        if let Some(KeyboardEvent{key: prism::events::Key::Character(_), state: KeyboardState::Pressed, ..}) = event.downcast_ref::<KeyboardEvent>()
             && self.caps && (self.page == KeyboardPage::Keys || self.gif_search.open) {
             self.caps = false;
             refresh = true;
@@ -87,7 +108,7 @@ impl OnEvent for MobileKeyboard {
             self.gif_search.open = false;
             page = Some(KeyboardPage::Gifs);
             ctx.emit(MobileKeyboardEvent::FullScreen(false));
-            if let Some((id, group)) = self.gif_search.return_to.take() { ctx.emit(event::Selectable::Pressed(id, group)); }
+            if let Some((id, group)) = self.gif_search.return_to.take() { ctx.emit(ptsd::events::Selectable::Pressed(id, group)); }
         } else if let Some(e) = event.downcast_ref::<MobileKeyboardEvent>() {
             match e {
                 MobileKeyboardEvent::Pages(_) if !self.gif_search.open => page = Some(self.page),
@@ -158,9 +179,8 @@ impl OnEvent for MobileKeyboard {
 }
 
 impl MobileKeyboard {
-    pub fn new(ctx: &mut Context, theme: &Theme) -> Self {
+    pub fn new(_ctx: &mut Context, theme: &Theme) -> Self {
         let color = theme.colors().get(ptsd::Background::Secondary);
-        let (bottom, _, _, _) = ctx.get_safe_area();
         MobileKeyboard {
             layout: Stack(Offset::Start, Offset::Start, Size::Fill, Size::custom(|heights: Vec<(f32, f32)>| heights[1]), Padding::default()),
             background: Rectangle::new(color, 0.0, None),
@@ -169,7 +189,6 @@ impl MobileKeyboard {
                 header: None,
                 panels: Opt::new(Panels::new(theme), false),
                 keys: Some(KeyRows::new(theme, 0, false, KeyTarget::Input)),
-                safe_area: Bin(Stack(Offset::Start, Offset::Start, Size::Fill, Size::Static(bottom), Padding::default()), Rectangle::new(color, 0.0, None)),
             },
             caps: false,
             keys_page: 0,
@@ -181,8 +200,8 @@ impl MobileKeyboard {
         }
     }
 
-    pub fn on_interface_event(&mut self, ctx: &mut Context, event: &dyn Event, showing: bool) -> bool {
-        if let Some(event::Selectable::Pressed(id, group)) = event.downcast_ref::<event::Selectable>() && group == TEXT_FIELD_GROUP {
+    pub fn on_interface_event(&mut self, ctx: &mut Context, event: &dyn DynEvent, showing: bool) -> bool {
+        if let Some(ptsd::events::Selectable::Pressed(id, group)) = event.downcast_ref::<ptsd::events::Selectable>() && group == TEXT_FIELD_GROUP {
             self.gif_search.focused = Some((id.clone(), group.clone()));
         } else if let Some(MobileKeyboardEvent::Pages(pages)) = event.downcast_ref::<MobileKeyboardEvent>() && !self.gif_search.open {
             self.pages = *pages;
@@ -201,41 +220,30 @@ impl MobileKeyboard {
 }
 
 #[derive(Component, Debug, Clone)]
-struct KeyboardContent {
-    layout: Column,
-    header: Option<KeyboardHeader>,
-    panels: Opt<Panels>,
-    keys: Option<KeyRows>,
-    safe_area: Bin<Stack, Rectangle>,
-}
-impl OnEvent for KeyboardContent {}
-
-#[derive(Component, Debug, Clone)]
 pub struct Panels {
     layout: Stack,
     background: Option<Rectangle>,
     emoji: Opt<Bin<Stack, EmojiPanel>>,
     stickers: Opt<Bin<Stack, StickerPanel>>,
-    pub(crate) gifs: Opt<Bin<Stack, GifPanel>>,
+    pub gifs: Opt<Bin<Stack, GifPanel>>,
 }
-impl OnEvent for Panels {}
 
 impl Panels {
-    pub(crate) fn new(theme: &Theme) -> Self {
-        let target = if IS_MOBILE { KeyTarget::Input } else { KeyTarget::Bar };
-        let room = Padding::new(if IS_MOBILE { 0.0 } else { 8.0 });
+    pub fn new(theme: &Theme) -> Self {
+        let target = if cfg!(any(target_os = "ios", target_os = "android")) { KeyTarget::Input } else { KeyTarget::Bar };
+        let room = Padding::new(if cfg!(any(target_os = "ios", target_os = "android")) { 0.0 } else { 8.0 });
         Panels {
             layout: Stack(Offset::Start, Offset::Start, Size::Fill, Size::custom(|heights: Vec<(f32, f32)>| {
                 heights.iter().rev().take(3).fold((0.0_f32, 0.0_f32), |tallest, h| (tallest.0.max(h.0), tallest.1.max(h.1)))
             }), Padding::default()),
-            background: (!IS_MOBILE).then(|| Rectangle::new(theme.colors().get(ptsd::Background::Secondary), 12.0, None)),
+            background: (!cfg!(any(target_os = "ios", target_os = "android"))).then(|| Rectangle::new(theme.colors().get(ptsd::Background::Secondary), 12.0, None)),
             emoji: Opt::new(Bin(Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fit, room), EmojiPanel::new(theme, target)), true),
             stickers: Opt::new(Bin(Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fit, room), StickerPanel::new(theme)), false),
             gifs: Opt::new(Bin(Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fit, room), GifPanel::new(theme)), false),
         }
     }
 
-    pub(crate) fn show(&mut self, page: KeyboardPage) {
+    pub fn show(&mut self, page: KeyboardPage) {
         self.emoji.display(page == KeyboardPage::Emoji);
         self.stickers.display(page == KeyboardPage::Stickers);
         self.gifs.display(page == KeyboardPage::Gifs);
@@ -246,9 +254,98 @@ impl Panels {
     }
 }
 
+#[derive(Debug, Component, Clone)]
+#[on_dyn_event]
+pub struct Key(Stack, interactions::Button, #[skip] Option<HoldRepeat>);
+
+impl Key {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
+        if let Some(hold) = &mut self.2 {
+            if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
+                match mouse.state {
+                    MouseState::Pressed(MouseButton::Left) if mouse.position.is_some() => {
+                        *hold = HoldRepeat { started: Some(Instant::now()), last: None, target: hold.target };
+                    }
+                    MouseState::Released(_) => *hold = HoldRepeat { target: hold.target, ..HoldRepeat::default() },
+                    MouseState::Moved if mouse.position.is_none() => *hold = HoldRepeat { target: hold.target, ..HoldRepeat::default() },
+                    _ => {}
+                }
+            } else if event.downcast_ref::<TickEvent>().is_some()
+                && let Some(started) = hold.started
+            {
+                let held = started.elapsed();
+                let interval = if held >= Duration::from_millis(2000) { Duration::from_millis(35) } else { Duration::from_millis(80) };
+                if held >= Duration::from_millis(500) && hold.last.is_none_or(|t| t.elapsed() >= interval) {
+                    hold.last = Some(Instant::now());
+                    hold.target.press(ctx, prism::events::Key::Delete);
+                }
+            }
+        }
+        vec![event]
+    }
+}
+impl Key {
+    fn character(theme: &Theme, character: char, target: KeyTarget) -> Self {
+        let default = _Key::character(theme, &character.to_string(), ButtonState::Default, true);
+        let pressed = _Key::character(theme, &character.to_string(), ButtonState::Pressed, true);
+        let callback = Box::new(move |ctx: &mut Context| target.press(ctx, prism::events::Key::Character(character.to_string())));
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
+    }
+
+    fn spacebar(theme: &Theme, caps_on: bool, target: KeyTarget) -> Self {
+        let default = _Key::spacebar(theme, caps_on, ButtonState::Default);
+        let pressed = _Key::spacebar(theme, caps_on, ButtonState::Pressed);
+        let callback = Box::new(move |ctx: &mut Context| target.press(ctx, prism::events::Key::Space));
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
+    }
+
+    fn newline(theme: &Theme, caps_on: bool, target: KeyTarget) -> Self {
+        let label = match target { KeyTarget::GifSearch => "search", _ => "return" };
+        let default = _Key::newline(theme, caps_on, ButtonState::Default, label);
+        let pressed = _Key::newline(theme, caps_on, ButtonState::Pressed, label);
+        let callback = Box::new(move |ctx: &mut Context| target.press(ctx, prism::events::Key::Enter));
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
+    }
+
+    pub fn backspace_sized(theme: &Theme, height: f32, target: KeyTarget) -> Self {
+        let default = _Key::backspace(theme, ButtonState::Default, height);
+        let pressed = _Key::backspace(theme, ButtonState::Pressed, height);
+        let callback = Box::new(move |ctx: &mut Context| target.press(ctx, prism::events::Key::Delete));
+        let hold = HoldRepeat { target, ..HoldRepeat::default() };
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), Some(hold))
+    }
+
+    fn capslock(theme: &Theme, state: ButtonState) -> Self {
+        let default = _Key::capslock(theme, state);
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(MobileKeyboardEvent::Capslock(match state {
+            ButtonState::Pressed => false,
+            ButtonState::Default => true,
+        })));
+
+        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false), None)
+    }
+
+    fn page_button(theme: &Theme, icon: Icons, state: ButtonState, event: MobileKeyboardEvent) -> Self {
+        let default = _Key::page_button(theme, icon, state);
+        let callback = Box::new(move |ctx: &mut Context| ctx.emit(event.clone()));
+
+        Key(Stack::default(), interactions::Button::new_triggers_on_release(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false), None)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct HoldRepeat { started: Option<Instant>, last: Option<Instant>, target: KeyTarget }
+
 #[derive(Component, Debug, Clone)]
-struct KeyRow(Box<dyn Layout>, Vec<Key>);
-impl OnEvent for KeyRow {}
+struct KeyboardContent {
+    layout: Column,
+    header: Option<KeyboardHeader>,
+    panels: Opt<Panels>,
+    keys: Option<KeyRows>,
+}
+
+#[derive(Component, Debug, Clone)]
+struct KeyRow(Row, Vec<Key>);
 
 impl KeyRow {
     fn new(theme: &Theme, keys: Vec<&str>, caps_on: bool, target: KeyTarget) -> Self {
@@ -258,13 +355,12 @@ impl KeyRow {
                 false => k.to_lowercase(),
             }.chars().next().unwrap_or_default(), target)
         }).collect();
-        KeyRow(Box::new(Row::center(0.0)), keys)
+        KeyRow(Row::center(0.0), keys)
     }
 }
 
 #[derive(Component, Debug, Clone)]
 struct KeyboardRow(Row, Option<Capslock>, Option<Paginator>, Option<KeyRow>, Option<Key>, Option<Key>);
-impl OnEvent for KeyboardRow {}
 
 impl KeyboardRow {
     fn top(theme: &Theme, num: usize, caps_on: bool, target: KeyTarget) -> Self {
@@ -306,7 +402,6 @@ impl KeyboardRow {
 
 #[derive(Component, Debug, Clone)]
 struct KeyRows(Column, KeyboardRow, KeyboardRow, KeyboardRow, KeyboardRow);
-impl OnEvent for KeyRows {}
 
 impl KeyRows {
     fn new(theme: &Theme, page: usize, caps: bool, target: KeyTarget) -> Self {
@@ -322,11 +417,9 @@ impl KeyRows {
 
 #[derive(Component, Debug, Clone)]
 struct KeyboardHeader(Column, KeyboardIcons, Bin<Stack, Rectangle>);
-impl OnEvent for KeyboardHeader {}
 
 #[derive(Component, Debug, Clone)]
 struct KeyboardIcons(Row, Option<Key>, Option<Key>, Option<Key>, Bin<Stack, HeaderLabel>, GhostIconButton);
-impl OnEvent for KeyboardIcons {}
 impl KeyboardIcons {
     fn new(theme: &Theme, page: KeyboardPage, pages: KeyboardPages) -> Self {
         let button = |icon: Icons, of: KeyboardPage, offered: bool| offered.then(|| {
@@ -344,7 +437,7 @@ impl KeyboardIcons {
             ),
             GhostIconButton::new(theme, Icons::DownArrow, |ctx: &mut Context, _: &Theme| {
                 ctx.emit(ShowKeyboard(false));
-                ctx.emit(event::TextInput::Focused(false));
+                ctx.emit(ptsd::events::TextInput::Focused(false));
             }),
         )
     }
@@ -352,7 +445,6 @@ impl KeyboardIcons {
 
 #[derive(Component, Debug, Clone)]
 struct HeaderLabel(Row, Text);
-impl OnEvent for HeaderLabel {}
 impl HeaderLabel {
     fn new(theme: &Theme) -> Self {
         HeaderLabel(
@@ -363,86 +455,7 @@ impl HeaderLabel {
 }
 
 #[derive(Debug, Component, Clone)]
-pub(super) struct Key(Stack, interactions::Button, #[skip] Option<HoldRepeat>);
-
-impl OnEvent for Key {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(hold) = &mut self.2 {
-            if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
-                match mouse.state {
-                    MouseState::Pressed(MouseButton::Left) if mouse.position.is_some() => {
-                        *hold = HoldRepeat { started: Some(Instant::now()), last: None, target: hold.target };
-                    }
-                    MouseState::Released(_) => *hold = HoldRepeat { target: hold.target, ..HoldRepeat::default() },
-                    MouseState::Moved if mouse.position.is_none() => *hold = HoldRepeat { target: hold.target, ..HoldRepeat::default() },
-                    _ => {}
-                }
-            } else if event.downcast_ref::<TickEvent>().is_some()
-                && let Some(started) = hold.started
-            {
-                let held = started.elapsed();
-                let interval = if held >= Duration::from_millis(2000) { Duration::from_millis(35) } else { Duration::from_millis(80) };
-                if held >= Duration::from_millis(500) && hold.last.is_none_or(|t| t.elapsed() >= interval) {
-                    hold.last = Some(Instant::now());
-                    hold.target.press(ctx, event::Key::Delete);
-                }
-            }
-        }
-        vec![event]
-    }
-}
-impl Key {
-    fn character(theme: &Theme, character: char, target: KeyTarget) -> Self {
-        let default = _Key::character(theme, &character.to_string(), ButtonState::Default, true);
-        let pressed = _Key::character(theme, &character.to_string(), ButtonState::Pressed, true);
-        let callback = Box::new(move |ctx: &mut Context| target.press(ctx, event::Key::Character(character.to_string())));
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
-    }
-
-    fn spacebar(theme: &Theme, caps_on: bool, target: KeyTarget) -> Self {
-        let default = _Key::spacebar(theme, caps_on, ButtonState::Default);
-        let pressed = _Key::spacebar(theme, caps_on, ButtonState::Pressed);
-        let callback = Box::new(move |ctx: &mut Context| target.press(ctx, event::Key::Space));
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
-    }
-
-    fn newline(theme: &Theme, caps_on: bool, target: KeyTarget) -> Self {
-        let label = match target { KeyTarget::GifSearch => "search", _ => "return" };
-        let default = _Key::newline(theme, caps_on, ButtonState::Default, label);
-        let pressed = _Key::newline(theme, caps_on, ButtonState::Pressed, label);
-        let callback = Box::new(move |ctx: &mut Context| target.press(ctx, event::Key::Enter));
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), None)
-    }
-
-    pub(super) fn backspace_sized(theme: &Theme, height: f32, target: KeyTarget) -> Self {
-        let default = _Key::backspace(theme, ButtonState::Default, height);
-        let pressed = _Key::backspace(theme, ButtonState::Pressed, height);
-        let callback = Box::new(move |ctx: &mut Context| target.press(ctx, event::Key::Delete));
-        let hold = HoldRepeat { target, ..HoldRepeat::default() };
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, Some(pressed), None::<_Key>, None::<_Key>, callback, false), Some(hold))
-    }
-
-    fn capslock(theme: &Theme, state: ButtonState) -> Self {
-        let default = _Key::capslock(theme, state);
-        let callback = Box::new(move |ctx: &mut Context| ctx.emit(MobileKeyboardEvent::Capslock(match state {
-            ButtonState::Pressed => false,
-            ButtonState::Default => true,
-        })));
-
-        Key(Stack::default(), interactions::Button::new(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false), None)
-    }
-
-    fn page_button(theme: &Theme, icon: Icons, state: ButtonState, event: MobileKeyboardEvent) -> Self {
-        let default = _Key::page_button(theme, icon, state);
-        let callback = Box::new(move |ctx: &mut Context| ctx.emit(event.clone()));
-
-        Key(Stack::default(), interactions::Button::new_triggers_on_release(default, None::<_Key>, None::<_Key>, None::<_Key>, None::<_Key>, callback, false), None)
-    }
-}
-
-#[derive(Debug, Component, Clone)]
 struct Capslock(Stack, interactions::Selectable);
-impl OnEvent for Capslock {}
 impl Capslock {
     fn new(theme: &Theme, is_on: bool) -> Self {
         let selected = Key::capslock(theme, ButtonState::Pressed);
@@ -461,14 +474,13 @@ enum ButtonState {Default, Pressed}
 enum _Key {
     Character {layout: Stack, background: Option<Rectangle>, text: Bin<Stack, Text>},
     Spacebar {layout: Stack, background: Rectangle, text: Text},
-    Capslock {layout: Stack, background: Rectangle, icon: Image},
-    Backspace {layout: Stack, background: Rectangle, icon: Image},
-    Paginator {layout: Stack, background: Rectangle, content: Box<PaginatorContent>},
+    Capslock {layout: Stack, background: Rectangle, icon: Icon},
+    Backspace {layout: Stack, background: Rectangle, icon: Icon},
+    Paginator {layout: Stack, background: Rectangle, content: PaginatorContent},
     Newline {layout: Stack, background: Rectangle, text: Text},
-    PageButton {layout: Stack, icon: Image}
+    PageButton {layout: Stack, icon: Icon}
 }
 
-impl OnEvent for _Key {}
 
 impl _Key {
     fn character(theme: &Theme, character: &str, state: ButtonState, background: bool) -> Self {
@@ -553,14 +565,13 @@ impl _Key {
         _Key::Paginator {
             layout: Stack(Offset::Center, Offset::Center, Size::custom(move |widths: Vec<(f32, f32)>|(widths[1].0, 92.0)), Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0)),
             background: Rectangle::new(Color::from_hex("ffffff", 110), 4.0, None),
-            content: Box::new(PaginatorContent::new(theme, page))
+            content: PaginatorContent::new(theme, page)
         }
     }
 }
 
 #[derive(Debug, Component, Clone)]
 struct PaginatorContent(Row, Text, Text, Text);
-impl OnEvent for PaginatorContent {}
 impl PaginatorContent {
     fn new(theme: &Theme, page: usize) -> Self {
         let (highlight, dim) = (TextStyle::Keyboard, TextStyle::Secondary);
@@ -582,7 +593,6 @@ impl PaginatorContent {
 
 #[derive(Component, Debug, Clone)]
 struct Paginator(Stack, emitters::Selectable<_Paginator>);
-impl OnEvent for Paginator {}
 impl Paginator {
     fn new(theme: &Theme, page: usize) -> Self {
         let first = _Key::paginator(theme, 0);
@@ -595,7 +605,8 @@ impl Paginator {
     }
 }
 
-#[derive(Component, Clone)]
+#[derive(Component, Debug, Clone)]
+#[on_dyn_event]
 struct _Paginator(Stack, Enum<Box<dyn Drawable>>, #[skip] usize);
 
 impl _Paginator {
@@ -618,9 +629,9 @@ impl _Paginator {
     }
 }
 
-impl OnEvent for _Paginator {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if let Some(event::Selectable::Selected(true)) = event.downcast_ref::<event::Selectable>() {
+impl _Paginator {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
+        if let Some(ptsd::events::Selectable::Selected(true)) = event.downcast_ref::<ptsd::events::Selectable>() {
             if &self.1.current() == "first" {
                 self.1.display("second");
                 self.2 = 1;
@@ -632,32 +643,9 @@ impl OnEvent for _Paginator {
                 self.2 = 0;
             }
 
-            ctx.trigger_haptic();
+            ctx.hardware.trigger_haptic();
             ctx.emit(MobileKeyboardEvent::Paginator(self.2));
         }
         vec![event]
     }
 }
-
-impl std::fmt::Debug for _Paginator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "_Paginator")
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum MobileKeyboardEvent {
-    Pages(KeyboardPages),
-    Showing(Option<KeyboardPage>),
-    FullScreen(bool),
-    Capslock(bool),
-    Paginator(usize),
-    Toggle(KeyboardPage),
-    Show(KeyboardPage),
-    EmojiCategory(usize),
-    StartGifSearch,
-    CancelGifSearch,
-    SubmitGifSearch,
-}
-
-prism::impl_event_all_children!(MobileKeyboardEvent);

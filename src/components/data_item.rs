@@ -1,9 +1,8 @@
 #![allow(clippy::type_complexity)]
 
-use prism::event::OnEvent;
 use prism::drawable::Component;
-use prism::canvas::Align;
-use prism::layout::{Column, Row, Padding, Offset, Size};
+use prism::drawable::text::Align;
+use ptsd::layout::{Column, Row, Padding, Offset, Size};
 use ptsd::theme::TextSize;
 use crate::components::text::{Text, ExpandableText, TextStyle};
 use crate::components::button::{QuickActions, ActionData};
@@ -11,7 +10,6 @@ use crate::theme::Theme;
 
 #[derive(Debug, Component, Clone)]
 pub struct DataItem(Column, Text, Option<ExpandableText>, Option<ExpandableText>, Option<Table>, Option<QuickActions>);
-impl OnEvent for DataItem {}
 
 impl DataItem {
     pub fn text(theme: &Theme, label: &str, secondary: Option<&str>, description: &str, quick_actions: Option<Vec<ActionData>>) -> Self {
@@ -36,7 +34,6 @@ impl DataItem {
 
 #[derive(Debug, Component, Clone)]
 struct Table(pub Column, pub Vec<Tabular>);
-impl OnEvent for Table {}
 
 impl Table {
     pub fn new(theme: &Theme, items: Vec<(String, String)>) -> Self {
@@ -46,7 +43,6 @@ impl Table {
 
 #[derive(Debug, Component, Clone)]
 struct Tabular(Row, ExpandableText, Text);
-impl OnEvent for Tabular {}
 
 impl Tabular {
     fn new(theme: &Theme, name: &str, data: &str) -> Self {

@@ -1,8 +1,7 @@
-use prism::event::OnEvent;
-use prism::canvas::Align;
+use prism::drawable::text::Align;
 use prism::Context;
 use prism::drawable::Component;
-use prism::layout::Column;
+use ptsd::layout::Column;
 
 use ptsd::interactions;
 
@@ -12,7 +11,6 @@ use crate::components::{Circle, Rectangle};
 
 #[derive(Debug, Component, Clone)]
 pub struct Slider(Column, Option<Text>, Option<ExpandableText>, interactions::Slider);
-impl OnEvent for Slider {}
 impl Slider {
     pub fn new(
         theme: &Theme,
@@ -32,6 +30,8 @@ impl Slider {
         let callback = Box::new(move |ctx: &mut Context, p: f32| (on_change)(ctx, &theme, p));
         Slider(Column::start(8.0), label, description, interactions::Slider::new(start, background, foreground, handle, callback))
     }
+
+    pub fn value(&mut self) -> &mut f32 {&mut self.3.value}
 
     pub fn default(theme: &Theme) -> Self {
         Self::new(theme, 0.5, Some("Slider"), None, |_: &mut Context, _: &Theme, p: f32| println!("Slider moved... {p:?}"))

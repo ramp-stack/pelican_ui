@@ -1,7 +1,8 @@
-use prism::event::{OnEvent, Event, TickEvent};
-use prism::drawable::{Component, SizedTree};
-use prism::layout::{Stack, Offset, Size, Padding};
-use prism::canvas::{Image, ShapeType};
+use prism::events::{DynEvent, TickEvent};
+use prism::drawable::Component;
+use ptsd::layout::{Stack, Offset, Size, Padding};
+use prism::drawable::shape::Variant;
+use crate::components::images::MaskedImage;
 use prism::Context;
 
 use image::{RgbaImage, AnimationDecoder};
@@ -18,13 +19,6 @@ use std::time::{Duration, Instant};
 use crate::Task;
 use crate::theme::{Theme, Color};
 use crate::components::Rectangle;
-
-static API_KEY: Mutex<Option<String>> = Mutex::new(None);
-static CACHE: Mutex<GifCache> = Mutex::new(GifCache { entries: BTreeMap::new(), recent: VecDeque::new(), bytes: 0 });
-
-lazy_static::lazy_static! {
-    static ref AGENT: ureq::Agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(20)).build();
-}
 
 pub fn set_giphy_api_key(key: &str) {
     if let Ok(mut api_key) = API_KEY.lock() { *api_key = Some(key.to_string()); }
@@ -116,18 +110,6 @@ impl std::fmt::Debug for GifFrames {
     }
 }
 
-enum CacheEntry {
-    Loading,
-    Ready(Arc<GifFrames>),
-    Failed(Instant),
-}
-
-struct GifCache {
-    entries: BTreeMap<String, CacheEntry>,
-    recent: VecDeque<String>,
-    bytes: usize,
-}
-
 pub fn load_gif(url: &str, crop: Option<(u32, u32)>) -> Option<Arc<GifFrames>> {
     let key = match crop {
         Some((w, h)) => format!("{url}#{w}x{h}"),
@@ -201,13 +183,13 @@ pub fn load_gif(url: &str, crop: Option<(u32, u32)>) -> Option<Arc<GifFrames>> {
 }
 
 #[derive(Debug, Clone, Component)]
+#[on_dyn_event]
 pub struct GifPlayer {
     layout: Stack,
-    image: Option<Image>,
+    image: Option<MaskedImage>,
     placeholder: Option<Rectangle>,
     #[skip] url: String,
     #[skip] crop: Option<(u32, u32)>,
-    #[skip] size: (f32, f32),
     #[skip] radius: f32,
     #[skip] color: Color,
     #[skip] frames: Option<Arc<GifFrames>>,
@@ -239,7 +221,6 @@ impl GifPlayer {
             placeholder: Some(Rectangle::new(color, radius, None)),
             url: url.to_string(),
             crop,
-            size,
             radius,
             color,
             frames: None,
@@ -261,8 +242,8 @@ impl GifPlayer {
     }
 }
 
-impl OnEvent for GifPlayer {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl GifPlayer {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() && self.live {
             if self.frames.is_none() && let Some(frames) = load_gif(&self.url, self.crop) {
                 self.frames = Some(frames);
@@ -275,10 +256,9 @@ impl OnEvent for GifPlayer {
                 if index != self.shown {
                     self.shown = index;
                     match &mut self.image {
-                        Some(image) => image.image = frame.clone(),
+                        Some(image) => image.0 = frame.clone(),
                         None => {
-                            let shape = ShapeType::RoundedRectangle(0.0, self.size, 0.0, self.radius);
-                            self.image = Some(Image { shape, image: frame.clone(), color: None });
+                            self.image = Some(MaskedImage(frame.clone(), Variant::RoundedRectangle(self.radius)));
                         }
                     }
                 }
@@ -286,4 +266,23 @@ impl OnEvent for GifPlayer {
         }
         vec![event]
     }
+}
+
+static API_KEY: Mutex<Option<String>> = Mutex::new(None);
+static CACHE: Mutex<GifCache> = Mutex::new(GifCache { entries: BTreeMap::new(), recent: VecDeque::new(), bytes: 0 });
+
+lazy_static::lazy_static! {
+    static ref AGENT: ureq::Agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(20)).build();
+}
+
+enum CacheEntry {
+    Loading,
+    Ready(Arc<GifFrames>),
+    Failed(Instant),
+}
+
+struct GifCache {
+    entries: BTreeMap<String, CacheEntry>,
+    recent: VecDeque<String>,
+    bytes: usize,
 }

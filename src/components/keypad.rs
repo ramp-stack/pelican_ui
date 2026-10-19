@@ -1,7 +1,7 @@
-use prism::event::{OnEvent, KeyboardState, KeyboardEvent, Key, Modifiers};
-use prism::layout::{Stack, Column, Row, Offset};
+use prism::events::{KeyboardState, KeyboardEvent, Key, Modifiers};
+use ptsd::layout::{Stack, Column, Row, Offset};
 use prism::drawable::{Drawable, Component};
-use prism::canvas::Align;
+use prism::drawable::text::Align;
 use prism::{Context};
 
 use ptsd::interactions;
@@ -13,7 +13,6 @@ use crate::components::button::{ButtonWidth, ButtonSize, Button};
 
 #[derive(Debug, Component, Clone)]
 pub struct Keypad(Column, Vec<GhostButtonRow>);
-impl OnEvent for Keypad {}
 
 impl Keypad {
     pub fn new(theme: &Theme) -> Self {
@@ -27,21 +26,8 @@ impl Keypad {
 }
 
 
-struct KeypadButton;
-
-impl KeypadButton {
-    pub fn char(c: char) -> (Option<char>, Option<Icons>, Key) {
-        (Some(c), None, Key::Character(c.to_string()))
-    }
-
-    pub fn delete() -> (Option<char>, Option<Icons>, Key) {
-        (None, Some(Icons::Back), Key::Delete)
-    }
-}
-
 #[derive(Debug, Component, Clone)]
 pub struct GhostButtonRow(Row, Vec<GhostButton>);
-impl OnEvent for GhostButtonRow {}
 
 impl GhostButtonRow {
     pub fn new(theme: &Theme, data: Vec<(Option<char>, Option<Icons>, Key)>) -> Self {
@@ -56,7 +42,6 @@ impl GhostButtonRow {
 
 #[derive(Debug, Component, Clone)]
 struct GhostButton(Stack, pub interactions::Button);
-impl OnEvent for GhostButton {}
 impl GhostButton {
     fn new(theme: &Theme, label: Option<&str>, icon: Option<Icons>, mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static) -> Self {
         let colors = theme::Button::get(theme.colors(), theme::Variant::Ghost);
@@ -68,9 +53,21 @@ impl GhostButton {
             if let Some(i) = icon { drawables.push(Box::new(Icon::new(theme, i, Some(colors.default.label), icon_size))); }
             Button::new(drawables, ButtonSize::Large, ButtonWidth::Fill, Offset::Center, colors.default.background, colors.default.outline)
         };
-        
+
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
         GhostButton(Stack::default(), interactions::Button::new(default, None::<Button>, None::<Button>, None::<Button>, None::<Button>, callback, false))
+    }
+}
+
+struct KeypadButton;
+
+impl KeypadButton {
+    pub fn char(c: char) -> (Option<char>, Option<Icons>, Key) {
+        (Some(c), None, Key::Character(c.to_string()))
+    }
+
+    pub fn delete() -> (Option<char>, Option<Icons>, Key) {
+        (None, Some(Icons::Back), Key::Delete)
     }
 }

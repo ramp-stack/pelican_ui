@@ -1,14 +1,11 @@
-use prism::drawable::{Drawable, Component, RequestTree, SizedTree, Offset, Rect};
-use prism::canvas::{ShapeType, Shape, Area as CanvasArea, Item as CanvasItem, Instruction, self};
-use prism::event::OnEvent;
-use prism::layout::SizeRequest;
-use prism::layout::Stack;
+use prism::drawable::{Drawable, Component, RangeTree, LayoutTree, Offset, Rect, Instruction, Item};
+use prism::drawable::shape::{Shape, Variant};
+use ptsd::layout::Stack;
 
 use crate::theme::Color;
 
 #[derive(Debug, Component, Clone)]
 pub struct Rectangle(Stack, ExpandableShape, Option<ExpandableShape>);
-impl OnEvent for Rectangle {}
 
 impl Rectangle {
     pub fn new(background: Color, radius: f32, outline: Option<(f32, Color)>) -> Self {
@@ -19,41 +16,44 @@ impl Rectangle {
         )
     }
 
-    pub fn background(&mut self) -> &mut canvas::Color {&mut self.1.shape().color}
-    pub fn outline(&mut self) -> Option<&mut canvas::Color> {self.2.as_mut().map(|s| &mut s.shape().color)}
-    pub fn size(&self) -> (f32, f32) {self.1.0.shape.size()}
+    pub fn background(&mut self) -> &mut prism::drawable::Color {&mut self.1.0.color}
+    pub fn outline(&mut self) -> Option<&mut prism::drawable::Color> {
+        self.2.as_mut().map(|s| &mut s.0.color)
+    }
+    pub fn size(&self) -> (f32, f32) {self.1.0.size()}
 }
 
 #[derive(Debug, Clone)]
 pub struct ExpandableShape(Shape);
 
 impl ExpandableShape {
-    pub fn rounded_rectangle(s: f32, r: f32, color: Color) -> Self {
-        ExpandableShape(Shape{shape: ShapeType::RoundedRectangle(s, (0.0, 0.0), 0.0, r), color: color.into()})
+    pub fn rounded_rectangle(stroke: f32, radius: f32, color: Color) -> Self {
+        Self(Shape {stroke, ..Shape::new(0.0, 0.0, color.into(), Variant::RoundedRectangle(radius))})
     }
-
-    pub fn rectangle(s: f32, color: Color) -> Self {
-        ExpandableShape(Shape{shape: ShapeType::Rectangle(s, (0.0, 0.0), 0.0), color: color.into()})
+    pub fn rectangle(stroke: f32, color: Color) -> Self {
+        Self(Shape {stroke, ..Shape::new(0.0, 0.0, color.into(), Variant::Rectangle)})
     }
-
-    pub fn ellipse(s: f32, color: Color) -> Self {
-        ExpandableShape(Shape{shape: ShapeType::Ellipse(s, (0.0, 0.0), 0.0), color: color.into()})
+    pub fn ellipse(stroke: f32, color: Color) -> Self {
+        Self(Shape {stroke, ..Shape::new(0.0, 0.0, color.into(), Variant::Ellipse)})
     }
-
-    fn shape(&mut self) -> &mut Shape { &mut self.0 }
 }
 
 impl Drawable for ExpandableShape {
-    fn request_size(&self) -> RequestTree {RequestTree(SizeRequest::fill(), vec![])}
-
-    fn draw(&self, sized: &SizedTree, offset: Offset, bound: Rect) -> Vec<Instruction> {
-        let shape = match self.0.shape {
-            ShapeType::RoundedRectangle(s, _, a, r) => ShapeType::RoundedRectangle(s, sized.0, a, r),
-            ShapeType::Rectangle(s, _, a) => ShapeType::Rectangle(s, sized.0, a),
-            ShapeType::Ellipse(s, _, a) => ShapeType::Ellipse(s, sized.0, a),
-        };
-
-        vec![Instruction(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Shape(Shape{shape, color: self.0.color}))]
+    fn size_range(&self) -> RangeTree {
+        RangeTree(prism::drawable::SizeRange {
+            min_width: 0.0, max_width: f32::INFINITY,
+            min_height: 0.0, max_height: f32::INFINITY,
+        }, vec![])
+    }
+    fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
+        let size = range.0.clamp(size);
+        self.0.width = size.0;
+        self.0.height = size.1;
+        LayoutTree(size, vec![])
+    }
+    fn draw(&self, layout: &LayoutTree, offset: Offset, bound: Rect) -> Vec<Instruction> {
+        let shape = Shape {width: layout.0.0, height: layout.0.1, ..self.0};
+        vec![Instruction {offset, bound, item: Item::Shape(shape)}]
     }
 }
 
@@ -62,11 +62,9 @@ pub struct Circle;
 impl Circle {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(size: f32, color: Color, outlined: bool) -> Shape {
-        let outline = if outlined { size * 0.06 } else { 0.0 };
-        Shape { shape: ShapeType::Ellipse(outline, (size, size), 0.0), color: color.into() }
+        let stroke = if outlined {size * 0.06} else {0.0};
+        Shape {stroke, ..Shape::new(size, size, color.into(), Variant::Ellipse)}
     }
     #[allow(clippy::should_implement_trait)]
-    pub fn default() -> Shape {
-        Self::new(48.0, Color::WHITE, false)
-    }
+    pub fn default() -> Shape {Self::new(48.0, Color::WHITE, false)}
 }

@@ -1,7 +1,6 @@
-use prism::event::OnEvent;
 use prism::Context;
 use prism::drawable::Component;
-use prism::layout::{Stack, Column};
+use ptsd::layout::{Stack, Column};
 
 use ptsd::interactions;
 
@@ -12,7 +11,6 @@ use crate::theme::{Theme, Icons};
 
 #[derive(Debug, Component, Clone)]
 pub struct Checkbox(Stack, pub interactions::Selectable);
-impl OnEvent for Checkbox {}
 impl Checkbox {
     pub fn new(theme: &Theme, title: &str, subtitle: Option<String>, is_selected: bool, on_check: Box<dyn Callback>, on_uncheck: Box<dyn Callback>) -> Self {
         let selected = ListItem::new(theme, None, ListItemInfoLeft::new(title, subtitle.as_deref(), None, None), None, Some(Icons::Check), None, on_uncheck);
@@ -30,7 +28,6 @@ impl Checkbox {
 
 #[derive(Debug, Component, Clone)]
 pub struct CheckboxList(Column, Vec<Checkbox>);
-impl OnEvent for CheckboxList {}
 impl CheckboxList {
     pub fn new(items: Vec<Checkbox>) -> Self {
         CheckboxList(Column::center(0.0), items)

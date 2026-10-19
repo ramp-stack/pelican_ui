@@ -1,9 +1,9 @@
 #![allow(clippy::large_enum_variant)]
-use prism::event::{OnEvent, Event, TickEvent};
-use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
-use prism::drawable::{Component, SizedTree};
-use prism::canvas::{Align, is_emoji_grapheme};
-use prism::display::Bin;
+use prism::events::{Event, DynEvent, TickEvent};
+use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding};
+use prism::drawable::Component;
+use prism::drawable::text::{Align, is_emoji_grapheme};
+use ptsd::display::Bin;
 use ptsd::colors;
 use ptsd::utils::Timestamp;
 use prism::Context;
@@ -18,7 +18,7 @@ use crate::Callback;
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use maverick_os::air::Name;
+use prism::air::Name;
 
 use crate::components::avatar::{AvatarSize, AvatarContent, Avatar};
 use crate::components::text::{Text, ExpandableText, TextSize, TextStyle};
@@ -39,7 +39,7 @@ impl Profile {
         }
     }
 
-    pub fn is_me(&self, ctx: &mut Context) -> bool {self.name == ctx.me()}
+    pub fn is_me(&self, ctx: &mut Context) -> bool {self.name == ctx.air.me()}
 }
 
 #[derive(Clone, Debug)]
@@ -52,7 +52,6 @@ pub struct Message {
 
 #[derive(Debug, Clone, Component)]
 pub struct MessageGroups(Column, Vec<MessageGroup>);
-impl OnEvent for MessageGroups {}
 impl MessageGroups {
     pub fn new(ctx: &mut Context, theme: &Theme, messages: Vec<Message>, is_group: bool, is_room: bool) -> Self {
         if messages.is_empty() { return MessageGroups(Column::center(0.0), vec![]); }
@@ -107,7 +106,6 @@ impl MessageGroups {
 
 #[derive(Debug, Clone, Component)]
 pub struct MessageGroup(Row, Option<Bin<Stack, Avatar>>, _MessageGroup);
-impl OnEvent for MessageGroup {}
 impl MessageGroup {
     pub fn new(theme: &Theme, messages: Vec<Message>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
         let avatar = Avatar::new(theme, profile.pfp.clone(), None, false, AvatarSize::Xs, None);
@@ -118,8 +116,8 @@ impl MessageGroup {
                 let layout = Stack(Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding(0.0, 0.0, 0.0, 18.0));
                 (Row::end(8.0), Some(Bin(layout, avatar)))
             },
-            Room::Direct(Direction::Received)| 
-            Room::Direct(Direction::Sent) | 
+            Room::Direct(Direction::Received)|
+            Room::Direct(Direction::Sent) |
             Room::Group(Direction::Sent) => (Row::default(), None),
         };
 
@@ -134,7 +132,6 @@ pub enum _MessageGroup {
     Room {layout: Column, info: MessageInfo, msg: _TextMessages},
 }
 
-impl OnEvent for _MessageGroup {}
 impl _MessageGroup {
     pub fn new(theme: &Theme, messages: Vec<Message>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
         let info = MessageInfo::new(theme, profile.username, timestamp, room);
@@ -159,7 +156,6 @@ impl _MessageGroup {
 
 #[derive(Debug, Clone, Component)]
 pub struct MessageInfo(Row, Option<Text>, Option<Text>, Text);
-impl OnEvent for MessageInfo {}
 impl MessageInfo {
     pub fn new(theme: &Theme, name: String, timestamp: Timestamp, room: Room) -> Self {
         let name = match room {
@@ -178,7 +174,6 @@ impl MessageInfo {
 
 #[derive(Debug, Clone, Component)]
 pub struct _TextMessages(Column, Vec<interactions::Button>);
-impl OnEvent for _TextMessages {}
 impl _TextMessages {
     pub fn new(theme: &Theme, messages: Vec<Message>, room: Room) -> Self {
         let layout = match room {
@@ -202,10 +197,11 @@ impl _TextMessages {
 }
 
 #[derive(Debug, Clone, Component)]
+#[on_dyn_event]
 pub enum _TextMessage {
     Text {
-        layout: Stack, 
-        background: Option<Rectangle>, 
+        layout: Stack,
+        background: Option<Rectangle>,
         text: Bin<Stack, ExpandableText>
     },
     Emoji {layout: Stack, text: Text},
@@ -215,8 +211,8 @@ pub enum _TextMessage {
     Video { layout: Stack, video: VideoView }
 }
 
-impl OnEvent for _TextMessage {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl _TextMessage {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() && let _TextMessage::Text{text, ..} = self {
             let w = text.inner().0.inner().size().0.min(250.0) + 4.0;
             *text.get_layout() = Stack::new(Offset::Center, Offset::Center, Size::Static(w), Size::Fit, Padding(0.0, 8.0, 0.0, 8.0));
@@ -251,7 +247,7 @@ impl _TextMessage {
             MessageContent::Photo(photo) => _TextMessage::Photo{layout: Stack::default(), photo: PhotoView::message(theme, photo)},
             MessageContent::Video(video) => _TextMessage::Video{layout: Stack::default(), video: VideoView::message(theme, video)},
         }
-        
+
     }
 }
 
@@ -285,4 +281,8 @@ pub enum SendEvent {
     Video(NewVideo),
 }
 
-prism::impl_event_all_children!(SendEvent);
+impl Event for SendEvent {
+    fn pass(&self, _ctx: &mut Context, children: &mut [prism::events::ChildEvent<'_, Self>]) {
+        for child in children {*child.event = Some(self.clone());}
+    }
+}

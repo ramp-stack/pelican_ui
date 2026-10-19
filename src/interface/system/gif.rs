@@ -1,9 +1,11 @@
-use prism::event::{MouseEvent, TickEvent, OnEvent, Event, MouseState, MouseButton, KeyboardEvent, KeyboardState, Key};
-use prism::canvas::Align;
+use prism::drawable::{RangeTree, Rect, Instruction};
+use prism::events::DynEvent;
+use prism::events::{MouseEvent, TickEvent, MouseState, MouseButton, KeyboardEvent, KeyboardState, Key};
+use prism::drawable::text::Align;
 use prism::Context;
-use prism::drawable::{Drawable, Component, SizedTree};
-use prism::layout::{Column, Row, Stack, Offset, Size, Padding};
-use prism::display::Bin;
+use prism::drawable::{Drawable, Component, LayoutTree};
+use ptsd::layout::{Column, Row, Stack, Offset, Size, Padding};
+use ptsd::display::Bin;
 
 use crate::theme::{Theme, Icons};
 use crate::components::text::{ExpandableText, TextStyle, TextSize};
@@ -16,8 +18,61 @@ use super::keyboard::{KeyboardPages, MobileKeyboardEvent};
 use super::{GrowingGrid, PanelCell, CellFace, CellAction, PanelTouch, TouchEnd, GridPlace, track_touch};
 use super::{cell_side, tray_height, laid_out_width, ASSUMED_WIDTH};
 
+#[derive(Debug, Clone, Default)]
+pub struct GifSearch {
+    pub open: bool,
+    pub focused: Option<(String, String)>,
+    pub return_to: Option<(String, String)>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GifPanel(GifPanelContent);
+
+impl GifPanel {
+    pub fn new(theme: &Theme) -> Self {Self(GifPanelContent::new(theme))}
+    pub fn searching(&self) -> bool {self.0.searching()}
+    pub fn close_search(&mut self) {self.0.close_search()}
+    pub fn set_full(&mut self, full: bool) {self.0.set_full(full)}
+    pub fn retry(&mut self) {self.0.retry()}
+}
+
+impl Drawable for GifPanel {
+    fn size_range(&self) -> RangeTree {self.0.size_range()}
+    fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
+        Drawable::layout(&mut self.0, size, range)
+    }
+    fn draw(&self, layout: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
+        self.0.draw(layout, offset, bound)
+    }
+    fn event(&mut self, ctx: &mut Context, layout: &LayoutTree, event: Box<dyn DynEvent>) {
+        for event in self.0.on_event(ctx, layout, event) {self.0.event(ctx, layout, event);}
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GifSearchHeader(GifSearchHeaderContent);
+
+impl GifSearchHeader {
+    pub fn new(theme: &Theme, query: &str) -> Self {Self(GifSearchHeaderContent::new(theme, query))}
+    fn value(&self) -> String {self.0.1.value()}
+    fn has_focus(&self) -> bool {self.0.1.has_focus()}
+}
+
+impl Drawable for GifSearchHeader {
+    fn size_range(&self) -> RangeTree {self.0.size_range()}
+    fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
+        Drawable::layout(&mut self.0, size, range)
+    }
+    fn draw(&self, layout: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
+        self.0.draw(layout, offset, bound)
+    }
+    fn event(&mut self, ctx: &mut Context, layout: &LayoutTree, event: Box<dyn DynEvent>) {
+        for event in self.0.on_event(ctx, layout, event) {self.0.event(ctx, layout, event);}
+    }
+}
+
 #[derive(Component, Debug, Clone)]
-pub struct GifPanel {
+struct GifPanelContent {
     layout: Column,
     search_field: Option<GifSearchHeader>,
     line: Option<Bin<Stack, Rectangle>>,
@@ -35,9 +90,9 @@ pub struct GifPanel {
     #[skip] theme: Theme,
 }
 
-impl GifPanel {
+impl GifPanelContent {
     pub fn new(theme: &Theme) -> Self {
-        GifPanel {
+        GifPanelContent {
             layout: Column::new(0.0, Offset::Start, Size::Fill, Padding::default(), None),
             search_field: None,
             line: None,
@@ -69,8 +124,8 @@ impl GifPanel {
     pub fn retry(&mut self) { self.error = None; }
 }
 
-impl OnEvent for GifPanel {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl GifPanelContent {
+    fn on_event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             if let Some(result) = self.fetch.as_ref().and_then(|fetch| fetch.take()) {
                 self.fetch = None;
@@ -142,7 +197,7 @@ impl OnEvent for GifPanel {
                     self.bar = GifBar::new(&self.theme, true);
                 },
                 MobileKeyboardEvent::SubmitGifSearch => if let Some(field) = &self.search_field {
-                    let query = field.1.value().trim().to_string();
+                    let query = field.value().trim().to_string();
                     self.query = (!query.is_empty()).then_some(query);
                     self.gifs.clear();
                     self.touch = None;
@@ -157,14 +212,14 @@ impl OnEvent for GifPanel {
         } else if let Some(SendEvent::Gif(_)) = event.downcast_ref::<SendEvent>() {
             self.close_search();
         } else if let Some(KeyboardEvent{key: Key::Enter, state: KeyboardState::Pressed, ..}) = event.downcast_ref::<KeyboardEvent>()
-            && self.search_field.as_ref().is_some_and(|field| field.1.has_focus())
+            && self.search_field.as_ref().is_some_and(|field| field.has_focus())
         {
             ctx.emit(MobileKeyboardEvent::SubmitGifSearch);
             return vec![];
         } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
             let grid = sized.1.len().saturating_sub(1);
             if let Some(TouchEnd::Tap(CellAction::Gif(gif))) = track_touch(&mut self.touch, self.grid.grid(), GridPlace::find(sized, &[grid, 0, 0]), mouse) {
-                ctx.trigger_haptic();
+                ctx.hardware.trigger_haptic();
                 ctx.emit(SendEvent::Gif(gif));
             }
         }
@@ -174,7 +229,6 @@ impl OnEvent for GifPanel {
 
 #[derive(Component, Debug, Clone)]
 struct GifBar(Row, Option<GhostIconButton>, ExpandableText);
-impl OnEvent for GifBar {}
 
 impl GifBar {
     fn new(theme: &Theme, searching: bool) -> Self {
@@ -190,27 +244,20 @@ impl GifBar {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct GifSearch {
-    pub open: bool,
-    pub focused: Option<(String, String)>,
-    pub return_to: Option<(String, String)>,
-}
-
 #[derive(Component, Debug, Clone)]
-pub struct GifSearchHeader(Row, TextInput, GhostIconButton, #[skip] Option<u8>);
+struct GifSearchHeaderContent(Row, TextInput, GhostIconButton, #[skip] Option<u8>);
 
-impl GifSearchHeader {
+impl GifSearchHeaderContent {
     pub fn new(theme: &Theme, query: &str) -> Self {
         let field = TextInput::new(theme, (!query.is_empty()).then_some(query), None, Some("Search GIPHY"), None, None, KeyboardPages::NONE);
         let mut close = GhostIconButton::new(theme, Icons::Close, |ctx: &mut Context, _: &Theme| ctx.emit(MobileKeyboardEvent::CancelGifSearch));
         close.1.set_trigger_on_release();
-        GifSearchHeader(Row::new(12.0, Offset::Center, Size::Fit, Padding(12.0, 6.0, 12.0, 16.0)), field, close, Some(2))
+        GifSearchHeaderContent(Row::new(12.0, Offset::Center, Size::Fit, Padding(12.0, 6.0, 12.0, 16.0)), field, close, Some(2))
     }
 }
 
-impl OnEvent for GifSearchHeader {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl GifSearchHeaderContent {
+    fn on_event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() && let Some(frames) = &mut self.3 {
             *frames = frames.saturating_sub(1);
             if *frames == 0 && let Some((_, field)) = sized.1.first() {

@@ -1,14 +1,14 @@
-use prism::event::{OnEvent, Event, TickEvent};
-use prism::canvas::{Image, Shape, ShapeType};
-use prism::layout::{Stack, Offset, Size, Padding, Row};
+use prism::events::{on_event, OnEvent, DynEvent, TickEvent};
+use prism::drawable::shape::{Shape, Variant};
+use ptsd::layout::{Stack, Offset, Size, Padding, Row};
 use prism::Context;
-use prism::drawable::{Component, SizedTree};
+use prism::drawable::Component;
 
 use ptsd::interactions;
 
 use crate::Callback;
 use crate::theme::{Theme, Color, Icons};
-use crate::components::{Icon, Circle};
+use crate::components::{Icon, Circle, MaskedImage};
 
 use image::{RgbaImage, DynamicImage, ImageFormat};
 use base64::{engine::general_purpose, Engine as _};
@@ -21,7 +21,7 @@ use std::fmt;
 use std::io::Cursor;
 use std::sync::Arc;
 
-#[derive(Component, Clone)]
+#[derive(Component, Clone, Debug)]
 pub struct Avatar {
     _layout: Stack,
     _button: Option<interactions::Button>,
@@ -33,12 +33,6 @@ pub struct Avatar {
     #[skip] pub outline: bool,
     #[skip] theme: Theme,
     #[skip] shown: AvatarContent,
-}
-
-impl fmt::Debug for Avatar {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Avatar...")
-    }
 }
 
 impl Avatar {
@@ -59,7 +53,10 @@ impl Avatar {
             Some(mut on_click) => {
                 let theme = theme.clone();
                 let callback = move |ctx: &mut Context| on_click(ctx, &theme);
-                (Some(interactions::Button::new_triggers_on_release(face, None::<AvatarFace>, None::<AvatarFace>, None::<AvatarFace>, None::<AvatarFace>, callback, false)), None)
+                (Some(interactions::Button::new_triggers_on_release(
+                    face, None::<AvatarFace>, None::<AvatarFace>, None::<AvatarFace>,
+                    None::<AvatarFace>, callback, false,
+                )), None)
             },
             None => (None, Some(face)),
         };
@@ -82,86 +79,23 @@ impl Avatar {
     }
 }
 
-impl OnEvent for Avatar {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() {
-            let changed = match (&self.content, &self.shown) {
-                (AvatarContent::Image(a), AvatarContent::Image(b)) => !Arc::ptr_eq(a, b),
-                (a, b) => a != b,
-            };
-            if changed {
-                *self = Avatar::new(&self.theme, self.content.clone(), self.flair, self.outline, self._size, self._on_click.clone());
-            }
+#[on_event]
+impl OnEvent<TickEvent> for Avatar {
+    fn on(&mut self, _ctx: &mut Context, event: TickEvent) -> Vec<Box<dyn DynEvent>> {
+        let changed = match (&self.content, &self.shown) {
+            (AvatarContent::Image(a), AvatarContent::Image(b)) => !Arc::ptr_eq(a, b),
+            (a, b) => a != b,
+        };
+        if changed {
+            *self = Avatar::new(&self.theme, self.content.clone(), self.flair,
+                self.outline, self._size, self._on_click.clone());
         }
-        vec![event]
-    }
-}
-
-#[derive(Clone, Component, Debug)]
-struct AvatarFace(Stack, PrimaryAvatar, Option<Flair>);
-impl OnEvent for AvatarFace {}
-
-#[derive(Clone, Component, Debug, PartialEq)]
-struct PrimaryAvatar(Stack, Option<AvatarIcon>, Option<Image>, Option<Shape>);
-impl OnEvent for PrimaryAvatar {}
-
-impl PrimaryAvatar {
-    fn new(theme: &Theme, content: AvatarContent, outline: bool, size: AvatarSize) -> Self {
-        let (icon, image) = match content {
-            AvatarContent::Image(image) => (None, Some(Image { shape: ShapeType::Ellipse(0.0, (size.get(), size.get()), 0.0), image, color: None })),
-            AvatarContent::Icon(icon, style) => (Some(AvatarIcon::new(theme, icon, style, size.get())), None),
-        };
-        let background = theme.colors().get(ptsd::Background::Primary);
-        PrimaryAvatar(
-            Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding::default()),
-            icon,
-            image,
-            outline.then(|| Circle::new(size.get(), background, true)),
-        )
-    }
-}
-
-#[derive(Clone, Debug, Component, PartialEq)]
-struct AvatarIcon(Stack, Shape, Image);
-impl OnEvent for AvatarIcon {}
-
-impl AvatarIcon {
-    fn new(theme: &Theme, name: Icons, style: AvatarIconStyle, size: f32) -> Self {
-        let colors = theme.colors();
-        let (background, icon_color) = match style {
-            AvatarIconStyle::Primary => (colors.get(ptsd::Outline::Primary), colors.get(ptsd::Background::Secondary)),
-            AvatarIconStyle::Secondary => (colors.get(ptsd::Background::Secondary), colors.get(ptsd::Text::Secondary)),
-            AvatarIconStyle::Brand => (colors.get(ptsd::Brand), colors.get(ptsd::Background::Primary)),
-            AvatarIconStyle::Success => (colors.get(ptsd::Status::Success), Color::WHITE),
-            AvatarIconStyle::Warning => (colors.get(ptsd::Status::Warning), Color::WHITE),
-            AvatarIconStyle::Danger => (colors.get(ptsd::Status::Danger), Color::WHITE),
-        };
-        AvatarIcon(
-            Stack::center(),
-            Circle::new(size - 2.0, background, false),
-            Icon::new(theme, name, Some(icon_color), size * 0.75),
-        )
-    }
-}
-
-#[derive(Debug, Component, PartialEq, Clone)]
-struct Flair(Stack, AvatarIcon, Shape);
-impl OnEvent for Flair {}
-
-impl Flair {
-    fn new(theme: &Theme, name: Icons, style: AvatarIconStyle, size: AvatarSize) -> Self {
-        let background = theme.colors().get(ptsd::Background::Primary);
-        Flair(
-            Stack::center(),
-            AvatarIcon::new(theme, name, style, size.get() / 3.0),
-            Circle::new(size.get() / 3.0, background, true),
-        )
+        prism::events![event]
     }
 }
 
 #[derive(Debug, Component, Clone)]
 pub struct AvatarGroup(Row, Vec<Avatar>);
-impl OnEvent for AvatarGroup {}
 
 impl AvatarGroup {
     pub fn new(theme: &Theme, contents: Vec<AvatarContent>) -> Self {
@@ -279,5 +213,63 @@ impl AvatarSize {
             AvatarSize::Sm => 32.0,
             AvatarSize::Xs => 24.0,
         }
+    }
+}
+#[derive(Clone, Component, Debug)]
+struct AvatarFace(Stack, PrimaryAvatar, Option<Flair>);
+
+#[derive(Clone, Component, Debug)]
+struct PrimaryAvatar(Stack, Option<AvatarIcon>, Option<MaskedImage>, Option<Shape>);
+
+impl PrimaryAvatar {
+    fn new(theme: &Theme, content: AvatarContent, outline: bool, size: AvatarSize) -> Self {
+        let (icon, image) = match content {
+            AvatarContent::Image(image) => (None, Some(MaskedImage(image, Variant::Ellipse))),
+            AvatarContent::Icon(icon, style) => (Some(AvatarIcon::new(theme, icon, style, size.get())), None),
+        };
+        let background = theme.colors().get(ptsd::Background::Primary);
+        PrimaryAvatar(
+            Stack(Offset::Center, Offset::Center, Size::Static(size.get()),
+                Size::Static(size.get()), Padding::default()),
+            icon,
+            image,
+            outline.then(|| Circle::new(size.get(), background, true)),
+        )
+    }
+}
+
+#[derive(Clone, Debug, Component)]
+struct AvatarIcon(Stack, Shape, Icon);
+
+impl AvatarIcon {
+    fn new(theme: &Theme, name: Icons, style: AvatarIconStyle, size: f32) -> Self {
+        let colors = theme.colors();
+        let (background, icon_color) = match style {
+            AvatarIconStyle::Primary => (colors.get(ptsd::Outline::Primary), colors.get(ptsd::Background::Secondary)),
+            AvatarIconStyle::Secondary => (colors.get(ptsd::Background::Secondary), colors.get(ptsd::Text::Secondary)),
+            AvatarIconStyle::Brand => (colors.get(ptsd::Brand), colors.get(ptsd::Background::Primary)),
+            AvatarIconStyle::Success => (colors.get(ptsd::Status::Success), Color::WHITE),
+            AvatarIconStyle::Warning => (colors.get(ptsd::Status::Warning), Color::WHITE),
+            AvatarIconStyle::Danger => (colors.get(ptsd::Status::Danger), Color::WHITE),
+        };
+        AvatarIcon(
+            Stack::center(),
+            Circle::new(size - 2.0, background, false),
+            Icon::new(theme, name, Some(icon_color), size * 0.75),
+        )
+    }
+}
+
+#[derive(Debug, Component, Clone)]
+struct Flair(Stack, AvatarIcon, Shape);
+
+impl Flair {
+    fn new(theme: &Theme, name: Icons, style: AvatarIconStyle, size: AvatarSize) -> Self {
+        let background = theme.colors().get(ptsd::Background::Primary);
+        Flair(
+            Stack::center(),
+            AvatarIcon::new(theme, name, style, size.get() / 3.0),
+            Circle::new(size.get() / 3.0, background, true),
+        )
     }
 }

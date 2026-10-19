@@ -1,8 +1,11 @@
-use prism::event::{self, MouseEvent, OnEvent, Event, MouseState, MouseButton};
-use prism::canvas::Align;
-use prism::{Context, IS_MOBILE};
-use prism::drawable::{Component, SizedTree};
-use prism::layout::{Stack, Column, Row, Offset, Size, Padding};
+use prism::drawable::Drawable;
+use prism::drawable::{RangeTree, Rect, Instruction};
+use prism::events::DynEvent;
+use prism::events::{MouseEvent, MouseState, MouseButton};
+use prism::drawable::text::Align;
+use prism::Context;
+use prism::drawable::{Component, LayoutTree};
+use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding};
 
 use std::time::{Duration, Instant};
 
@@ -15,10 +18,30 @@ use crate::components::Rectangle;
 use super::keyboard::{Key, KeyTarget, MobileKeyboardEvent};
 use super::{PanelGrid, PanelCell, CellFace, CellAction, PanelTouch, TouchEnd, GridPlace, track_touch, SWIPE_DISTANCE};
 
+#[derive(Debug, Clone)]
+pub struct EmojiPanel(EmojiPanelContent);
+
+impl EmojiPanel {
+    pub fn new(theme: &Theme, target: KeyTarget) -> Self {Self(EmojiPanelContent::new(theme, target))}
+}
+
+impl Drawable for EmojiPanel {
+    fn size_range(&self) -> RangeTree {self.0.size_range()}
+    fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
+        Drawable::layout(&mut self.0, size, range)
+    }
+    fn draw(&self, layout: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
+        self.0.draw(layout, offset, bound)
+    }
+    fn event(&mut self, ctx: &mut Context, layout: &LayoutTree, event: Box<dyn DynEvent>) {
+        for event in self.0.on_event(ctx, layout, event) {self.0.event(ctx, layout, event);}
+    }
+}
+
 struct EmojiCategory { icon: &'static str, emojis: Vec<String> }
 
 #[derive(Component, Debug, Clone)]
-pub struct EmojiPanel {
+struct EmojiPanelContent {
     layout: Column,
     grid: PanelGrid,
     tabs: EmojiTabs,
@@ -29,9 +52,9 @@ pub struct EmojiPanel {
     #[skip] theme: Theme,
 }
 
-impl EmojiPanel {
-    pub(super) fn new(theme: &Theme, target: KeyTarget) -> Self {
-        EmojiPanel {
+impl EmojiPanelContent {
+    pub fn new(theme: &Theme, target: KeyTarget) -> Self {
+        EmojiPanelContent {
             layout: Column::new(0.0, Offset::Center, Size::Fill, Padding::default(), None),
             grid: PanelGrid::emoji(theme, 0),
             tabs: EmojiTabs::new(theme, 0, target),
@@ -44,8 +67,8 @@ impl EmojiPanel {
     }
 }
 
-impl OnEvent for EmojiPanel {
-    fn on_event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl EmojiPanelContent {
+    fn on_event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         let mut page = None;
         let mut turn = None;
 
@@ -54,14 +77,14 @@ impl OnEvent for EmojiPanel {
         } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
             match track_touch(&mut self.touch, &mut self.grid, GridPlace::find(sized, &[0]), mouse) {
                 Some(TouchEnd::Turn(next)) => turn = Some(next),
-                Some(TouchEnd::Tap(CellAction::Emoji(emoji))) if IS_MOBILE => {
-                    ctx.trigger_haptic();
-                    self.target.press(ctx, event::Key::Character(emoji));
+                Some(TouchEnd::Tap(CellAction::Emoji(emoji))) if cfg!(any(target_os = "ios", target_os = "android")) => {
+                    ctx.hardware.trigger_haptic();
+                    self.target.press(ctx, prism::events::Key::Character(emoji));
                 }
                 _ => {}
             }
 
-            if !IS_MOBILE && let MouseState::Scroll(dx, dy) = mouse.state && self.touch.is_none()
+            if !cfg!(any(target_os = "ios", target_os = "android")) && let MouseState::Scroll(dx, dy) = mouse.state && self.touch.is_none()
                 && mouse.position.zip(GridPlace::find(sized, &[0])).is_some_and(|(p, grid)| grid.contains(p))
             {
                 let now = Instant::now();
@@ -78,10 +101,10 @@ impl OnEvent for EmojiPanel {
                 self.scroll = Some(gesture);
             }
 
-            if !IS_MOBILE && let MouseState::Pressed(MouseButton::Left) = mouse.state
+            if !cfg!(any(target_os = "ios", target_os = "android")) && let MouseState::Pressed(MouseButton::Left) = mouse.state
                 && let Some(CellAction::Emoji(emoji)) = self.touch.and_then(|t| t.cell).and_then(|c| self.grid.cell(c)).and_then(|cell| cell.3.clone())
             {
-                self.target.press(ctx, event::Key::Character(emoji));
+                self.target.press(ctx, prism::events::Key::Character(emoji));
             }
         }
 
@@ -112,7 +135,6 @@ impl PanelGrid {
 
 #[derive(Component, Debug, Clone)]
 struct EmojiTabs(Row, Vec<EmojiTab>, Key);
-impl OnEvent for EmojiTabs {}
 
 impl EmojiTabs {
     fn new(theme: &Theme, active: usize, target: KeyTarget) -> Self {
@@ -125,7 +147,6 @@ impl EmojiTabs {
 
 #[derive(Component, Debug, Clone)]
 struct EmojiTab(Stack, interactions::Button);
-impl OnEvent for EmojiTab {}
 
 impl EmojiTab {
     fn new(theme: &Theme, index: usize, icon: &str, active: bool) -> Self {
@@ -137,7 +158,6 @@ impl EmojiTab {
 
 #[derive(Component, Debug, Clone)]
 struct EmojiTabFace(Stack, Option<Rectangle>, Text);
-impl OnEvent for EmojiTabFace {}
 
 impl EmojiTabFace {
     fn new(theme: &Theme, icon: &str, active: bool) -> Self {
@@ -167,7 +187,7 @@ lazy_static::lazy_static! {
 
             if let Some(group) = groups.last_mut() { group.push(emoji); }
         }
-        
+
         ["😀", "👋", "🐻", "🍔", "🚗", "⚽", "💡", "🔣", "🏁"].into_iter()
             .zip(groups.into_iter().filter(|group| !group.is_empty()))
             .map(|(icon, emojis)| EmojiCategory { icon, emojis })

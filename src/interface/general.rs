@@ -1,10 +1,10 @@
-use prism::{drawables, Context, IS_MOBILE, IS_WEB};
-use prism::event::{self, Event, OnEvent, TickEvent};
-use prism::drawable::{Drawable, Component, SizedTree};
-use prism::canvas::Align;
-use prism::display::Bin;
-use prism::layout::{Column, Stack, Row, Padding, Offset, Size};
-use prism::emitters::Scrollable;
+use prism::Context;
+use prism::events::{DynEvent, TickEvent};
+use prism::drawable::{Drawable, Component};
+use prism::drawable::text::Align;
+use ptsd::display::Bin;
+use ptsd::layout::{Column, Stack, Row, Padding, Offset, Size};
+use ptsd::emitters::Scrollable;
 
 use crate::Callback;
 use crate::theme::{Theme, Icons};
@@ -22,21 +22,22 @@ use ptsd::navigation::{NavigationEvent, AppPage};
 use ptsd::utils::ValidationFn;
 pub use ptsd::navigation::Pages;
 
-crate::closure_trait!(OnEventFn, FnMut(&mut Context, Box<dyn Event>) -> Vec<Box<dyn Event>>);
+crate::closure_trait!(OnEventFn, FnMut(&mut Context, Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>>);
 
-#[derive(Component, Clone)]
+#[derive(Component, Debug, Clone)]
+#[on_dyn_event]
 pub struct Interface {
     layout: Stack,
     background: Rectangle,
     inner: ptsd::interfaces::Interface,
-    #[skip] pub on_event: Option<Box<dyn OnEventFn>>
+    #[skip] pub on_event: Box<dyn OnEventFn>
 }
 
-impl OnEvent for Interface {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl Interface {
+    fn on_event(&mut self, ctx: &mut Context, mut event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
 
         if let Some(InterfaceEvent::Disable(disable)) = event.downcast_ref::<InterfaceEvent>() {
-            ctx.emit(event::Button::Disable(*disable));
+            ctx.emit(ptsd::events::Button::Disable(*disable));
         }
 
         if let ptsd::interfaces::Interface::Mobile{keyboard, ..} = &mut self.inner {
@@ -48,16 +49,7 @@ impl OnEvent for Interface {
 
         if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![0];}
 
-        let mut closure = self.on_event.take().expect("on_event missing");
-        let result = (closure)(ctx, event);
-        self.on_event = Some(closure);
-        result
-    }
-}
-
-impl std::fmt::Debug for Interface {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.inner)
+        (self.on_event)(ctx, event)
     }
 }
 
@@ -67,22 +59,22 @@ impl Interface {
         Interface {
             layout: Stack::default(),
             background: Rectangle::new(theme.colors().get(ptsd::Background::Primary), 0.0, None),
-            inner: match IS_WEB {
+            inner: match cfg!(target_arch = "wasm32") {
                 true => {
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::web(theme, roots)) as Box<dyn PTSDNavigator>);
-                    ptsd::interfaces::Interface::web(ctx, navigator, Screen::web(Pages::new(pages)))
+                    ptsd::interfaces::Interface::web(navigator, Screen::web(Pages::new(pages)))
                 },
-                false if IS_MOBILE => {
+                false if cfg!(any(target_os = "ios", target_os = "android")) => {
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::mobile(theme, roots)) as Box<dyn PTSDNavigator>);
                     let keyboard = MobileKeyboard::new(ctx, theme);
-                    ptsd::interfaces::Interface::mobile(ctx, navigator, Screen::mobile(Pages::new(pages)), keyboard)
+                    ptsd::interfaces::Interface::mobile(navigator, Screen::mobile(Pages::new(pages)), keyboard)
                 },
                 false => {
                     let navigator = (pages.len() > 1).then_some(Box::new(Navigator::desktop(theme, roots)) as Box<dyn PTSDNavigator>);
-                    ptsd::interfaces::Interface::desktop(ctx, navigator, Screen::desktop(theme, Pages::new(pages)))
+                    ptsd::interfaces::Interface::desktop(navigator, Screen::desktop(theme, Pages::new(pages)))
                 }
             },
-            on_event: Some(on_event),
+            on_event,
         }
     }
 }
@@ -95,7 +87,6 @@ pub struct Page {
     pub bumper: Option<Bumper>,
 }
 
-impl OnEvent for Page {}
 
 impl Page {
     pub fn new(header: Header, content: Content, bumper: Option<Bumper>) -> Self {
@@ -109,6 +100,7 @@ impl Page {
 }
 
 #[derive(Debug, Component, Clone)]
+#[on_dyn_event]
 pub struct Content {
     layout: Stack,
     pub children: Scrollable<ContentChildren>,
@@ -149,8 +141,8 @@ impl Content {
     pub fn children_mut(&mut self) -> &mut Vec<Box<dyn Drawable>> {&mut self.children.1.1}
 }
 
-impl OnEvent for Content {
-    fn on_event(&mut self, ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl Content {
+    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         let routed = if let Some(TextInputEvent::Set(data)) = event.downcast_ref::<TextInputEvent>() {
             Some(data.clone())
         } else if let Some(QRCodeScannedEvent(data)) = event.downcast_ref::<QRCodeScannedEvent>() {
@@ -191,21 +183,20 @@ impl OnEvent for Content {
             let mut total_height = 0.0;
             for c in self.children_mut().iter_mut() {
                 if let Some(input) = c.downcast_mut::<TextInput>() && input.is_focused {
-                    ctx.emit(event::Scrollable::ScrollTo(total_height));
+                    ctx.emit(ptsd::events::Scrollable::ScrollTo(total_height));
                     break;
                 } else {
-                    let size = c.request_size();
-                    total_height += size.0.max_height();
+                    let size = c.size_range();
+                    total_height += size.0.max_height;
                 }
             }
-        } 
+        }
         vec![event]
     }
 }
 
 #[derive(Debug, Component, Clone)]
 pub struct ContentChildren(Column, Vec<Box<dyn Drawable>>);
-impl OnEvent for ContentChildren {}
 impl ContentChildren {
     pub fn new(children: Vec<Box<dyn Drawable>>) -> Self {
         let layout = Column::new(24.0, Offset::Center, Size::Fit, Padding::default(), None);
@@ -224,7 +215,6 @@ pub struct Header {
     pub right: HeaderIcon
 }
 
-impl OnEvent for Header {}
 
 impl Header {
     pub fn home(theme: &Theme, title: &str, icon: Option<(Icons, Box<dyn Callback>)>) -> Self {
@@ -279,7 +269,6 @@ impl Header {
 
 #[derive(Debug, Clone, Component)]
 pub struct MessageHeader(Column, AvatarGroup, ExpandableText);
-impl OnEvent for MessageHeader {}
 impl MessageHeader {
     pub fn new(theme: &Theme, title: String, profiles: Vec<Profile>) -> Self {
         let text = ExpandableText::new(theme, &title, TextSize::H4, TextStyle::Heading, Align::Center, Some(1));
@@ -293,7 +282,6 @@ pub struct HeaderIcon {
     layout: Stack,
     pub icon: Option<GhostIconButton>
 }
-impl OnEvent for HeaderIcon {}
 impl Default for HeaderIcon {fn default() -> Self {Self::none()}}
 
 impl HeaderIcon {
@@ -310,7 +298,6 @@ impl HeaderIcon {
 
 #[derive(Component, Debug, Clone)]
 pub struct Bumper {layout: Stack, background: Rectangle, content: BumperContent}
-impl OnEvent for Bumper {}
 
 impl Bumper {
     pub fn home(theme: &Theme, first: Option<(String, Box<dyn Callback>)>, second: Option<(String, Box<dyn Callback>)>) -> Self {
@@ -323,11 +310,11 @@ impl Bumper {
 
     pub fn stack(
         theme: &Theme,
-        label: Option<&str>, 
-        on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static, 
-        secondary: Option<(String, Box<dyn Callback>)>, 
+        label: Option<&str>,
+        on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static,
+        secondary: Option<(String, Box<dyn Callback>)>,
     ) -> Self {
-        let mut content = drawables![PrimaryButton::new(theme, label.unwrap_or("Continue"), Box::new(on_click))];
+        let mut content = vec![Box::new(PrimaryButton::new(theme, label.unwrap_or("Continue"), Box::new(on_click))) as Box<dyn Drawable>];
         if let Some((l, c)) = secondary { content.push(Box::new(SecondaryButton::large(theme, &l, c))); }
         let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(content) }
@@ -338,7 +325,7 @@ impl Bumper {
             Some(num) => (0..num).for_each(|_| ctx.emit(NavigationEvent::Pop)),
             None => ctx.emit(NavigationEvent::Reset),
         };
-        
+
         let content = SecondaryButton::large(theme, "Done", Box::new(closure));
         let (layout, background) = Self::layout(theme);
         Bumper { layout, background, content: BumperContent::new(vec![Box::new(content)]) }
@@ -367,7 +354,7 @@ impl Bumper {
         let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0.min(375.0), 375.0));
         let height = Size::custom(move |heights: Vec<(f32, f32)>|(heights[1].0, heights[1].1));
         let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
-        
+
         (layout, background)
     }
 
@@ -378,16 +365,15 @@ impl Bumper {
     }
 
     pub fn default(theme: &Theme) -> Self {
-        Self::home(theme, 
-            Some(("Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed....")))), 
-            Some(("No Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed....")))), 
+        Self::home(theme,
+            Some(("Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed....")))),
+            Some(("No Press me".to_string(), Box::new(|_: &mut Context, _: &Theme| println!("Pressed....")))),
         )
     }
 }
 
 #[derive(Debug, Component, Clone)]
 pub struct BumperContent { layout: Row, children: Vec<Box<dyn Drawable>> }
-impl OnEvent for BumperContent {}
 impl BumperContent {
     fn new(children: Vec<Box<dyn Drawable>>) -> Self {
         let padding = if children.is_empty() {Padding::default()} else {Padding(0.0, 16.0, 0.0, 16.0)};
@@ -401,7 +387,11 @@ pub enum AdjustScrollEvent {
     Horizontal(f32),
 }
 
-prism::impl_event_all_children!(AdjustScrollEvent);
+impl prism::events::Event for AdjustScrollEvent {
+    fn pass(&self, _ctx: &mut Context, children: &mut [prism::events::ChildEvent<'_, Self>]) {
+        for child in children { *child.event = Some(self.clone()); }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum InterfaceEvent {
@@ -409,15 +399,20 @@ pub enum InterfaceEvent {
     FocusTextInput(bool)
 }
 
-prism::impl_event_all_children!(InterfaceEvent);
+impl prism::events::Event for InterfaceEvent {
+    fn pass(&self, _ctx: &mut Context, children: &mut [prism::events::ChildEvent<'_, Self>]) {
+        for child in children { *child.event = Some(self.clone()); }
+    }
+}
 
 #[derive(Debug, Component, Clone)]
+#[on_dyn_event]
 pub struct Screen(Stack, Pages, Option<Bin<Stack, Rectangle>>);
 
-impl OnEvent for Screen {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, mut event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl Screen {
+    fn on_event(&mut self, _ctx: &mut Context, mut event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {*v = vec![1];}
-       
+
         if let Some(MobileKeyboardEvent::FullScreen(full)) = event.downcast_ref::<MobileKeyboardEvent>() {
             self.0.3 = if *full { Size::Static(0.0) } else { Size::Fit };
         }

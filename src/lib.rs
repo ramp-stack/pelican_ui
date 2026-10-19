@@ -19,7 +19,7 @@ macro_rules! closure_trait {
             fn clone_box(&self) -> Box<dyn $name>;
         }
 
-        impl<F> $name for F where F: $($signature)+ + Clone + 'static {
+        impl<F: $($signature)+ + Clone + 'static> $name for F {
             fn clone_box(&self) -> Box<dyn $name> { Box::new(self.clone()) }
         }
 
@@ -34,7 +34,8 @@ macro_rules! closure_trait {
         }
     };
 }
-pub(crate) use closure_trait;
+
+use closure_trait;
 
 closure_trait!(Callback, FnMut(&mut Context, &Theme));
 
@@ -62,17 +63,17 @@ impl<T> std::fmt::Debug for Task<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "Task") }
 }
 
-pub(crate) mod base64_bytes {
+mod base64_bytes {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     use serde::{Deserialize, Deserializer, Serializer};
     use std::sync::Arc;
 
-    pub fn serialize<S: Serializer>(bytes: &Arc<[u8]>, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&STANDARD.encode(bytes))
+    pub fn serialize<T: AsRef<[u8]> + ?Sized, S: Serializer>(bytes: &Arc<T>, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&STANDARD.encode(bytes.as_ref().as_ref()))
     }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Arc<[u8]>, D::Error> {
+    pub fn deserialize<'de, D: Deserializer<'de>, T: From<Vec<u8>>>(deserializer: D) -> Result<T, D::Error> {
         let text = String::deserialize(deserializer)?;
-        STANDARD.decode(text).map(Into::into).map_err(serde::de::Error::custom)
+        STANDARD.decode(text).map(T::from).map_err(serde::de::Error::custom)
     }
 }

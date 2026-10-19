@@ -1,8 +1,12 @@
-use prism::event::{OnEvent, Event, TickEvent, Key, KeyboardEvent, KeyboardState};
-use prism::layout::{Stack, Size, Offset, Padding, SizeRequest};
-use prism::display::Opt;
-use prism::drawable::{Drawable, Component, SizedTree, RequestTree, Rect}; 
-use prism::canvas::{self, ShapeType, Shape as CanvasShape, Align, Span, Text as BasicText, Area as CanvasArea, Item as CanvasItem, Instruction};
+use prism::events::{TickEvent, Key, KeyboardEvent, KeyboardState, DynEvent, MouseEvent, MouseState, MouseButton};
+use ptsd::layout::{Stack, Size, Offset, Padding};
+use ptsd::display::Opt;
+use prism::drawable::{
+    Drawable, Component, LayoutTree, RangeTree, SizeRange, Rect, Instruction, Item,
+    Color as CanvasColor,
+};
+use prism::drawable::text::{Align, Span, Text as BasicText};
+use prism::drawable::shape::{Shape as CanvasShape, Variant as ShapeType};
 use prism::Context;
 
 use std::time::{Instant, Duration};
@@ -15,6 +19,7 @@ use ptsd::{theme, FontStyle};
 pub use ptsd::TextSize;
 
 #[derive(Component, Debug, Clone)]
+#[on_dyn_event]
 pub struct Text {
     layout: Stack,
     inner: BasicText,
@@ -26,8 +31,8 @@ pub struct Text {
     #[skip] pub kerning: f32,
 }
 
-impl OnEvent for Text {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl Text {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             self.inner.align = self.align;
             self.inner.max_lines = self.max_lines;
@@ -45,12 +50,11 @@ impl Text {
     pub fn new(theme: &Theme, text: &str, text_size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         let (color, font) = style.get(theme);
         let size = theme.fonts().get_size(text_size);
-        let inner = BasicText{
-            spans: vec![Span::new(text.to_string(), size, Some(size*1.25), font, color.into(), 0.0)], 
-            align,
-            max_lines,
-            cursor: None,
-            width: None,
+        let inner = BasicText {
+            spans: vec![
+                Span::new(text.to_string(), size, Some(size*1.25), font.into(), color.into(), 0.0)
+            ],
+            width: None, align, cursor: None, max_lines,
         };
         Text {layout: Stack::default(), inner, spans: vec![text.to_string()], size: text_size, style, align, max_lines, kerning: 0.0}
     }
@@ -73,7 +77,7 @@ pub enum TextStyle {
 }
 
 impl TextStyle {
-    pub fn get(&self, theme: &Theme) -> (Color, canvas::Font) {
+    pub fn get(&self, theme: &Theme) -> (Color, prism::drawable::text::Font) {
         let heading = theme.fonts().get_font(FontStyle::Heading).unwrap();
         let text = theme.fonts().get_font(FontStyle::Text).unwrap();
         let label = theme.fonts().get_font(FontStyle::Label).unwrap();
@@ -103,30 +107,31 @@ impl ExpandableText {
 }
 
 impl Drawable for ExpandableText {
-    fn request_size(&self) -> RequestTree {
+    fn size_range(&self) -> RangeTree {
         let size = self.0.inner.size();
-        RequestTree(SizeRequest::new(0.0, size.1, f32::MAX, size.1), vec![])
+        RangeTree(SizeRange {
+            min_width: 0.0, max_width: f32::MAX, min_height: size.1, max_height: size.1,
+        }, vec![])
     }
 
-    fn draw(&self, sized: &SizedTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
-        let text = BasicText {spans: self.0.inner.spans.clone(), width: Some(sized.0.0), align: self.0.inner.align, cursor: self.0.inner.cursor, max_lines: self.0.inner.max_lines};
-        vec![Instruction(CanvasArea{offset, bounds: Some(bound)}, CanvasItem::Text(text))]
+    fn layout(&mut self, size: (f32, f32), request: &RangeTree) -> LayoutTree {
+        let size = request.0.clamp(size);
+        self.0.inner.width = Some(size.0);
+        LayoutTree(size, vec![])
     }
 
-    fn event(&mut self, ctx: &mut Context, sized: &SizedTree, event: Box<dyn Event>) {
-        self.0.inner.width = Some(sized.0.0);
+    fn draw(&self, _sized: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
+        vec![Instruction {offset, bound, item: Item::Text(self.0.inner.clone())}]
+    }
+
+    fn event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) {
         self.0.event(ctx, sized, event)
     }
 }
 
-#[derive(Component, Clone)]
+#[derive(Component, Clone, Debug)]
+#[on_dyn_event]
 pub struct TextEditor(Stack, pub ExpandableText, TextCursor, Magnifier, #[skip] Scrub, #[skip] FrameInput);
-impl std::fmt::Debug for TextEditor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("TextEditor").field(&self.0).field(&self.1).field(&self.2).finish()
-    }
-}
-
 impl TextEditor {
     pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
         let mut built = ExpandableText::new(theme, text, size, style, align, None);
@@ -192,7 +197,7 @@ impl TextEditor {
         let distance = self.4.moved.0.hypot(self.4.moved.1);
 
         if !self.4.active {
-            if prism::IS_MOBILE {
+            if cfg!(any(target_os = "ios", target_os = "android")) {
                 if distance > 10.0 { self.4 = Scrub::default(); }
                 return;
             }
@@ -236,18 +241,8 @@ impl TextEditor {
     }
 }
 
-fn clamp_to_boundary(text: &str, index: usize) -> usize {
-    let mut index = index.min(text.len());
-    while !text.is_char_boundary(index) { index -= 1; }
-    index
-}
-
-fn previous_grapheme(text: &str, index: usize) -> Option<usize> {
-    text[..index].grapheme_indices(true).next_back().map(|(start, _)| start)
-}
-
-impl OnEvent for TextEditor {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
+impl TextEditor {
+    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if event.downcast_ref::<TickEvent>().is_some() {
             self.5 = FrameInput::default();
 
@@ -257,6 +252,18 @@ impl OnEvent for TextEditor {
                 self.place_cursor(pointer);
             }
             self.sync();
+        } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
+            match mouse.state {
+                MouseState::Pressed(MouseButton::Left) => {
+                    if let Some(position) = mouse.position {self.pointer_pressed(position);}
+                }
+                MouseState::Moved => self.pointer_moved(mouse.position, None),
+                MouseState::Scroll(x, y) if cfg!(any(target_os = "ios", target_os = "android")) => {
+                    self.pointer_moved(mouse.position, Some((-x, -y)));
+                }
+                MouseState::Released(MouseButton::Left) => self.pointer_released(),
+                _ => {},
+            }
         } else if let Some(KeyboardEvent{state: KeyboardState::Pressed | KeyboardState::Repeated, key, ..}) = event.downcast_ref() {
             match key {
                 Key::Character(c) => self.insert(c),
@@ -274,14 +281,13 @@ impl OnEvent for TextEditor {
 #[derive(Component, Debug, Clone)]
 pub struct TextCursor(Stack, Opt<Rectangle>);
 
-impl OnEvent for TextCursor {}
 
 impl TextCursor {
     pub fn new(theme: &Theme, style: TextStyle, size: TextSize) -> Self {
         let (color, _) = style.get(theme);
         let size = theme.fonts().get_size(size);
         TextCursor(
-            Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()), 
+            Stack(Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size), Padding::default()),
             Opt::new(Rectangle::new(color, 0.0, None), true)
         )
     }
@@ -290,19 +296,13 @@ impl TextCursor {
     pub fn y_offset(&mut self) -> &mut Offset { &mut self.0.1 }
 }
 
-#[derive(Debug, Clone, Default)]
-struct Scrub { pressed_at: Option<Instant>, pointer: (f32, f32), moved: (f32, f32), active: bool }
-
-#[derive(Debug, Clone, Copy, Default)]
-struct FrameInput { pressed: bool, released: bool }
-
 #[derive(Debug, Clone)]
 pub struct Magnifier {
     text: BasicText,
     active: bool,
-    background: canvas::Color,
-    outline: canvas::Color,
-    cursor: canvas::Color,
+    background: CanvasColor,
+    outline: CanvasColor,
+    cursor: CanvasColor,
 }
 
 impl Magnifier {
@@ -319,12 +319,14 @@ impl Magnifier {
 }
 
 impl Drawable for Magnifier {
-    fn request_size(&self) -> RequestTree {
+    fn size_range(&self) -> RangeTree {
         let h = self.text.size().1;
-        RequestTree(SizeRequest::new(0.0, h, f32::MAX, h), vec![])
+        RangeTree(SizeRange {
+            min_width: 0.0, max_width: f32::MAX, min_height: h, max_height: h,
+        }, vec![])
     }
 
-    fn draw(&self, _sized: &SizedTree, offset: (f32, f32), _bound: Rect) -> Vec<Instruction> {
+    fn draw(&self, _sized: &LayoutTree, offset: (f32, f32), _bound: Rect) -> Vec<Instruction> {
         if !self.active || self.text.cursor.is_none() { return vec![]; }
         let Some(span) = self.text.spans.first() else { return vec![] };
 
@@ -341,21 +343,40 @@ impl Drawable for Magnifier {
         zoomed.cursor = None;
         zoomed.scale(1.5);
 
-        let rect = |x: f32, y: f32, w: f32, h: f32, stroke: f32, radius: f32, color: canvas::Color| Instruction(
-            CanvasArea { offset: (x, y), bounds: None },
-            CanvasItem::Shape(CanvasShape { shape: ShapeType::RoundedRectangle(stroke, (w, h), 0.0, radius), color }),
-        );
+        let rect = |x: f32, y: f32, w: f32, h: f32, stroke: f32, radius: f32, color: CanvasColor| Instruction {
+            offset: (x, y), bound: (x, y, w, h),
+            item: Item::Shape(CanvasShape {
+                stroke, width: w, height: h, angle: 0.0, color,
+                variant: ShapeType::RoundedRectangle(radius),
+            }),
+        };
 
         let band = (lens.0, center.1 - line_h * 1.5 / 2.0, w, line_h * 1.5);
 
         vec![
             rect(lens.0, lens.1, w, h, 0.0, 8.0, self.background),
-            Instruction(
-                CanvasArea { offset: (cursor_x - cx * 1.5, center.1 - focus_y * 1.5), bounds: Some(band) },
-                CanvasItem::Text(zoomed),
-            ),
+            Instruction {
+                offset: (cursor_x - cx * 1.5, center.1 - focus_y * 1.5), bound: band,
+                item: Item::Text(zoomed),
+            },
             rect(cursor_x - 1.0, center.1 - line_h * 1.5 / 2.0, 2.0, line_h * 1.5, 0.0, 0.0, self.cursor),
             rect(lens.0, lens.1, w, h, 1.0, 8.0, self.outline),
         ]
     }
+}
+
+#[derive(Debug, Clone, Default)]
+struct Scrub { pressed_at: Option<Instant>, pointer: (f32, f32), moved: (f32, f32), active: bool }
+
+#[derive(Debug, Clone, Copy, Default)]
+struct FrameInput { pressed: bool, released: bool }
+
+fn clamp_to_boundary(text: &str, index: usize) -> usize {
+    let mut index = index.min(text.len());
+    while !text.is_char_boundary(index) { index -= 1; }
+    index
+}
+
+fn previous_grapheme(text: &str, index: usize) -> Option<usize> {
+    text[..index].grapheme_indices(true).next_back().map(|(start, _)| start)
 }
