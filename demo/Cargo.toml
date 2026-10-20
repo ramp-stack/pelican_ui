@@ -6,6 +6,6 @@ edition = "2024"
 [dependencies]
 image = "0.25.9"
 ramp = {package = "ramp2", version = "1.0.0"}
-pelican_ui = {package="pelican_ui", path="../"} #version="2.1.1"}
+pelican_ui = {version = "2.2.0", git = "https://github.com/ramp-stack/pelican_ui"}
 uuid = "1.23.0"
 include_dir = "0.7.4"
