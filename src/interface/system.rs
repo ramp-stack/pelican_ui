@@ -1,9 +1,10 @@
-use futures::future::Either;
-use prism::events::{ChangeSource, DynEvent, MouseEvent, MouseState, MouseButton};
+use prism::events::{DynEvent, ListenFuture, MouseEvent, MouseState, MouseButton};
 use prism::drawable::{Drawable, Component, Instruction, LayoutTree, RangeTree, Rect};
 use prism::Context;
 use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding, ScrollAnchor};
-use ptsd::display::Opt;
+use ptsd::display::{Bin, Opt};
+
+use std::any::Any;
 
 use crate::theme::Color;
 use crate::components::text::Text;
@@ -65,44 +66,44 @@ impl<'a> GridPlace<'a> {
     }
 }
 
-#[derive(Component, Debug, Clone)]
-#[on_dyn_event]
-#[after_layout]
+#[derive(Debug, Clone)]
 struct GrowingGrid {
-    layout: Stack,
-    scroll: Clip<GridScroll>,
-    #[skip]
+    scroll: Bin<Stack, Clip<GridScroll>>,
     built: usize,
-    #[skip]
     columns: usize,
-    #[skip]
     side: f32,
-    #[skip]
     pressed: Option<bool>,
-    #[skip]
     view: Option<GridView>,
-    #[skip]
     dirty: bool,
 }
 
 impl GrowingGrid {
     fn new(height: f32, columns: usize) -> Self {
         Self {
-            layout: Stack(
+            scroll: Bin(Stack(
                 Offset::Start, Offset::Start, Size::Fill, Size::Static(height), Padding::default(),
-            ), scroll: Clip(GridScroll::new()), built: 0, columns, side: 0.0, pressed: None,
+            ), Clip(GridScroll::new())), built: 0, columns, side: 0.0, pressed: None,
             view: None, dirty: false,
         }
     }
 
+    async fn next(&mut self) -> (Vec<usize>, Box<dyn Any>) {
+        if let Some(view) = &self.view && std::mem::take(&mut self.dirty) {
+            return (Vec::new(), Box::new(view.clone()))
+        }
+        let (mut path, update) = Drawable::listen(&mut self.scroll).await;
+        path.push(0);
+        (path, update)
+    }
+
     fn set_cells(&mut self, side: f32) { self.side = side; }
 
-    fn grid(&mut self) -> &mut PanelGrid { &mut self.scroll.0.1 }
+    fn grid(&mut self) -> &mut PanelGrid { &mut self.scroll.1.0.1 }
 
     fn built(&self) -> usize { self.built }
 
     fn set_height(&mut self, height: Size) {
-        self.layout.3 = height;
+        self.scroll.0.3 = height;
         self.view = None;
         self.invalidate();
     }
@@ -110,14 +111,14 @@ impl GrowingGrid {
     fn invalidate(&mut self) { self.dirty = true; }
 
     fn clear(&mut self) {
-        self.scroll = Clip(GridScroll::new());
+        self.scroll.1 = Clip(GridScroll::new());
         self.built = 0;
         self.view = None;
         self.invalidate();
     }
 
     fn empty(&mut self) {
-        self.scroll.0.1 = PanelGrid::empty(12.0);
+        self.scroll.1.0.1 = PanelGrid::empty(12.0);
         self.built = 0;
         self.view = None;
         self.invalidate();
@@ -126,7 +127,7 @@ impl GrowingGrid {
     fn append(&mut self, mut cells: Vec<PanelCell>) {
         let columns = self.columns;
         let partial = self.built % columns;
-        if partial != 0 && let Some(row) = self.scroll.0.1.1.pop() {
+        if partial != 0 && let Some(row) = self.scroll.1.0.1.1.pop() {
             let mut kept: Vec<PanelCell> = row.1.into_iter().take(partial).collect();
             kept.append(&mut cells);
             cells = kept;
@@ -136,20 +137,30 @@ impl GrowingGrid {
         for chunk in cells.chunks(columns) {
             let mut row = chunk.to_vec();
             while row.len() < columns { row.push(PanelCell::blank(PanelCell::square(self.side))); }
-            self.scroll.0.1.push_row(row, 12.0);
+            self.scroll.1.0.1.push_row(row, 12.0);
         }
         // Wait for fresh layout measurements before requesting another batch.
         self.view = None;
         self.invalidate();
     }
+}
 
-    fn after_layout(&mut self, sized: &mut LayoutTree) {
+impl Drawable for GrowingGrid {
+    fn listen(&mut self) -> ListenFuture<'_> {Drawable::listen(&mut self.scroll)}
+    fn update(&mut self, ctx: &mut Context, path: Vec<usize>, update: Box<dyn Any>) {
+        Drawable::update(&mut self.scroll, ctx, path, update);
+    }
+
+    fn size_range(&self) -> RangeTree { self.scroll.size_range() }
+
+    fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
+        let sized = Drawable::layout(&mut self.scroll, size, range);
         if sized.0.0 <= 100.0 {
             self.view = None;
-            return;
+            return sized;
         }
-        let Some((_, scroll)) = sized.1.first() else { return };
-        let Some((offset, grid)) = scroll.1.first() else { return };
+        let Some((_, scroll)) = sized.1.first() else { return sized };
+        let Some((offset, grid)) = scroll.1.first() else { return sized };
         let (scrolled, showing) = (-offset.1, scroll.0.1);
         let row = self.side + 12.0;
         let first = ((scrolled - 12.0 - self.side) / row).floor() + 1.0;
@@ -162,36 +173,27 @@ impl GrowingGrid {
             self.view = Some(view);
             self.invalidate();
         }
+        sized
     }
-}
 
-impl ChangeSource for GrowingGrid {
-    type Update = Either<GridView, prism::events::Change>;
-    async fn next(&mut self) -> Option<Self::Update> {
-        if self.view.is_some() && std::mem::take(&mut self.dirty) {
-            return self.view.clone().map(Either::Left);
-        }
-        let change = self.scroll.changed().await.map::<Self>(|this| &mut this.scroll);
-        Some(Either::Right(change))
+    fn draw(&self, sized: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
+        self.scroll.draw(sized, offset, bound)
     }
-}
 
-impl GrowingGrid {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
+    fn event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) {
         if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
             match mouse.state {
                 MouseState::Pressed(MouseButton::Left) => {
                     self.pressed = Some(mouse.position.is_some());
-                    if mouse.position.is_some() { ctx.claim_pointer(); }
                 }
                 MouseState::Released(_) => self.pressed = None,
                 MouseState::Scroll(_, dy) if self.pressed.unwrap_or(mouse.position.is_some()) => {
-                    self.scroll.0.0.adjust_scroll(dy);
+                    self.scroll.1.0.0.adjust_scroll(dy);
                 }
                 _ => {}
             }
         }
-        vec![event]
+        self.scroll.event(ctx, sized, event);
     }
 }
 
@@ -199,10 +201,9 @@ impl GrowingGrid {
 struct Clip<D: Drawable + Clone>(D);
 
 impl<D: Drawable + Clone + 'static> Drawable for Clip<D> {
-    fn changed(&mut self) -> prism::events::ChangeFuture<'_> {
-        Box::pin(async move {
-            Drawable::changed(&mut self.0).await.map::<Self>(|this| &mut this.0)
-        })
+    fn listen(&mut self) -> ListenFuture<'_> {Drawable::listen(&mut self.0)}
+    fn update(&mut self, ctx: &mut Context, path: Vec<usize>, update: Box<dyn Any>) {
+        Drawable::update(&mut self.0, ctx, path, update);
     }
     fn size_range(&self) -> RangeTree { self.0.size_range() }
 
@@ -247,10 +248,7 @@ struct PanelTouch {
 }
 
 impl PanelTouch {
-    fn track(
-        ctx: &mut Context, touch: &mut Option<PanelTouch>, grid: &mut PanelGrid,
-        place: Option<GridPlace>, mouse: &MouseEvent,
-    ) -> Option<TouchEnd> {
+    fn track(touch: &mut Option<PanelTouch>, grid: &mut PanelGrid, place: Option<GridPlace>, mouse: &MouseEvent) -> Option<TouchEnd> {
         let mut end = None;
         match mouse.state {
             MouseState::Pressed(MouseButton::Left) => {
@@ -268,10 +266,7 @@ impl PanelTouch {
                             }).filter(|c| grid.cell(*c).is_some_and(|cell| cell.3.is_some()));
                         PanelTouch { cell, last: p, travel: (0.0, 0.0) }
                     });
-                if let Some(t) = *touch {
-                    ctx.claim_pointer();
-                    grid.highlight(t.cell, true);
-                }
+                if let Some(t) = *touch {grid.highlight(t.cell, true);}
             }
             MouseState::Scroll(dx, dy) => {
                 if let Some(t) = touch {

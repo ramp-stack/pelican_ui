@@ -6,6 +6,7 @@ use prism::drawable::Component;
 use ptsd::layout::{Padding, Size, Offset, Stack};
 use ptsd::display::Bin;
 use prism::Context;
+use prism::hardware::Image;
 
 use image::buffer::ConvertBuffer;
 use qrcode::{QrCode, EcLevel};
@@ -23,13 +24,10 @@ pub struct QRCode(
     match self.4.take() {Some(data) => data, None => std::future::pending().await}
 })]
 impl OnChange<String> for QRCode {
-    fn on_change(&mut self, ctx: &mut Context, data: String) {
+    fn on_change(&mut self, _ctx: &mut Context, data: String) {
         match Self::generate(&data) {
-            Some(code) => {
-                let image: RgbaImage = code.convert();
-                self.2.1 = Box::new(MaskedImage(
-                    ctx.hardware.image_from_rgba(image), Variant::RoundedRectangle(8.0),
-                ));
+            Some(image) => {
+                self.2.1 = Box::new(MaskedImage(image, Variant::RoundedRectangle(8.0)));
             }
             None => {
                 self.2.1 = Box::new(MaskedImage(self.5.clone(), Variant::RoundedRectangle(8.0)));
@@ -64,7 +62,7 @@ impl QRCode {
         Self::new(theme, "https://ramp.com/design_systems/pelican_ui")
     }
 
-    pub fn generate(data: &str) -> Option<RgbImage> {
+    pub fn generate(data: &str) -> Option<Image> {
         let scale: usize = 60;
         let fg = [0u8, 0, 0];
         let bg = [255u8, 255, 255];
@@ -125,7 +123,8 @@ impl QRCode {
             Self::draw_finder(&mut buf, img_size, fx * scale, fy * scale, scale, fg, bg);
         }
 
-        RgbImage::from_raw(img_size as u32, img_size as u32, buf)
+        let image: RgbaImage = RgbImage::from_raw(img_size as u32, img_size as u32, buf)?.convert();
+        Some(Image::from_rgba(image.dimensions(), image.into_raw()))
     }
 
     fn blit_dot(buf: &mut [u8], img_size: usize, px: usize, py: usize, dot_rows: &[Vec<(usize, [u8; 3])>]) {

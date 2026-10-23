@@ -1,10 +1,12 @@
 use prism::drawable::{Drawable, Component, RangeTree, LayoutTree, Rect, Instruction};
 use prism::drawable::shape::Variant;
-use prism::events::{DynEvent, OnChange, on_change, ChangeSource, MouseEvent};
+use prism::events::{DynEvent, ChangeHandler, ListenFuture, OnChange, on_change, MouseEvent};
 use prism::hardware::{Image, Picked};
 use prism::air::Instance;
 use prism::Context;
 use ptsd::layout::{Stack, Size};
+
+use std::any::Any;
 
 use crate::theme::{Theme, Color, Icons};
 use crate::Task;
@@ -21,10 +23,9 @@ impl StickerPanel {
 }
 
 impl Drawable for StickerPanel {
-    fn changed(&mut self) -> prism::events::ChangeFuture<'_> {
-        Box::pin(async move {
-            Drawable::changed(&mut self.0).await.map::<Self>(|this| &mut this.0)
-        })
+    fn listen(&mut self) -> ListenFuture<'_> {Drawable::listen(&mut self.0)}
+    fn update(&mut self, ctx: &mut Context, path: Vec<usize>, update: Box<dyn Any>) {
+        Drawable::update(&mut self.0, ctx, path, update);
     }
     fn size_range(&self) -> RangeTree {self.0.size_range()}
     fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
@@ -39,6 +40,7 @@ impl Drawable for StickerPanel {
 }
 
 #[derive(Component, Clone)]
+#[listen]
 struct StickerPanelContent {
     layout: Stack,
     grid: GrowingGrid,
@@ -68,17 +70,41 @@ impl StickerPanelContent {
 }
 
 impl StickerPanelContent {
+    fn listen(&mut self) -> ListenFuture<'_> {
+        let sources = [
+            ("pack", &mut self.pack as &mut dyn Any),
+            ("picking", &mut self.picking as &mut dyn Any),
+            ("making", &mut self.making as &mut dyn Any),
+        ];
+        let mut listeners: Vec<ListenFuture<'_>> = vec![Box::pin(self.grid.next())];
+        listeners.extend(sources.into_iter().map(|(field, source)| {
+            let handler = ChangeHandler::find::<Self>(field).unwrap();
+            Box::pin(async move {(Vec::new(), (handler.listen)(source).await)}) as ListenFuture<'_>
+        }));
+        Box::pin(ChangeHandler::select(listeners))
+    }
+
     fn refresh(&mut self) {
         self.stickers = self.pack.as_ref().unwrap().pending().stickers.clone();
         self.touch = None;
         self.grid.empty();
     }
 }
-#[on_change(ChangeSource::changed(&mut self.pack))]
+#[on_change(async {
+    match &mut self.pack {
+        Some(source) => source.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<prism::air::Update<()>> for StickerPanelContent {
     fn on_change(&mut self, _ctx: &mut Context, _: prism::air::Update<()>) {self.refresh();}
 }
-#[on_change(ChangeSource::changed(&mut self.picking))]
+#[on_change(async {
+    match &mut self.picking {
+        Some(source) => source.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<prism::hardware::PickResult<Image>> for StickerPanelContent {
     fn on_change(&mut self, _ctx: &mut Context, result: prism::hardware::PickResult<Image>) {
         self.picking = None;
@@ -87,7 +113,10 @@ impl OnChange<prism::hardware::PickResult<Image>> for StickerPanelContent {
         }
     }
 }
-#[on_change(ChangeSource::changed(&mut self.making))]
+#[on_change(async {
+    let Some(task) = &mut self.making else {return std::future::pending().await};
+    match task.next().await {Some(result) => result, None => std::future::pending().await}
+})]
 impl OnChange<Option<Sticker>> for StickerPanelContent {
     fn on_change(&mut self, ctx: &mut Context, made: Option<Sticker>) {
         self.making = None;
@@ -98,13 +127,22 @@ impl OnChange<Option<Sticker>> for StickerPanelContent {
     }
 }
 
-#[on_change(ChangeSource::changed(&mut self.grid))]
-impl OnChange<futures::future::Either<GridView, prism::events::Change>> for StickerPanelContent {
-    fn on_change(&mut self, ctx: &mut Context, update: futures::future::Either<GridView, prism::events::Change>) {
-        let view = match update {
-            futures::future::Either::Left(view) => view,
-            futures::future::Either::Right(change) => {change.apply(&mut self.grid, ctx); return}
-        };
+impl StickerPanelContent {
+    fn update(&mut self, ctx: &mut Context, mut path: Vec<usize>, update: Box<dyn Any>) {
+        match path.pop().unwrap() {
+            0 if path.is_empty() => {},
+            0 => {
+                assert_eq!(path.pop(), Some(0));
+                Drawable::update(&mut self.grid, ctx, path, update);
+                return;
+            }
+            index => {
+                let field = ["pack", "picking", "making"][index - 1];
+                (ChangeHandler::find::<Self>(field).unwrap().call)(self, ctx, update);
+                return;
+            }
+        }
+        let view = *update.downcast::<GridView>().unwrap();
         if self.pack.is_none() {
             self.pack = Some(StickerPack::mine(ctx));
             self.refresh();
@@ -133,8 +171,7 @@ impl OnChange<futures::future::Either<GridView, prism::events::Change>> for Stic
                     n => (CellFace::Sticker {
                         layout: PanelCell::square(side),
                         image: MaskedImage(
-                            ctx.hardware.image_from_rgba(self.stickers[n - 1].image()),
-                            Variant::RoundedRectangle(12.0),
+                            self.stickers[n - 1].image(), Variant::RoundedRectangle(12.0),
                         ),
                         outline: PanelCell::outline(12.0),
                     }, CellAction::Sticker(self.stickers[n - 1].clone())),
@@ -149,7 +186,9 @@ impl OnChange<futures::future::Either<GridView, prism::events::Change>> for Stic
 impl StickerPanelContent {
     fn on_event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
-            match PanelTouch::track(ctx, &mut self.touch, self.grid.grid(), GridPlace::find(sized, &[0, 0, 0]), mouse) {
+            match PanelTouch::track(
+                &mut self.touch, self.grid.grid(), GridPlace::find(sized, &[0, 0, 0]), mouse,
+            ) {
                 Some(TouchEnd::Tap(CellAction::Sticker(sticker))) => {
                     ctx.hardware.trigger_haptic();
                     ctx.emit(SendEvent::Sticker(sticker));

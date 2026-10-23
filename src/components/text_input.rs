@@ -1,4 +1,4 @@
-use prism::events::{Event, DynEvent, OnEvent, on_event, Change, ChangeFuture, self as event};
+use prism::events::{Event, DynEvent, OnEvent, on_event, ChangeHandler, ListenFuture, self as event};
 use prism::drawable::text::{Align, Text as BasicText};
 use prism::drawable::{Component, Drawable};
 use prism::Context;
@@ -8,6 +8,7 @@ use ptsd::interactions;
 use ptsd::Validate;
 use uuid::Uuid;
 
+use std::any::Any;
 use std::ops::{Deref, DerefMut};
 
 use crate::theme::{Theme, Color, Icons};
@@ -143,7 +144,7 @@ type SubmitButton = (Icons, Box<dyn SubmitFn>, Box<dyn ValidFn>);
 
 #[derive(Component, Clone)]
 #[on_dyn_event]
-#[changed]
+#[listen]
 struct _InputContent {
     layout: Row,
     default: Opt<Bin<Stack, TextEditor>>,
@@ -262,27 +263,33 @@ impl _InputContent {
 }
 
 impl _InputContent {
-    fn changed(&mut self) -> ChangeFuture<'_> {
-        let editor = self.default.inner().inner();
-        let mut changes: Vec<ChangeFuture<'_>> = vec![Box::pin(async move {
-            Drawable::changed(editor).await.map::<Self>(|this| this.default.inner().inner())
-        })];
-        if let Some(button) = &mut self.button {
-            changes.push(Box::pin(async move {
-                Drawable::changed(button).await.map::<Self>(|this| this.button.as_mut().unwrap())
-            }));
-        }
+    fn listen(&mut self) -> ListenFuture<'_> {
         let initial = &mut self.initial;
         let valid = &mut self.is_valid;
-        changes.push(Box::pin(async move {
-            if !std::mem::take(initial) {
-                match valid {
-                    Some(valid) => if valid.change().await.is_none() {std::future::pending::<()>().await;},
-                    None => std::future::pending().await,
+        Box::pin(ChangeHandler::select(vec![
+            Drawable::listen(self.default.inner().inner()),
+            match &mut self.button {
+                Some(button) => Drawable::listen(button), None => Box::pin(std::future::pending()),
+            },
+            Box::pin(async move {
+                if !std::mem::take(initial) {
+                    match valid {
+                        Some(valid) => if valid.change().await.is_none() {
+                            std::future::pending::<()>().await;
+                        },
+                        None => std::future::pending().await,
+                    }
                 }
-            }
-            Change::new(|drawable, ctx| drawable.downcast_mut::<Self>().unwrap().refresh(ctx))
-        }));
-        Box::pin(Change::select(changes))
+                (Vec::new(), Box::new(()) as Box<dyn Any>)
+            }),
+        ]))
+    }
+    fn update(&mut self, ctx: &mut Context, mut path: Vec<usize>, update: Box<dyn Any>) {
+        match path.pop().unwrap() {
+            0 => Drawable::update(self.default.inner().inner(), ctx, path, update),
+            1 => Drawable::update(self.button.as_mut().unwrap(), ctx, path, update),
+            2 => self.refresh(ctx),
+            _ => unreachable!(),
+        }
     }
 }

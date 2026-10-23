@@ -4,7 +4,6 @@ use prism::events::Event;
 use prism::drawable::Component;
 use prism::drawable::text::{Align, Text as CanvasText, Font};
 use prism::Context;
-use prism::hardware::Hardware;
 use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding};
 use ptsd::display::Bin;
 use ptsd::utils::Timestamp;
@@ -89,7 +88,7 @@ impl MessageGroups {
                     false => Room::Direct(direction),
                 };
 
-                new.push(MessageGroup::new(&ctx.hardware, theme, collection.clone(), t, a, room_type));
+                new.push(MessageGroup::new(theme, collection.clone(), t, a, room_type));
 
                 collection.clear();
             }
@@ -105,7 +104,7 @@ impl MessageGroups {
             let t = collection.last().unwrap().timestamp.clone();
             let direction = if a.is_me(ctx) { Direction::Sent } else { Direction::Received };
 
-            new.push(MessageGroup::new(&ctx.hardware, theme, collection.clone(), t, a, match is_room {
+            new.push(MessageGroup::new(theme, collection.clone(), t, a, match is_room {
                 true => Room::Room,
                 false if is_group => Room::Group(direction),
                 false => Room::Direct(direction),
@@ -119,8 +118,8 @@ impl MessageGroups {
 #[derive(Debug, Clone, Component)]
 pub struct MessageGroup(Row, Option<Bin<Stack, Avatar>>, _MessageGroup);
 impl MessageGroup {
-    pub fn new(hardware: &Hardware, theme: &Theme, messages: Vec<Message>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
-        let avatar = Avatar::new(hardware, theme, profile.pfp.clone(), None, false, AvatarSize::Xs, None);
+    pub fn new(theme: &Theme, messages: Vec<Message>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
+        let avatar = Avatar::new(theme, profile.pfp.clone(), None, false, AvatarSize::Xs, None);
 
         let (layout, avatar) = match room {
             Room::Room => (Row::start(12.0), Some(Bin(Stack::default(), avatar))),
@@ -135,7 +134,7 @@ impl MessageGroup {
         };
 
         MessageGroup(
-            layout, avatar, _MessageGroup::new(hardware, theme, messages, timestamp, profile, room),
+            layout, avatar, _MessageGroup::new(theme, messages, timestamp, profile, room),
         )
     }
 }
@@ -148,9 +147,9 @@ pub enum _MessageGroup {
 }
 
 impl _MessageGroup {
-    pub fn new(hardware: &Hardware, theme: &Theme, messages: Vec<Message>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
+    pub fn new(theme: &Theme, messages: Vec<Message>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
         let info = MessageInfo::new(theme, profile.username, timestamp, room);
-        let msg = _TextMessages::new(hardware, theme, messages, room);
+        let msg = _TextMessages::new(theme, messages, room);
         match room {
             Room::Room => _MessageGroup::Room {layout: Column::start(8.0), msg, info},
             Room::Direct(Direction::Sent) => _MessageGroup::Direct {layout: Column::end(8.0), msg, info},
@@ -199,7 +198,7 @@ impl MessageInfo {
 #[derive(Debug, Clone, Component)]
 pub struct _TextMessages(Column, Vec<interactions::Button>);
 impl _TextMessages {
-    pub fn new(hardware: &Hardware, theme: &Theme, messages: Vec<Message>, room: Room) -> Self {
+    pub fn new(theme: &Theme, messages: Vec<Message>, room: Room) -> Self {
         let layout = match room {
             Room::Group(Direction::Sent) | Room::Direct(Direction::Sent) => Column::end(8.0),
             Room::Group(Direction::Received) | Room::Direct(Direction::Received) => Column::start(8.0),
@@ -207,7 +206,7 @@ impl _TextMessages {
         };
 
         let bubbles = messages.into_iter().map(|message| {
-            let bubble = _TextMessage::new(hardware, theme, &message.body, room);
+            let bubble = _TextMessage::new(theme, &message.body, room);
             let theme = theme.clone();
             let mut on_click = message.on_click;
             let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
@@ -238,7 +237,7 @@ pub enum _TextMessage {
 }
 
 impl _TextMessage {
-    pub fn new(hardware: &Hardware, theme: &Theme, message: &MessageContent, style: Room) -> Self {
+    pub fn new(theme: &Theme, message: &MessageContent, style: Room) -> Self {
         match message {
             MessageContent::Text(message) => {
                 if message.graphemes(true).count() == 1 && Font::is_emoji_grapheme(message) {
@@ -281,16 +280,16 @@ impl _TextMessage {
                 }
             },
             MessageContent::Sticker(sticker) => _TextMessage::Sticker {
-                layout: Stack::default(), sticker: StickerView::message(hardware, sticker),
+                layout: Stack::default(), sticker: StickerView::message(sticker),
             },
             MessageContent::Gif(gif) => _TextMessage::Gif {
                 layout: Stack::default(), gif: GifPlayer::message(theme, gif),
             },
             MessageContent::Photo(photo) => _TextMessage::Photo {
-                layout: Stack::default(), photo: PhotoView::message(hardware, photo),
+                layout: Stack::default(), photo: PhotoView::message(photo),
             },
             MessageContent::Video(video) => _TextMessage::Video {
-                layout: Stack::default(), video: VideoView::message(hardware, theme, video),
+                layout: Stack::default(), video: VideoView::message(theme, video),
             },
         }
     }

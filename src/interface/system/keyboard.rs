@@ -1,4 +1,4 @@
-use prism::events::{DynEvent, OnChange, on_change, ChangeSource, Change, KeyboardState, KeyboardEvent};
+use prism::events::{DynEvent, ListenFuture, KeyboardState, KeyboardEvent};
 use prism::drawable::text::Align;
 use prism::{Context, Window};
 use ptsd::emitters;
@@ -9,6 +9,8 @@ use ptsd::display::{Bin, Enum, Dismissible, DismissEdge};
 use ptsd::interfaces::ShowKeyboard;
 use ptsd::interactions;
 
+use std::any::Any;
+
 use crate::theme::{Theme, Color, Icons};
 use crate::components::text::{Text, TextStyle, TextSize};
 use crate::components::{Rectangle, Icon};
@@ -17,6 +19,7 @@ use super::key::InputKey;
 
 #[derive(Component, Debug, Clone)]
 #[on_dyn_event]
+#[listen]
 pub struct CustomKeyboard {
     layout: Stack,
     panel: Dismissible<KeyboardBody>,
@@ -65,14 +68,14 @@ impl CustomKeyboard {
             || event.downcast_ref::<ShowKeyboard>().is_some() {self.panel.reset();}
         let size = self.panel.size();
         let area = showing.then_some(Area {offset: (0.0, ctx.window.area().size.1 - size.1), size});
-        self.panel.observe(event, area);
+        self.panel.observe(event, area, None);
     }
 }
 
-#[on_change(ChangeSource::changed(&mut self.panel))]
-impl OnChange<Change> for CustomKeyboard {
-    fn on_change(&mut self, ctx: &mut Context, change: Change) {
-        change.apply(&mut self.panel, ctx);
+impl CustomKeyboard {
+    fn listen(&mut self) -> ListenFuture<'_> {Drawable::listen(&mut self.panel)}
+    fn update(&mut self, ctx: &mut Context, path: Vec<usize>, update: Box<dyn Any>) {
+        Drawable::update(&mut self.panel, ctx, path, update);
         if self.panel.advance() {
             ctx.emit(ShowKeyboard(false));
             ctx.emit(ptsd::events::TextInput::Focused(false));

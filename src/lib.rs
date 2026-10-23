@@ -1,5 +1,4 @@
 use futures::{channel::mpsc, lock::Mutex, StreamExt};
-use prism::events::ChangeSource;
 pub use prism::*;
 pub use ptsd::{colors, utils, navigation};
 pub use ptsd::{Validate, Validator, Watched};
@@ -52,13 +51,12 @@ impl<T: Send + 'static> Task<T> {
         Self(Arc::new(Mutex::new(receiver)))
     }
 }
+impl<T> Task<T> {
+    pub async fn next(&mut self) -> Option<T> {self.0.lock().await.next().await}
+}
 impl<T> Clone for Task<T> {
     fn clone(&self) -> Self { Self(self.0.clone()) }
 }
 impl<T> std::fmt::Debug for Task<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("Task") }
-}
-impl<T: 'static> ChangeSource for Task<T> {
-    type Update = T;
-    async fn next(&mut self) -> Option<T> { self.0.lock().await.next().await }
 }

@@ -1,6 +1,6 @@
 use include_dir::{include_dir, Dir};
 use prism::drawable::Svg;
-use prism::hardware::{Hardware, Image};
+use prism::hardware::Image;
 use ptsd::{ColorResources, IconResources, FontResources, utils::Assets};
 pub use ptsd::Color;
 use serde::{Serialize, Deserialize};
@@ -22,7 +22,7 @@ pub struct BrandResources {
 }
 
 impl BrandResources {
-    fn new(hardware: &Hardware, assets: &Assets) -> Self {
+    fn new(assets: &Assets) -> Self {
         let get = |name: &str| {
             assets.get_asset_svg(name).unwrap_or_else(|| panic!("Missing asset: {name}"))
         };
@@ -37,14 +37,14 @@ impl BrandResources {
                 }
                 "png" | "jpg" | "jpeg" => {
                     images.entry(name.to_string())
-                        .or_insert_with(|| assets.get_image(hardware, &path).unwrap());
+                        .or_insert_with(|| assets.get_image(&path).unwrap());
                 }
                 _ => {}
             }
         }
         Self {
             logo: get("logo"), wordmark: get("wordmark"), app_icon: get("app_icon"),
-            error: get("error"), qr_code: assets.get_asset_image(hardware, "qr_code").unwrap(),
+            error: get("error"), qr_code: assets.get_asset_image("qr_code").unwrap(),
             images, svgs,
         }
     }
@@ -274,32 +274,28 @@ icons! {
 #[derive(Debug, Clone)]
 pub struct Theme(ptsd::Theme, BrandResources, Gifs);
 impl Theme {
-    pub fn from(hardware: &Hardware, assets: &Vec<Dir<'static>>, color: Color) -> Self {
+    pub fn from(assets: &Vec<Dir<'static>>, color: Color) -> Self {
         let assets = Assets::new(
             assets.iter().cloned()
                 .chain([include_dir!("resources/icons"), include_dir!("resources")]).collect(),
         );
         let (theme, is_dark) = ptsd::Theme::from(&assets, color);
-        Theme::new(hardware, &assets, theme, is_dark, color)
+        Theme::new(&assets, theme, is_dark, color)
     }
 
-    pub fn dark(hardware: &Hardware, assets: &Vec<Dir<'static>>, color: Color) -> Self {
+    pub fn dark(assets: &Vec<Dir<'static>>, color: Color) -> Self {
         let assets = Assets::new(
             assets.iter().cloned()
                 .chain([include_dir!("resources/icons"), include_dir!("resources")]).collect(),
         );
-        Theme::new(hardware, &assets, ptsd::Theme::dark(&assets, color), true, color)
+        Theme::new(&assets, ptsd::Theme::dark(&assets, color), true, color)
     }
-    pub fn light(hardware: &Hardware, assets: &Vec<Dir<'static>>, color: Color) -> Self {
+    pub fn light(assets: &Vec<Dir<'static>>, color: Color) -> Self {
         let assets = Assets::new(
             assets.iter().cloned()
                 .chain([include_dir!("resources/icons"), include_dir!("resources")]).collect(),
         );
-        Theme::new(hardware, &assets, ptsd::Theme::light(&assets, color), false, color)
-    }
-
-    pub fn default(hardware: &Hardware) -> Self {
-        Self::dark(hardware, &vec![], Color::from_hex("#00a2ff", 255))
+        Theme::new(&assets, ptsd::Theme::light(&assets, color), false, color)
     }
 
     pub fn gifs(&self) -> &Gifs { &self.2 }
@@ -313,9 +309,12 @@ impl Theme {
     pub fn fonts_mut(&mut self) -> &mut FontResources { &mut self.0.fonts }
     pub fn brand_mut(&mut self) -> &mut BrandResources { &mut self.1 }
 
-    fn new(hardware: &Hardware, assets: &Assets, mut inner: ptsd::Theme, is_dark: bool, color: Color) -> Self {
+    fn new(assets: &Assets, mut inner: ptsd::Theme, is_dark: bool, color: Color) -> Self {
         Icons::map(&mut inner.icons);
         Button::map(&mut inner.colors, is_dark, color);
-        Theme(inner, BrandResources::new(hardware, assets), Gifs::default())
+        Theme(inner, BrandResources::new(assets), Gifs::default())
     }
+}
+impl Default for Theme {
+    fn default() -> Self {Self::dark(&vec![], Color::from_hex("#00a2ff", 255))}
 }

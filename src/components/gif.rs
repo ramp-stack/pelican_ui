@@ -1,7 +1,7 @@
 use futures::channel::oneshot;
 use prism::drawable::{Component, shape::Variant};
-use prism::events::{Timer, ChangeSource, OnChange, on_change};
-use prism::hardware::{Image, Frame, Player, PlaybackMode};
+use prism::events::{Timer, OnChange, on_change};
+use prism::hardware::{Media, Image, Frame, Player, PlaybackMode};
 use prism::Context;
 use ptsd::layout::{Stack, Offset, Size, Padding};
 use serde::{Serialize, Deserialize};
@@ -158,9 +158,14 @@ impl GifPlayer {
         self.placeholder = None;
     }
 }
-#[on_change(ChangeSource::changed(&mut self.loading))]
+#[on_change(async {
+    match &mut self.loading {
+        Some(source) => source.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<Result<Arc<Vec<u8>>, Instant>> for GifPlayer {
-    fn on_change(&mut self, ctx: &mut Context, result: Result<Arc<Vec<u8>>, Instant>) {
+    fn on_change(&mut self, _ctx: &mut Context, result: Result<Arc<Vec<u8>>, Instant>) {
         self.loading = None;
         let bytes = match result {
             Ok(bytes) => bytes,
@@ -169,7 +174,7 @@ impl OnChange<Result<Arc<Vec<u8>>, Instant>> for GifPlayer {
                 return
             }
         };
-        let player = ctx.hardware.read_media(Cursor::new(bytes.as_slice())).and_then(|media| {
+        let player = Media::read(Cursor::new(bytes.as_slice())).and_then(|media| {
             media.dimensions().ok_or("Media has no video track")?;
             Player::new(media)
         });
@@ -193,13 +198,18 @@ impl OnChange<Result<Arc<Vec<u8>>, Instant>> for GifPlayer {
         }
     }
 }
-#[on_change(ChangeSource::changed(&mut self.retry))]
+#[on_change(self.retry.next())]
 impl OnChange<()> for GifPlayer {
     fn on_change(&mut self, _ctx: &mut Context, _: ()) {
         self.loading = Some(GifLoad {url: self.url.clone(), gifs: self.gifs.clone()});
     }
 }
-#[on_change(ChangeSource::changed(&mut self.player))]
+#[on_change(async {
+    match &mut self.player {
+        Some(source) => source.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<Frame> for GifPlayer {
     fn on_change(&mut self, _ctx: &mut Context, frame: Frame) {
         if let Some(image) = frame.image {self.show_frame(image);}
@@ -227,9 +237,8 @@ struct GifLoad {
     url: String,
     gifs: Gifs,
 }
-impl ChangeSource for GifLoad {
-    type Update = Result<Arc<Vec<u8>>, Instant>;
-    async fn next(&mut self) -> Option<Self::Update> {
+impl GifLoad {
+    async fn next(&mut self) -> Result<Arc<Vec<u8>>, Instant> {
         loop {
             let waiting = {
                 let mut gifs = self.gifs.0.lock().unwrap();
@@ -238,10 +247,10 @@ impl ChangeSource for GifLoad {
                         let bytes = bytes.clone();
                         gifs.recent.retain(|url| url != &self.url);
                         gifs.recent.push_back(self.url.clone());
-                        return Some(Ok(bytes))
+                        return Ok(bytes)
                     }
                     Some(CacheEntry::Failed(at)) if at.elapsed() < Duration::from_secs(30) => {
-                        return Some(Err(*at + Duration::from_secs(30)))
+                        return Err(*at + Duration::from_secs(30))
                     }
                     _ => {},
                 }

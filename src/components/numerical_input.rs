@@ -1,4 +1,4 @@
-use prism::events::{DynEvent, Key, ChangeSource, OnChange, on_change};
+use prism::events::{DynEvent, Key, OnChange, on_change};
 use prism::drawable::{Component, text::Align};
 use prism::Context;
 use ptsd::{events as event, emitters};
@@ -86,15 +86,26 @@ pub struct Number {
     source: Option<Box<dyn NumberSource>>,
 }
 impl Number {
-    /// The callback runs initially and after notifications. `latest` is initially `None`.
-    pub fn watch<S: ChangeSource + Clone, F: FnMut(&S, Option<&S::Update>) -> f64 + Clone + 'static>(source: S, value: F) -> Self {
-        let mut source = WatchedNumber {source, latest: None, value};
+    /// `value` runs initially and after `listen` completes. `latest` is initially `None`.
+    pub fn watch<
+        S: Clone + 'static, U: 'static, L: AsyncFnMut(&mut S) -> U + Clone + 'static,
+        F: FnMut(&S, Option<&U>) -> f64 + Clone + 'static,
+    >(source: S, listen: L, value: F) -> Self {
+        let mut source = WatchedNumber {source, latest: None, listen, value};
         Self {value: source.value(), source: Some(Box::new(source))}
     }
 
     pub fn value(&mut self) -> f64 {
         if let Some(source) = &mut self.source {self.value = source.value();}
         self.value
+    }
+
+    pub async fn next(&mut self) -> f64 {
+        match &mut self.source {
+            Some(source) => source.next().await,
+            None => std::future::pending().await,
+        }
+        self.value()
     }
 }
 impl From<f64> for Number {
@@ -103,13 +114,6 @@ impl From<f64> for Number {
 impl std::fmt::Debug for Number {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Number").field("value", &self.value).finish_non_exhaustive()
-    }
-}
-impl ChangeSource for Number {
-    type Update = f64;
-    async fn next(&mut self) -> Option<f64> {
-        self.source.as_mut()?.next().await?;
-        Some(self.value())
     }
 }
 
@@ -298,7 +302,12 @@ impl SlotDisplay {
     }
 }
 
-#[on_change(ChangeSource::changed(&mut self.3))]
+#[on_change(async {
+    match &mut self.3 {
+        Some(number) => number.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<f64> for SlotDisplay {
     fn on_change(&mut self, ctx: &mut Context, value: f64) {
         if self.show(value) && let Some(form) = self.6 {ctx.emit(FormEvent::Refresh(form));}
@@ -477,14 +486,16 @@ impl Slot {
 }
 
 trait NumberSource {
-    fn next(&mut self) -> Pin<Box<dyn Future<Output = Option<()>> + '_>>;
+    fn next(&mut self) -> Pin<Box<dyn Future<Output = ()> + '_>>;
     fn value(&mut self) -> f64;
     fn clone_box(&self) -> Box<dyn NumberSource>;
 }
-impl<S: ChangeSource + Clone, F: FnMut(&S, Option<&S::Update>) -> f64 + Clone + 'static>
-    NumberSource for WatchedNumber<S, F> {
-    fn next(&mut self) -> Pin<Box<dyn Future<Output = Option<()>> + '_>> {
-        Box::pin(ChangeSource::next(self))
+impl<
+    S: Clone + 'static, U: 'static, L: AsyncFnMut(&mut S) -> U + Clone + 'static,
+    F: FnMut(&S, Option<&U>) -> f64 + Clone + 'static,
+> NumberSource for WatchedNumber<S, U, L, F> {
+    fn next(&mut self) -> Pin<Box<dyn Future<Output = ()> + '_>> {
+        Box::pin(async {self.latest = Some(Rc::new((self.listen)(&mut self.source).await));})
     }
     fn value(&mut self) -> f64 {(self.value)(&self.source, self.latest.as_deref())}
     fn clone_box(&self) -> Box<dyn NumberSource> {Box::new(self.clone())}
@@ -493,20 +504,17 @@ impl Clone for Box<dyn NumberSource> {
     fn clone(&self) -> Self {self.as_ref().clone_box()}
 }
 
-struct WatchedNumber<S: ChangeSource, F> {
+struct WatchedNumber<S, U, L, F> {
     source: S,
-    latest: Option<Rc<S::Update>>,
+    latest: Option<Rc<U>>,
+    listen: L,
     value: F,
 }
-impl<S: ChangeSource + Clone, F: Clone> Clone for WatchedNumber<S, F> {
+impl<S: Clone, U, L: Clone, F: Clone> Clone for WatchedNumber<S, U, L, F> {
     fn clone(&self) -> Self {
-        Self {source: self.source.clone(), latest: self.latest.clone(), value: self.value.clone()}
-    }
-}
-impl<S: ChangeSource, F: 'static> ChangeSource for WatchedNumber<S, F> {
-    type Update = ();
-    async fn next(&mut self) -> Option<()> {
-        self.latest = Some(Rc::new(self.source.next().await?));
-        Some(())
+        Self {
+            source: self.source.clone(), latest: self.latest.clone(),
+            listen: self.listen.clone(), value: self.value.clone(),
+        }
     }
 }

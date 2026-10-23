@@ -1,5 +1,5 @@
 use prism::drawable::{RangeTree, Rect, Instruction};
-use prism::events::{DynEvent, OnChange, on_change, ChangeSource};
+use prism::events::{DynEvent, ChangeHandler, ListenFuture, OnChange, on_change};
 use prism::events::{MouseEvent, KeyboardEvent, KeyboardState, Key};
 use prism::drawable::text::Align;
 use prism::Context;
@@ -7,6 +7,8 @@ use prism::drawable::{Drawable, Component, LayoutTree};
 use ptsd::layout::{Column, Row, Stack, Offset, Size, Padding};
 use ptsd::display::Bin;
 use ptsd::interfaces::ShowKeyboard;
+
+use std::any::Any;
 
 use crate::theme::{Theme, Icons};
 use crate::components::text::{ExpandableText, TextStyle, TextSize};
@@ -37,13 +39,9 @@ impl GifPanel {
 }
 
 impl Drawable for GifPanel {
-    fn caret(&self, layout: &LayoutTree) -> Option<prism::drawable::Caret> {
-        Drawable::caret(&self.0, layout)
-    }
-    fn changed(&mut self) -> prism::events::ChangeFuture<'_> {
-        Box::pin(async move {
-            Drawable::changed(&mut self.0).await.map::<Self>(|this| &mut this.0)
-        })
+    fn listen(&mut self) -> ListenFuture<'_> {Drawable::listen(&mut self.0)}
+    fn update(&mut self, ctx: &mut Context, path: Vec<usize>, update: Box<dyn Any>) {
+        Drawable::update(&mut self.0, ctx, path, update);
     }
     fn size_range(&self) -> RangeTree {self.0.size_range()}
     fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
@@ -85,6 +83,7 @@ impl GifSearchHeader {
 }
 
 #[derive(Component, Debug, Clone)]
+#[listen]
 struct GifPanelContent {
     layout: Column,
     search_field: Option<GifSearchHeader>,
@@ -104,6 +103,23 @@ struct GifPanelContent {
 }
 
 impl GifPanelContent {
+    fn listen(&mut self) -> ListenFuture<'_> {
+        let fetch = (ChangeHandler::find::<Self>("fetch").unwrap().listen)(&mut self.fetch);
+        Box::pin(ChangeHandler::select(vec![
+            Box::pin(self.grid.next()),
+            match &mut self.search_field {
+                Some(field) => Drawable::listen(field),
+                None => Box::pin(std::future::pending()),
+            },
+            match &mut self.line {
+                Some(line) => Drawable::listen(line),
+                None => Box::pin(std::future::pending()),
+            },
+            Drawable::listen(&mut self.bar),
+            Box::pin(async move {(Vec::new(), fetch.await)}),
+        ]))
+    }
+
     fn new(theme: &Theme) -> Self {
         GifPanelContent {
             layout: Column::new(0.0, Offset::Start, Size::Fill, Padding::default(), None),
@@ -137,7 +153,10 @@ impl GifPanelContent {
     }
 }
 
-#[on_change(ChangeSource::changed(&mut self.fetch))]
+#[on_change(async {
+    let Some(task) = &mut self.fetch else {return std::future::pending().await};
+    match task.next().await {Some(result) => result, None => std::future::pending().await}
+})]
 impl OnChange<Result<GifBatch, GifError>> for GifPanelContent {
     fn on_change(&mut self, _ctx: &mut Context, result: Result<GifBatch, GifError>) {
         self.fetch = None;
@@ -170,13 +189,25 @@ impl OnChange<Result<GifBatch, GifError>> for GifPanelContent {
     }
 }
 
-#[on_change(ChangeSource::changed(&mut self.grid))]
-impl OnChange<futures::future::Either<GridView, prism::events::Change>> for GifPanelContent {
-    fn on_change(&mut self, ctx: &mut Context, update: futures::future::Either<GridView, prism::events::Change>) {
-        let view = match update {
-            futures::future::Either::Left(view) => view,
-            futures::future::Either::Right(change) => {change.apply(&mut self.grid, ctx); return}
-        };
+impl GifPanelContent {
+    fn update(&mut self, ctx: &mut Context, mut path: Vec<usize>, update: Box<dyn Any>) {
+        match path.pop().unwrap() {
+            0 if path.is_empty() => {},
+            0 => {
+                assert_eq!(path.pop(), Some(0));
+                Drawable::update(&mut self.grid, ctx, path, update);
+                return;
+            }
+            1 => {Drawable::update(self.search_field.as_mut().unwrap(), ctx, path, update); return},
+            2 => {Drawable::update(self.line.as_mut().unwrap(), ctx, path, update); return},
+            3 => {Drawable::update(&mut self.bar, ctx, path, update); return},
+            4 => {
+                (ChangeHandler::find::<Self>("fetch").unwrap().call)(self, ctx, update);
+                return;
+            }
+            _ => unreachable!(),
+        }
+        let view = *update.downcast::<GridView>().unwrap();
         let side = PanelGrid::cell_side(view.width, 3);
         let resized = self.side.is_none_or(|previous| (previous - side).abs() >= 0.5);
         let mut count = self.grid.built();
@@ -262,7 +293,9 @@ impl GifPanelContent {
             return vec![];
         } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
             let grid = sized.1.len().saturating_sub(1);
-            if let Some(TouchEnd::Tap(CellAction::Gif(gif))) = PanelTouch::track(ctx, &mut self.touch, self.grid.grid(), GridPlace::find(sized, &[grid, 0, 0]), mouse) {
+            if let Some(TouchEnd::Tap(CellAction::Gif(gif))) = PanelTouch::track(
+                &mut self.touch, self.grid.grid(), GridPlace::find(sized, &[grid, 0, 0]), mouse,
+            ) {
                 ctx.hardware.trigger_haptic();
                 ctx.emit(SendEvent::Gif(gif));
             }

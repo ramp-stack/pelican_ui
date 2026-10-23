@@ -1,10 +1,11 @@
 use prism::drawable::{Drawable, RangeTree, Rect, Instruction, Component, LayoutTree};
 use prism::drawable::text::Align;
-use prism::events::{DynEvent, MouseEvent, MouseState, MouseButton};
+use prism::events::{DynEvent, ListenFuture, MouseEvent, MouseState, MouseButton};
 use prism::Context;
 use ptsd::interactions;
 use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding};
 
+use std::any::Any;
 use std::time::{Duration, Instant};
 
 use crate::components::text::{Text, TextStyle, TextSize};
@@ -21,10 +22,9 @@ impl EmojiPanel {
 }
 
 impl Drawable for EmojiPanel {
-    fn changed(&mut self) -> prism::events::ChangeFuture<'_> {
-        Box::pin(async move {
-            Drawable::changed(&mut self.0).await.map::<Self>(|this| &mut this.0)
-        })
+    fn listen(&mut self) -> ListenFuture<'_> {Drawable::listen(&mut self.0)}
+    fn update(&mut self, ctx: &mut Context, path: Vec<usize>, update: Box<dyn Any>) {
+        Drawable::update(&mut self.0, ctx, path, update);
     }
     fn size_range(&self) -> RangeTree { self.0.size_range() }
     fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
@@ -130,7 +130,7 @@ impl EmojiPanelContent {
             page = self.pages.iter().position(|(c, _)| c == category);
         } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
             match PanelTouch::track(
-                ctx, &mut self.touch, &mut self.grid, GridPlace::find(sized, &[0]), mouse,
+                &mut self.touch, &mut self.grid, GridPlace::find(sized, &[0]), mouse,
             ) {
                 Some(TouchEnd::Turn(next)) => turn = Some(next),
                 Some(TouchEnd::Tap(CellAction::Emoji(emoji))) if ctx.window.touch_controls => {

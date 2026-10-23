@@ -2,7 +2,6 @@ use prism::Context;
 use prism::drawable::Component;
 use prism::drawable::text::Align;
 use prism::drawable::Svg;
-use prism::hardware::Hardware;
 use ptsd::display::Bin;
 use ptsd::layout::{Row, Column, Size, Padding, Offset, Stack};
 use ptsd::interactions;
@@ -70,7 +69,7 @@ impl NavigatorSelectable {
     }
 
     pub fn desktop_avatar(
-        hardware: &Hardware, theme: &Theme, avatar: AvatarContent, label: &str, layout: Stack,
+        theme: &Theme, avatar: AvatarContent, label: &str, layout: Stack,
         mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static,
         is_selected: bool, group_id: uuid::Uuid,
     ) -> Self {
@@ -78,7 +77,7 @@ impl NavigatorSelectable {
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
             let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
-            let avatar = Avatar::new(hardware, theme, avatar.clone(), None, false, AvatarSize::Xs, None);
+            let avatar = Avatar::new(theme, avatar.clone(), None, false, AvatarSize::Xs, None);
             Bin(layout.clone(), Button::new(
                 vec![Box::new(avatar), Box::new(text)], ButtonSize::Large, ButtonWidth::Fill,
                 Offset::Start, colors.background, colors.outline,
@@ -143,7 +142,7 @@ pub enum Navigator {
 impl ptsd::interfaces::Navigator for Navigator {}
 
 impl Navigator {
-    pub fn desktop(hardware: &Hardware, theme: &Theme, navigation: Vec<RootInfo>) -> Self {
+    pub fn desktop(theme: &Theme, navigation: Vec<RootInfo>) -> Self {
         let group_id = uuid::Uuid::new_v4();
         let (mut top_col, mut bot_col) = (Vec::new(), Vec::new());
         let mut i = 0;
@@ -160,7 +159,7 @@ impl Navigator {
                 Some(a) => {
                     has_profile = true;
                     bot_col.push(NavigatorSelectable::desktop_avatar(
-                        hardware, theme, a, &info.label, layout, closure, 0 == i, group_id,
+                        theme, a, &info.label, layout, closure, 0 == i, group_id,
                     ));
                 }
                 None => top_col.push(NavigatorSelectable::desktop_icon(

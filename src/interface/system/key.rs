@@ -1,6 +1,6 @@
 use prism::Context;
 use prism::drawable::{Component, Drawable};
-use prism::events::{ChangeSource, DynEvent, Key, KeyboardEvent, KeyboardState, Modifiers};
+use prism::events::{DynEvent, Key, KeyboardEvent, KeyboardState, Modifiers};
 use prism::events::{MouseEvent, MouseState, MouseButton, WindowEvent, Timer, OnChange, on_change};
 use ptsd::interactions;
 use ptsd::layout::{Stack, Offset, Size, Padding};
@@ -57,7 +57,12 @@ impl InputKey {
         vec![event]
     }
 }
-#[on_change(ChangeSource::changed(&mut self.2))]
+#[on_change(async {
+    match &mut self.2 {
+        Some(repeat) => repeat.timer.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<()> for InputKey {
     fn on_change(&mut self, ctx: &mut Context, _: ()) {
         let hold = self.2.as_mut().unwrap();
@@ -72,10 +77,6 @@ struct Repeat {
     started: Instant,
     timer: Timer,
     key: Key,
-}
-impl ChangeSource for Repeat {
-    type Update = ();
-    async fn next(&mut self) -> Option<()> {self.timer.next().await}
 }
 
 #[derive(Component, Debug, Clone)]

@@ -1,12 +1,12 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use image::{RgbaImage, DynamicImage, ColorType};
+use image::{ImageBuffer, Rgba, ColorType};
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
 use prism::Context;
 use prism::air::{Contract, Metadata, Id, Name, Instances, Instance};
 use prism::drawable::{Component, text::Align, shape::Variant};
-use prism::events::{Event, DynEvent, OnChange, on_change, ChangeSource};
-use prism::hardware::{Hardware, Format, Image, Picked, Player, Visual};
+use prism::events::{Event, DynEvent, OnChange, on_change};
+use prism::hardware::{Media, Format, Image, Picked, Player, Visual};
 use ptsd::display::Bin;
 use ptsd::interactions;
 use ptsd::layout::{Stack, Offset, Size, Padding};
@@ -34,23 +34,22 @@ pub struct Photo {
 }
 
 impl Photo {
-    pub fn from_image(image: &RgbaImage) -> Option<Self> { Self::encode(image, 1600, 82) }
+    pub fn from_image(image: &Image) -> Option<Self> { Self::encode(image, 1600, 82) }
 
-    pub fn encode(image: &RgbaImage, side: u32, quality: u8) -> Option<Self> {
-        let (w, h) = image.dimensions();
-        if w == 0 || h == 0 { return None; }
+    pub fn encode(image: &Image, side: u32, quality: u8) -> Option<Self> {
+        let ((w, h), pixels) = image.pixels();
         let scale = (side as f32 / w.max(h) as f32).min(1.0);
         let width = ((w as f32 * scale).round() as u32).max(1);
         let height = ((h as f32 * scale).round() as u32).max(1);
         let resized;
-        let image = if (width, height) == (w, h) {
-            image
+        let pixels = if (width, height) == (w, h) {
+            pixels
         } else {
-            resized = DynamicImage::ImageRgba8(image.clone())
-                .resize_exact(width, height, FilterType::Triangle).into_rgba8();
-            &resized
+            let image = ImageBuffer::<Rgba<u8>, _>::from_raw(w, h, pixels).unwrap();
+            resized = image::imageops::resize(&image, width, height, FilterType::Triangle);
+            resized.as_raw()
         };
-        let rgb: Vec<u8> = image.as_raw().chunks_exact(4).flat_map(|pixel| {
+        let rgb: Vec<u8> = pixels.chunks_exact(4).flat_map(|pixel| {
             let alpha = pixel[3] as u32;
             [0, 1, 2].map(|i| ((pixel[i] as u32 * alpha + 255 * (255 - alpha)) / 255) as u8)
         }).collect();
@@ -60,7 +59,7 @@ impl Photo {
         Some(Self { jpeg: (bytes.into(), (width, height)), width, height })
     }
 
-    pub fn image(&self, hardware: &Hardware) -> Image { hardware.read_image(&*self.jpeg.0).unwrap() }
+    pub fn image(&self) -> Image { Image::read(&*self.jpeg.0).unwrap() }
     pub fn size(&self) -> (u32, u32) {self.jpeg.1}
     pub fn jpeg(&self) -> &[u8] { &self.jpeg.0 }
 
@@ -194,7 +193,7 @@ pub struct PhotoView {
 }
 
 impl PhotoView {
-    pub fn message(hardware: &Hardware, photo: &Photo) -> Self {
+    pub fn message(photo: &Photo) -> Self {
         let (width, height) = (photo.size().0 as f32, photo.size().1 as f32);
         let scale = (240.0 / width).min(320.0 / height);
         let size = ((width * scale).round(), (height * scale).round());
@@ -202,7 +201,7 @@ impl PhotoView {
             layout: Stack(
                 Offset::Center, Offset::Center, Size::Static(size.0), Size::Static(size.1),
                 Padding::default(),
-            ), image: MaskedImage(photo.image(hardware), Variant::RoundedRectangle(16.0)), size,
+            ), image: MaskedImage(photo.image(), Variant::RoundedRectangle(16.0)), size,
         }
     }
 }
@@ -225,9 +224,9 @@ pub struct VideoView {
 }
 
 impl VideoView {
-    pub fn message(hardware: &Hardware, theme: &Theme, video: &Video) -> Self {
+    pub fn message(theme: &Theme, video: &Video) -> Self {
         let id = uuid::Uuid::new_v4();
-        let poster = PhotoView::message(hardware, &video.poster);
+        let poster = PhotoView::message(&video.poster);
         let size = poster.size;
         let fill = |x: Offset, y: Offset, p: Padding| {
             Stack(x, y, Size::Static(size.0 - p.0 - p.2), Size::Static(size.1 - p.1 - p.3), p)
@@ -278,7 +277,7 @@ impl VideoView {
             Some(mp4) => {
                 self.clips = None;
                 self.loading = None;
-                let player = ctx.hardware.read_media(std::io::Cursor::new(mp4.as_slice()))
+                let player = Media::read(std::io::Cursor::new(mp4.as_slice()))
                     .and_then(|media| {
                         media.dimensions().ok_or("Media has no video track")?;
                         Player::new(media)
@@ -305,7 +304,12 @@ impl VideoView {
         }
     }
 }
-#[on_change(ChangeSource::changed(&mut self.clips))]
+#[on_change(async {
+    match &mut self.clips {
+        Some(source) => source.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<Instance<VideoClip>> for VideoView {
     fn on_change(&mut self, ctx: &mut Context, clip: Instance<VideoClip>) {
         if clip.pending().id == self.video.clip { self.load(ctx); }
@@ -354,7 +358,12 @@ impl AttachButton {
     }
 }
 
-#[on_change(ChangeSource::changed(&mut self.picked))]
+#[on_change(async {
+    match &mut self.picked {
+        Some(source) => source.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<prism::hardware::PickResult<Visual>> for AttachButton {
     fn on_change(&mut self, _ctx: &mut Context, result: prism::hardware::PickResult<Visual>) {
         self.picked = None;
@@ -376,7 +385,16 @@ impl OnChange<prism::hardware::PickResult<Visual>> for AttachButton {
         self.preparing.push_back(prepare);
     }
 }
-#[on_change(ChangeSource::changed(&mut self.preparing))]
+#[on_change(async {
+    loop {
+        let prepared = match self.preparing.front_mut() {
+            Some(task) => task.next().await,
+            None => std::future::pending().await,
+        };
+        self.preparing.pop_front();
+        if let Some(prepared) = prepared {break prepared}
+    }
+})]
 impl OnChange<Option<SendEvent>> for AttachButton {
     fn on_change(&mut self, ctx: &mut Context, prepared: Option<SendEvent>) {
         if let Some(send) = prepared { ctx.emit(send); }

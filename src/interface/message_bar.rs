@@ -1,11 +1,13 @@
 use prism::drawable::{Area, Component, Drawable, LayoutTree, RangeTree, Rect, Instruction};
 use prism::events::{DynEvent, MouseEvent, MouseState, MouseButton, KeyboardEvent, KeyboardState, Key};
-use prism::events::{Change, ChangeFuture, ChangeSource, OnChange, on_change};
+use prism::events::{ChangeHandler, ListenFuture};
 use prism::Context;
 use ptsd::layout::{Column, Row, Stack, Offset, Size, Padding};
 use ptsd::display::{Bin, Opt, Dismissible, DismissEdge};
 use ptsd::interfaces::{ShowKeyboard, CustomKeyboardVisibilityChanged};
 use ptsd::interactions;
+
+use std::any::Any;
 
 use crate::theme::{self, Theme, Icons, Variant, ButtonColorScheme};
 use crate::components::{TextInput, TextInputEvent, AttachButton, SubmitFn, ValidFn};
@@ -39,13 +41,9 @@ impl MessageBar {
     pub fn field(&mut self) -> &mut TextInput {&mut self.0.field}
 }
 impl Drawable for MessageBar {
-    fn caret(&self, layout: &LayoutTree) -> Option<prism::drawable::Caret> {
-        Drawable::caret(&self.0, layout)
-    }
-    fn changed(&mut self) -> ChangeFuture<'_> {
-        Box::pin(async move {
-            Drawable::changed(&mut self.0).await.map::<Self>(|this| &mut this.0)
-        })
+    fn listen(&mut self) -> ListenFuture<'_> {Drawable::listen(&mut self.0)}
+    fn update(&mut self, ctx: &mut Context, path: Vec<usize>, update: Box<dyn Any>) {
+        Drawable::update(&mut self.0, ctx, path, update);
     }
     fn size_range(&self) -> RangeTree {self.0.size_range()}
     fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
@@ -60,6 +58,7 @@ impl Drawable for MessageBar {
 }
 
 #[derive(Debug, Component, Clone)]
+#[listen]
 struct MessageBarContent {
     layout: Column,
     field: Bin<Stack, TextInput>,
@@ -75,7 +74,6 @@ impl MessageBarContent {
         on_submit: impl FnMut(&mut Context, &mut String) + Clone + 'static, valid: impl ValidFn,
     ) -> Self {
         let send = (Icons::Send, Box::new(on_submit) as Box<dyn SubmitFn>, Box::new(valid) as Box<dyn ValidFn>);
-        let group = uuid::Uuid::new_v4();
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let highlighted = ButtonColorScheme {background: colors.pressed.background, ..colors.default};
         let pages = [
@@ -85,21 +83,25 @@ impl MessageBarContent {
             (Icons::Gif, MessageBarEvent::Panel(Panel::Gifs)),
         ];
         let buttons = pages.into_iter().map(|(icon, action)| {
-            let [default, selected] = [colors.default, highlighted].map(|c| {
+            let looks = [colors.default, highlighted].map(|c| {
                 let layout = Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit,
                     Padding(4.0, 6.0, 4.0, 8.0));
-                Bin(layout, IconButton::new(theme, icon, ButtonStyle::Ghost, ButtonSize::Medium,
-                    c.background, c.outline, c.label))
+                let face = Bin(layout, IconButton::new(
+                    theme, icon, ButtonStyle::Ghost, ButtonSize::Medium,
+                    c.background, c.outline, c.label,
+                ));
+                interactions::Button::new_triggers_on_release(
+                    face, None::<IconButton>, None::<IconButton>, None::<IconButton>,
+                    None::<IconButton>, move |ctx: &mut Context| ctx.emit(action), false,
+                )
             });
-            let looks = [false, true].map(|selected_state| interactions::Selectable::new(
-                default.clone(), selected.clone(), selected_state, false,
-                move |ctx: &mut Context| ctx.emit(action), group,
-            ));
             let visible = match action {
                 MessageBarEvent::Keyboard | MessageBarEvent::Panel(Panel::Emoji) => false,
                 _ => true,
             };
-            Opt::new(PageButton {layout: Stack::default(), button: looks[0].clone(), action, looks}, visible)
+            Opt::new(PageButton {
+                layout: Stack::default(), button: looks[0].clone(), action, looks, selected: false,
+            }, visible)
         }).collect();
         let mut hide = GhostIconButton::new(
             theme, Icons::DownArrow,
@@ -146,8 +148,9 @@ impl MessageBarContent {
                 MessageBarEvent::Panel(panel) => self.active == Some(panel),
                 MessageBarEvent::Hide => false,
             };
-            if button.button.is_selected() != selected {
+            if button.selected != selected {
                 button.button = button.looks[selected as usize].clone();
+                button.selected = selected;
             }
         }
         self.toolbar.hide.1.display(self.active.is_some() || keyboard_visible);
@@ -156,9 +159,22 @@ impl MessageBarContent {
     fn on_event(&mut self, ctx: &mut Context, sized: &LayoutTree, mut event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
         let searching = self.panels.is_showing() && self.panels.inner_ref().child.searching();
         let area = self.panels.is_showing().then(|| sized.1.get(2).map(|(offset, layout)| {
-            Area {offset: *offset, size: layout.0}
+            let size = self.panels.inner_ref().size();
+            Area {offset: (offset.0, offset.1 + layout.0.1 - size.1 - sized.0.1), size}
         })).flatten();
-        self.panels.inner().observe(&mut *event, area);
+        let handle = area.and_then(|_| sized.1.get(1)).map(|(offset, layout)| {
+            Area {offset: (offset.0, offset.1 - sized.0.1), size: layout.0}
+        });
+        if let Some(mouse) = event.downcast_mut::<MouseEvent>() {
+            // The bumper's bottom stays fixed while dragging changes its local origin.
+            let mut observed = mouse.clone();
+            if let Some(position) = &mut observed.position {position.1 -= sized.0.1;}
+            self.panels.inner().observe(&mut observed, area, handle);
+            if observed.position.is_none() {mouse.position = None;}
+            mouse.state = observed.state;
+        } else {
+            self.panels.inner().observe(&mut *event, area, handle);
+        }
 
         if let Some(mode) = event.downcast_ref::<KeyboardMode>() && *mode != KeyboardMode::Request {
             for button in &mut self.toolbar.buttons {
@@ -226,25 +242,32 @@ impl MessageBarContent {
     }
 }
 
-#[on_change(async {
-    if self.panels.is_showing() {ChangeSource::changed(self.panels.inner()).await}
-    else {std::future::pending().await}
-})]
-impl OnChange<Change> for MessageBarContent {
-    fn on_change(&mut self, ctx: &mut Context, change: Change) {
-        change.apply(self.panels.inner(), ctx);
-        if self.panels.inner().advance() {
-            self.show_panel(ctx, None);
-            ctx.emit(ShowKeyboard(false));
+impl MessageBarContent {
+    fn listen(&mut self) -> ListenFuture<'_> {
+        let initial = &mut self.initial;
+        Box::pin(ChangeHandler::select(vec![
+            Drawable::listen(&mut self.field), Drawable::listen(&mut self.toolbar),
+            Drawable::listen(&mut self.panels), Box::pin(async move {
+                if !std::mem::take(initial) {std::future::pending::<()>().await;}
+                (Vec::new(), Box::new(()) as Box<dyn Any>)
+            }),
+        ]))
+    }
+    fn update(&mut self, ctx: &mut Context, mut path: Vec<usize>, update: Box<dyn Any>) {
+        match path.pop().unwrap() {
+            0 => Drawable::update(&mut self.field, ctx, path, update),
+            1 => Drawable::update(&mut self.toolbar, ctx, path, update),
+            2 => {
+                Drawable::update(&mut self.panels, ctx, path, update);
+                if self.panels.inner().advance() {
+                    self.show_panel(ctx, None);
+                    ctx.emit(ShowKeyboard(false));
+                }
+            }
+            3 => ctx.emit(KeyboardMode::Request),
+            _ => unreachable!(),
         }
     }
-}
-
-#[on_change(async {
-    if !std::mem::take(&mut self.initial) {std::future::pending::<()>().await;}
-})]
-impl OnChange<()> for MessageBarContent {
-    fn on_change(&mut self, ctx: &mut Context, _: ()) {ctx.emit(KeyboardMode::Request);}
 }
 
 #[derive(Debug, Component, Clone)]
@@ -257,7 +280,8 @@ struct Toolbar {
 #[derive(Debug, Component, Clone)]
 struct PageButton {
     layout: Stack,
-    button: interactions::Selectable,
+    button: interactions::Button,
     #[skip] action: MessageBarEvent,
-    #[skip] looks: [interactions::Selectable; 2],
+    #[skip] looks: [interactions::Button; 2],
+    #[skip] selected: bool,
 }

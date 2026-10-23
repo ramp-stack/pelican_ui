@@ -10,8 +10,8 @@ use pelican_ui::components::list_item::{ListItem, ListItemInfoLeft};
 use pelican_ui::components::text::{ExpandableText, Text, TextSize, TextStyle};
 use pelican_ui::theme::{Color, Icons, Theme};
 use prism::drawable::{Component, Drawable, text::Align};
-use prism::events::{on_event, ChildEvent, DynEvent, Event, OnEvent, OnChange, on_change, ChangeSource};
-use prism::hardware::{Hardware, Picked, Frame, Player, Video};
+use prism::events::{on_event, ChildEvent, DynEvent, Event, OnEvent, OnChange, on_change};
+use prism::hardware::{Picked, Frame, Player, Video};
 use prism::{Application, Context};
 use ptsd::display::{Bin, Enum, Opt};
 use ptsd::emitters::Scrollable;
@@ -38,12 +38,12 @@ struct Demo {
 }
 impl Application for Demo {
     fn name() -> String {"Pelican UI · Component Studio".into()}
-    fn new(ctx: &mut Context) -> impl Drawable {
-        let theme = Theme::dark(&ctx.hardware, &vec![], Color::from_hex("#52d6b5", 255));
+    fn new(_ctx: &mut Context) -> impl Drawable {
+        let theme = Theme::dark(&vec![], Color::from_hex("#52d6b5", 255));
         Self {
             layout: Stack::new(Offset::Start, Offset::Start, Size::Fill, Size::Fill, Padding::default()),
             background: Rectangle::new(Color::from_hex("#11161e", 255), 0.0, None),
-            shell: Shell::new(&ctx.hardware, &theme), clicks: 0, picker: None,
+            shell: Shell::new(&theme), clicks: 0, picker: None,
         }
     }
 }
@@ -100,7 +100,12 @@ impl OnEvent<Action> for Demo {
         vec![]
     }
 }
-#[on_change(ChangeSource::changed(&mut self.picker))]
+#[on_change(async {
+    match &mut self.picker {
+        Some(source) => source.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<prism::hardware::PickResult<Video>> for Demo {
     fn on_change(&mut self, _ctx: &mut Context, result: prism::hardware::PickResult<Video>) {
         self.picker = None;
@@ -130,7 +135,7 @@ struct Shell {
     pages: Scrollable<Enum<Box<dyn Drawable>>>,
 }
 impl Shell {
-    fn new(hardware: &Hardware, theme: &Theme) -> Self {
+    fn new(theme: &Theme) -> Self {
         let heading = Text::new(theme, "Component Studio", TextSize::H3, TextStyle::Heading, Align::Left, None);
         let subheading = ExpandableText::new(theme, "PELICAN UI  /  Built with PTSD + Prism",
             TextSize::Sm, TextStyle::Secondary, Align::Left, None);
@@ -143,14 +148,14 @@ impl Shell {
             SecondaryButton::medium(theme, icon, name, None, Stack::default(), move |ctx, _| ctx.emit(Action::Page(name)))
         }).collect();
         let lists = Card::new(theme, "People & activity", "Rich list items, avatars and quick actions", vec![
-            Box::new(AvatarGroup::new(hardware, theme, vec![
+            Box::new(AvatarGroup::new(theme, vec![
                 AvatarContent::icon(Icons::Profile, AvatarIconStyle::Brand),
                 AvatarContent::icon(Icons::Monitor, AvatarIconStyle::Success),
                 AvatarContent::icon(Icons::Heart, AvatarIconStyle::Warning),
             ])),
             Box::new(ListItem::new(
                 theme, Some(Avatar::new(
-                    hardware, theme, AvatarContent::icon(Icons::Profile, AvatarIconStyle::Brand),
+                    theme, AvatarContent::icon(Icons::Profile, AvatarIconStyle::Brand),
                     None, false, AvatarSize::Md, None,
                 )),
                 ListItemInfoLeft::new(
@@ -159,7 +164,7 @@ impl Shell {
             )),
             Box::new(ListItem::new(
                 theme, Some(Avatar::new(
-                    hardware, theme, AvatarContent::icon(Icons::Monitor, AvatarIconStyle::Success),
+                    theme, AvatarContent::icon(Icons::Monitor, AvatarIconStyle::Success),
                     None, false, AvatarSize::Md, None,
                 )),
                 ListItemInfoLeft::new(
@@ -263,7 +268,12 @@ impl MediaDemo {
         }
     }
 }
-#[on_change(ChangeSource::changed(&mut self.player))]
+#[on_change(async {
+    match &mut self.player.1 {
+        Some(source) => source.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<Frame> for MediaDemo {
     fn on_change(&mut self, _ctx: &mut Context, event: Frame) {
         *self.seek.value() = if event.duration.is_zero() {0.0} else {

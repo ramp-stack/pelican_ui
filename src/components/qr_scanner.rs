@@ -1,4 +1,4 @@
-use prism::events::{DynEvent, OnChange, on_change, ChangeSource, Timer};
+use prism::events::{DynEvent, OnChange, on_change, Timer};
 use prism::drawable::text::Align;
 use prism::hardware::{Image, Camera, Frame, Player, PlaybackMode};
 use ptsd::display::{Bin, Opt};
@@ -8,9 +8,7 @@ use ptsd::layout::{Column, Padding, Size, Offset, Stack};
 use ptsd::theme::TextSize;
 use ptsd::navigation::NavigationEvent;
 use uuid::Uuid;
-use image::DynamicImage;
-
-use std::sync::Arc;
+use image::{ImageBuffer, Rgba};
 
 use crate::Task;
 use crate::theme::{Theme, Icons, Color};
@@ -74,14 +72,20 @@ impl QRCodeScanner {
         let (width, height) = image.dimensions();
         if width < 5 || height < 5 { return; }
         if self.decoding.is_none() {
-            let image = Arc::clone(&image);
+            let image = image.clone();
             self.decoding = Some(Task::spawn(move || {
-                let decoder = bardecoder::default_decoder();
-                let decode = |image: DynamicImage| {
-                    decoder.decode(&image).into_iter().flatten().find(|s| !s.is_empty())
+                let ((width, height), pixels) = image.pixels();
+                if width < 5 || height < 5 {return None}
+                let pixels = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, pixels).unwrap();
+                let decode = |image: &ImageBuffer<Rgba<u8>, &[u8]>| {
+                    bardecoder::default_decoder().decode(image)
+                        .into_iter().flatten().find(|s| !s.is_empty())
                 };
-                decode(DynamicImage::ImageRgba8((*image).clone())).or_else(|| {
-                    decode(DynamicImage::ImageRgba8(image::imageops::flip_horizontal(image.as_ref())))
+                decode(&pixels).or_else(|| {
+                    let flipped = image::imageops::flip_horizontal(&pixels);
+                    let pixels = ImageBuffer::from_raw(width, height, flipped.as_raw().as_slice())
+                        .unwrap();
+                    decode(&pixels)
                 })
             }));
         }
@@ -103,7 +107,7 @@ impl QRCodeScanner {
         self.guide.3.display(true);
     }
 }
-#[on_change(ChangeSource::changed(&mut self.initial))]
+#[on_change(self.initial.next())]
 impl OnChange<()> for QRCodeScanner {
     fn on_change(&mut self, ctx: &mut Context, _: ()) {
         let capture = ctx.hardware.start_camera().and_then(|camera| {
@@ -122,14 +126,22 @@ impl OnChange<()> for QRCodeScanner {
         self.camera = Some(camera);
     }
 }
-#[on_change(ChangeSource::changed(&mut self.player))]
+#[on_change(async {
+    match &mut self.player {
+        Some(source) => source.next().await,
+        None => std::future::pending().await,
+    }
+})]
 impl OnChange<Frame> for QRCodeScanner {
     fn on_change(&mut self, _ctx: &mut Context, frame: Frame) {
         if let Some(error) = frame.error {self.error(error); return}
         if let Some(image) = frame.image {self.show(image);}
     }
 }
-#[on_change(ChangeSource::changed(&mut self.decoding))]
+#[on_change(async {
+    let Some(task) = &mut self.decoding else {return std::future::pending().await};
+    match task.next().await {Some(result) => result, None => std::future::pending().await}
+})]
 impl OnChange<Option<String>> for QRCodeScanner {
     fn on_change(&mut self, ctx: &mut Context, found: Option<String>) {
         self.decoding = None;

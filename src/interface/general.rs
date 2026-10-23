@@ -1,6 +1,5 @@
 use prism::Context;
-use prism::hardware::Hardware;
-use prism::events::{DynEvent, Event, ChildEvent, OnChange, on_change, ChangeSource};
+use prism::events::{DynEvent, Event, ChildEvent, OnChange, on_change};
 use prism::events::{Timer, OnEvent, on_event};
 use prism::drawable::{Drawable, Component};
 use prism::drawable::text::Align;
@@ -81,7 +80,7 @@ impl Interface {
             } else {
                 let navigator =
                     (pages.len() > 1).then_some(
-                        Box::new(Navigator::desktop(&ctx.hardware, theme, roots)) as Box<dyn PTSDNavigator>
+                        Box::new(Navigator::desktop(theme, roots)) as Box<dyn PTSDNavigator>
                     );
                 ptsd::interfaces::Interface::desktop(
                     navigator, Screen::desktop(theme, Pages::new(pages)),
@@ -243,11 +242,13 @@ impl Content {
     }
 }
 
-#[on_change(ChangeSource::changed(&mut self.dirty))]
+#[on_change(self.dirty.next())]
 impl OnChange<()> for Content {
     fn on_change(&mut self, ctx: &mut Context, _: ()) { self.refresh(ctx); }
 }
-#[on_change(ChangeSource::changed(&mut self.validation))]
+#[on_change(async {
+    if self.validation.change().await.is_none() {std::future::pending::<()>().await;}
+})]
 impl OnChange<()> for Content {
     fn on_change(&mut self, ctx: &mut Context, _: ()) { self.refresh(ctx); }
 }
@@ -296,15 +297,12 @@ impl Header {
         Self::new(theme, text, Some((Icons::Close, Box::new(closure))), None)
     }
 
-    pub fn messaging(
-        hardware: &Hardware, theme: &Theme, title: String, profiles: Vec<Profile>,
-        exact_len: usize, info: Option<Box<dyn Callback>>,
-    ) -> Self {
+    pub fn messaging(theme: &Theme, title: String, profiles: Vec<Profile>, exact_len: usize, info: Option<Box<dyn Callback>>) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| {
             (0..exact_len).for_each(|_| ctx.emit(NavigationEvent::Pop))
         };
         Self::new(
-            theme, MessageHeader::new(hardware, theme, title, profiles),
+            theme, MessageHeader::new(theme, title, profiles),
             Some((Icons::Left, Box::new(closure))), info.map(|action| (Icons::Info, action)),
         )
     }
@@ -324,12 +322,12 @@ impl Header {
 #[derive(Debug, Clone, Component)]
 pub struct MessageHeader(Column, AvatarGroup, ExpandableText);
 impl MessageHeader {
-    pub fn new(hardware: &Hardware, theme: &Theme, title: String, profiles: Vec<Profile>) -> Self {
+    pub fn new(theme: &Theme, title: String, profiles: Vec<Profile>) -> Self {
         let text = ExpandableText::new(
             theme, &title, TextSize::H4, TextStyle::Heading, Align::Center, Some(1),
         );
         let avatars = profiles.iter().map(|p| p.pfp.clone()).collect::<Vec<_>>();
-        MessageHeader(Column::center(8.0), AvatarGroup::new(hardware, theme, avatars), text)
+        MessageHeader(Column::center(8.0), AvatarGroup::new(theme, avatars), text)
     }
 }
 

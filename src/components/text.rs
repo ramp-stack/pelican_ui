@@ -1,21 +1,22 @@
 use prism::drawable::{
-    Caret, Drawable, Component, LayoutTree, RangeTree, SizeRange, Rect, Instruction, Item,
+    Drawable, Component, LayoutTree, RangeTree, SizeRange, Rect, Instruction, Item,
     Color as CanvasColor,
 };
 use prism::drawable::text::{Align, Span, Text as BasicText};
 use prism::drawable::shape::{Shape as CanvasShape, Variant as ShapeType};
 use prism::events::{
-    Key, KeyboardEvent, KeyboardState, DynEvent, MouseEvent, MouseState, MouseButton, ChangeSource,
-    OnChange, on_change, Timer, WindowEvent,
+    Key, KeyboardEvent, KeyboardState, DynEvent, MouseEvent, MouseState, MouseButton,
+    ChangeHandler, ListenFuture, Timer, WindowEvent,
 };
 use prism::Context;
-use ptsd::display::Opt;
+use ptsd::display::{Bin, Opt};
 use ptsd::layout::{Stack, Size, Offset, Padding};
 use ptsd::{theme, FontStyle};
 pub use ptsd::TextSize;
 use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
 
+use std::any::Any;
 use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
@@ -109,22 +110,12 @@ impl Drawable for ExpandableText {
     }
 }
 
-#[derive(Component, Clone, Debug)]
-#[on_dyn_event]
-#[caret]
-#[after_layout]
+#[derive(Clone, Debug)]
 pub struct TextEditor {
-    layout: Stack,
-    text: ExpandableText,
-    caret: TextCursor,
-    magnifier: Magnifier,
-    #[skip]
+    content: Bin<Stack, (ExpandableText, TextCursor, Magnifier)>,
     scrub: Scrub,
-    #[skip]
     id: Uuid,
-    #[skip]
     default_span: Span,
-    #[skip]
     dirty: Timer,
 }
 impl TextEditor {
@@ -135,8 +126,8 @@ impl TextEditor {
         built.0.inner.cursor = Some(text.len());
         let magnifier = Magnifier::new(theme, style, built.0.inner.clone());
         Self {
-            layout: Stack::start(), text: built, caret: TextCursor::new(theme, style, size),
-            magnifier, scrub: Scrub::default(), id, default_span, dirty: Timer::default(),
+            content: Bin(Stack::start(), (built, TextCursor::new(theme, style, size), magnifier)),
+            scrub: Scrub::default(), id, default_span, dirty: Timer::default(),
         }
     }
 
@@ -145,7 +136,8 @@ impl TextEditor {
     }
 
     pub fn display_cursor(&mut self, display: bool) {
-        self.caret.1.display(display);
+        let (_, caret, _) = &mut self.content.1;
+        caret.1.display(display);
         if !display {
             self.scrub = Scrub::default();
             self.sync();
@@ -154,7 +146,7 @@ impl TextEditor {
 
     pub fn id(&self) -> Uuid { self.id }
     pub fn value(&self) -> Cow<'_, str> {
-        match self.text.0.inner.spans.as_slice() {
+        match self.content.1.0.0.inner.spans.as_slice() {
             [] => Cow::Borrowed(""), [span] => Cow::Borrowed(&span.text),
             spans => Cow::Owned(spans.iter().map(|span| span.text.as_str()).collect()),
         }
@@ -163,7 +155,7 @@ impl TextEditor {
     pub fn insert(&mut self, ctx: &mut Context, text: &str) {
         if text.is_empty() { return; }
         let index = Self::clamp_to_boundary(&self.value(), self.cursor.unwrap_or(self.text_len()));
-        let inner = &mut self.text.0.inner;
+        let inner = &mut self.content.1.0.0.inner;
         if inner.spans.is_empty() { inner.spans.push(self.default_span.clone()); }
         let mut offset = index;
         for span in &mut inner.spans {
@@ -181,7 +173,7 @@ impl TextEditor {
         let value = self.value();
         let index = Self::clamp_to_boundary(&value, self.cursor.unwrap_or(value.len()));
         let Some((start, _)) = value[..index].grapheme_indices(true).next_back() else { return };
-        let inner = &mut self.text.0.inner;
+        let inner = &mut self.content.1.0.0.inner;
         let mut offset = 0;
         for span in &mut inner.spans {
             let end = offset + span.text.len();
@@ -196,7 +188,7 @@ impl TextEditor {
 
     pub fn set_text(&mut self, ctx: &mut Context, text: &str) {
         if self.value() == text { return; }
-        let inner = &mut self.text.0.inner;
+        let inner = &mut self.content.1.0.0.inner;
         if inner.spans.is_empty() { inner.spans.push(self.default_span.clone()); }
         inner.spans.truncate(1);
         inner.spans[0].text = text.to_string();
@@ -250,20 +242,6 @@ impl TextEditor {
         self.sync();
     }
 
-    fn caret(&self, layout: &LayoutTree) -> Option<Caret> {
-        if !self.caret.1.is_showing() { return None; }
-        let mut rect = self.text.0.inner.cursor_rect()?;
-        rect.0 += layout.1[0].0.0;
-        rect.1 += layout.1[0].0.1;
-        Some(Caret { id: self.id, rect })
-    }
-
-    fn after_layout(&mut self, layout: &mut LayoutTree) {
-        self.sync();
-        let (x, y) = self.text.0.inner.cursor_position();
-        layout.1[1].0 = (layout.1[0].0.0 + x, layout.1[0].0.1 + y + 2.0);
-    }
-
     fn changed(&mut self, ctx: &mut Context) {
         self.dirty.cancel();
         self.sync();
@@ -276,30 +254,67 @@ impl TextEditor {
         index
     }
 
-    fn place_cursor(&mut self, pos: (f32, f32)) { self.text.0.inner.cursor_click(pos.0, pos.1); }
+    fn place_cursor(&mut self, pos: (f32, f32)) { self.content.1.0.0.inner.cursor_click(pos.0, pos.1); }
 
     fn sync(&mut self) {
-        if let Some(cursor) = self.text.0.inner.cursor {
-            self.text.0.inner.cursor = Some(Self::clamp_to_boundary(&self.value(), cursor));
+        if let Some(cursor) = self.content.1.0.0.inner.cursor {
+            self.content.1.0.0.inner.cursor = Some(Self::clamp_to_boundary(&self.value(), cursor));
         }
 
-        self.magnifier.active = self.scrub.active;
-        self.magnifier.text = self.text.0.inner.clone();
+        let (text, _, magnifier) = &mut self.content.1;
+        magnifier.active = self.scrub.active;
+        magnifier.text = text.0.inner.clone();
     }
 }
 
-impl TextEditor {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
+impl Drawable for TextEditor {
+    fn listen(&mut self) -> ListenFuture<'_> {
+        let (content, dirty, scrub) = (&mut self.content, &mut self.dirty, &mut self.scrub);
+        Box::pin(ChangeHandler::select(vec![
+            Drawable::listen(content),
+            Box::pin(async move {
+                dirty.next().await;
+                (Vec::new(), Box::new(()) as Box<dyn Any>)
+            }),
+            Box::pin(async move {
+                scrub.timer.next().await;
+                (Vec::new(), Box::new(()) as Box<dyn Any>)
+            }),
+        ]))
+    }
+    fn update(&mut self, ctx: &mut Context, mut path: Vec<usize>, update: Box<dyn Any>) {
+        match path.pop().unwrap() {
+            0 => Drawable::update(&mut self.content, ctx, path, update),
+            1 => self.changed(ctx),
+            2 => {
+                self.scrub.active = true;
+                self.place_cursor(self.scrub.pointer);
+                self.sync();
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn size_range(&self) -> RangeTree {self.content.size_range()}
+    fn layout(&mut self, size: (f32, f32), request: &RangeTree) -> LayoutTree {
+        let mut layout = Drawable::layout(&mut self.content, size, request);
+        self.sync();
+        let (x, y) = self.content.1.0.0.inner.cursor_position();
+        layout.1[1].0 = (layout.1[0].0.0 + x, layout.1[0].0.1 + y + 2.0);
+        layout
+    }
+    fn draw(&self, sized: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
+        self.content.draw(sized, offset, bound)
+    }
+
+    fn event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) {
         if matches!(event.downcast_ref::<WindowEvent>(), Some(WindowEvent::Focused(false))) {
             self.scrub = Scrub::default();
             self.sync();
         } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
             match mouse.state {
                 MouseState::Pressed(MouseButton::Left) => {
-                    if let Some(position) = mouse.position {
-                        ctx.claim_pointer();
-                        self.pointer_pressed(position);
-                    }
+                    if let Some(position) = mouse.position {self.pointer_pressed(position);}
                 }
                 MouseState::Moved => {
                     self.pointer_moved(mouse.position, None, ctx.window.touch_controls)
@@ -322,32 +337,19 @@ impl TextEditor {
             }
         }
 
-        vec![event]
+        self.content.event(ctx, sized, event);
     }
 }
 
 impl Deref for TextEditor {
     type Target = BasicText;
-    fn deref(&self) -> &Self::Target { &self.text.0.inner }
+    fn deref(&self) -> &Self::Target { &self.content.1.0.0.inner }
 }
 
 impl DerefMut for TextEditor {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.dirty.reset(Duration::ZERO);
-        &mut self.text.0.inner
-    }
-}
-
-#[on_change(ChangeSource::changed(&mut self.dirty))]
-impl OnChange<()> for TextEditor {
-    fn on_change(&mut self, ctx: &mut Context, _: ()) { self.changed(ctx); }
-}
-#[on_change(ChangeSource::changed(&mut self.scrub))]
-impl OnChange<()> for TextEditor {
-    fn on_change(&mut self, _ctx: &mut Context, _: ()) {
-        self.scrub.active = true;
-        self.place_cursor(self.scrub.pointer);
-        self.sync();
+        &mut self.content.1.0.0.inner
     }
 }
 
@@ -447,8 +449,4 @@ struct Scrub {
     pointer: (f32, f32),
     moved: (f32, f32),
     active: bool,
-}
-impl ChangeSource for Scrub {
-    type Update = ();
-    async fn next(&mut self) -> Option<()> { self.timer.next().await }
 }
