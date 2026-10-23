@@ -1,34 +1,19 @@
-use prism::event::{OnEvent, Event, TickEvent};
-use prism::drawable::{Component, SizedTree};
-use prism::layout::{Stack, Offset, Size, Padding};
-use prism::canvas::{Image, ShapeType};
+use futures::channel::oneshot;
+use prism::drawable::{Component, shape::Variant};
+use prism::events::{Timer, ChangeSource, OnChange, on_change};
+use prism::hardware::{Image, Frame, Player, PlaybackMode};
 use prism::Context;
-
-use image::{RgbaImage, AnimationDecoder};
-use image::codecs::gif::GifDecoder;
-use image::imageops;
-
+use ptsd::layout::{Stack, Offset, Size, Padding};
 use serde::{Serialize, Deserialize};
 
 use std::collections::{BTreeMap, VecDeque};
-use std::io::Read;
+use std::io::{Cursor, Read};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::Task;
 use crate::theme::{Theme, Color};
-use crate::components::Rectangle;
-
-static API_KEY: Mutex<Option<String>> = Mutex::new(None);
-static CACHE: Mutex<GifCache> = Mutex::new(GifCache { entries: BTreeMap::new(), recent: VecDeque::new(), bytes: 0 });
-
-lazy_static::lazy_static! {
-    static ref AGENT: ureq::Agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(20)).build();
-}
-
-pub fn set_giphy_api_key(key: &str) {
-    if let Ok(mut api_key) = API_KEY.lock() { *api_key = Some(key.to_string()); }
-}
+use crate::components::{Rectangle, images::MaskedImage};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Gif {
@@ -43,6 +28,8 @@ pub struct Gif {
 pub struct GifBatch {
     pub gifs: Vec<Gif>,
     pub more: bool,
+    pub next_offset: usize,
+    pub failures: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,239 +38,262 @@ pub enum GifError {
     Unavailable,
 }
 
-pub fn find_gifs(query: Option<String>, offset: usize) -> Task<Result<GifBatch, GifError>> {
-    Task::spawn(move || {
-        let key = API_KEY.lock().ok().and_then(|key| key.clone())
-            .or_else(|| option_env!("GIPHY_API_KEY").map(str::to_string))
-            .filter(|key| !key.is_empty())
-            .ok_or(GifError::NoApiKey)?;
-        let endpoint = if query.is_some() { "search" } else { "trending" };
-        let mut request = AGENT.get(&format!("https://api.giphy.com/v1/gifs/{endpoint}"))
-            .query("api_key", &key)
-            .query("limit", "24")
-            .query("offset", &offset.to_string())
-            .query("rating", "g");
-        if let Some(query) = &query { request = request.query("q", query); }
+#[derive(Clone)]
+pub struct Gifs(Arc<Mutex<GifCache>>);
+impl Gifs {
+    pub fn set_api_key(&self, key: &str) {self.0.lock().unwrap().key = Some(key.to_owned());}
 
-        let body: serde_json::Value = request.call().ok()
-            .and_then(|response| response.into_json().ok())
-            .ok_or(GifError::Unavailable)?;
-        let data = body.get("data").and_then(|d| d.as_array()).ok_or(GifError::Unavailable)?;
-        let total = body.get("pagination").and_then(|p| p.get("total_count")).and_then(|t| t.as_u64());
-
-        let text = |v: &serde_json::Value, key: &str| v.get(key)?.as_str().map(str::to_string);
-        let number = |v: &serde_json::Value, key: &str| v.get(key)?.as_str()?.parse::<u32>().ok();
-
-        Ok(GifBatch {
-            gifs: data.iter().filter_map(|value| {
-                let images = value.get("images")?;
-                let full = images.get("fixed_width")?;
-                let small = images.get("fixed_width_small").unwrap_or(full);
-                Some(Gif {
-                    id: text(value, "id")?,
-                    url: text(full, "url")?,
-                    width: number(full, "width")?,
-                    height: number(full, "height")?,
-                    preview: text(small, "url")?,
-                })
-            }).collect(),
-            more: !data.is_empty() && total.is_none_or(|total| ((offset + data.len()) as u64) < total),
-        })
-    })
-}
-
-pub struct GifFrames {
-    frames: Vec<(Arc<RgbaImage>, Duration)>,
-    length: Duration,
-    bytes: usize,
-}
-
-impl GifFrames {
-    pub fn frame_at(&self, elapsed: Duration) -> (usize, &Arc<RgbaImage>) {
-        if self.frames.len() == 1 || self.length.is_zero() { return (0, &self.frames[0].0); }
-        let mut t = Duration::from_nanos((elapsed.as_nanos() % self.length.as_nanos()) as u64);
-        for (i, (frame, delay)) in self.frames.iter().enumerate() {
-            if t < *delay { return (i, frame); }
-            t -= *delay;
-        }
-        (self.frames.len() - 1, &self.frames[self.frames.len() - 1].0)
-    }
-}
-
-impl std::fmt::Debug for GifFrames {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "GifFrames({} frames)", self.frames.len())
-    }
-}
-
-enum CacheEntry {
-    Loading,
-    Ready(Arc<GifFrames>),
-    Failed(Instant),
-}
-
-struct GifCache {
-    entries: BTreeMap<String, CacheEntry>,
-    recent: VecDeque<String>,
-    bytes: usize,
-}
-
-pub fn load_gif(url: &str, crop: Option<(u32, u32)>) -> Option<Arc<GifFrames>> {
-    let key = match crop {
-        Some((w, h)) => format!("{url}#{w}x{h}"),
-        None => url.to_string(),
-    };
-
-    {
-        let mut gifs = CACHE.lock().ok()?;
-        match gifs.entries.get(&key) {
-            Some(CacheEntry::Ready(frames)) => {
-                let frames = frames.clone();
-                if let Some(i) = gifs.recent.iter().position(|k| *k == key) && i + 1 != gifs.recent.len() {
-                    let shown = gifs.recent.remove(i).unwrap();
-                    gifs.recent.push_back(shown);
-                }
-                return Some(frames);
-            }
-            Some(CacheEntry::Loading) => return None,
-            Some(CacheEntry::Failed(at)) if at.elapsed() < Duration::from_secs(30) => return None,
-            _ => {}
-        }
-        gifs.entries.insert(key.clone(), CacheEntry::Loading);
-    }
-
-    let url = url.to_string();
-    std::thread::spawn(move || {
-        let bytes = AGENT.get(&url).call().ok().and_then(|response| {
-            let mut bytes = Vec::new();
-            response.into_reader().take(8 * 1024 * 1024).read_to_end(&mut bytes).ok().map(|_| bytes)
-        });
-        let frames: Vec<(Arc<RgbaImage>, Duration)> = bytes
-            .and_then(|bytes| GifDecoder::new(std::io::Cursor::new(bytes)).ok())
-            .map(|decoder| decoder.into_frames().take(90).map_while(Result::ok).map(|frame| {
-                let (numer, denom) = frame.delay().numer_denom_ms();
-                let ms = numer.checked_div(denom).unwrap_or(0);
-                let image = frame.into_buffer();
-                let image = match crop {
-                    Some((aw, ah)) => {
-                        let (w, h) = image.dimensions();
-                        let (cw, ch) = match (w as u64 * ah as u64) > (h as u64 * aw as u64) {
-                            true => ((h as u64 * aw as u64 / ah as u64).max(1) as u32, h),
-                            false => (w, (w as u64 * ah as u64 / aw as u64).max(1) as u32),
-                        };
-                        imageops::crop_imm(&image, (w - cw) / 2, (h - ch) / 2, cw, ch).to_image()
-                    }
-                    None => image,
-                };
-                (Arc::new(image), Duration::from_millis(if ms < 20 { 100 } else { ms as u64 }))
-            }).collect())
-            .unwrap_or_default();
-
-        let Ok(mut gifs) = CACHE.lock() else { return };
-        if frames.is_empty() {
-            gifs.entries.insert(key, CacheEntry::Failed(Instant::now()));
-            return;
-        }
-        let frames = GifFrames {
-            length: frames.iter().map(|(_, delay)| *delay).sum(),
-            bytes: frames.iter().map(|(image, _)| image.as_raw().len()).sum(),
-            frames,
+    pub fn search(&self, query: Option<String>, offset: usize) -> Task<Result<GifBatch, GifError>> {
+        let (key, client) = {
+            let cache = self.0.lock().unwrap();
+            (cache.key.clone(), cache.client.clone())
         };
-        gifs.bytes += frames.bytes;
-        gifs.entries.insert(key.clone(), CacheEntry::Ready(Arc::new(frames)));
-        gifs.recent.push_back(key);
-        while gifs.bytes > 96 * 1024 * 1024 && gifs.recent.len() > 1 {
-            let Some(old) = gifs.recent.pop_front() else { break };
-            if let Some(CacheEntry::Ready(frames)) = gifs.entries.remove(&old) { gifs.bytes -= frames.bytes; }
-        }
-    });
-    None
+        Task::spawn(move || {
+            let key = key.filter(|key| !key.is_empty()).ok_or(GifError::NoApiKey)?;
+            let endpoint = if query.is_some() {"search"} else {"trending"};
+            let mut request = client.get(&format!("https://api.giphy.com/v1/gifs/{endpoint}"))
+                .query("api_key", &key).query("limit", "24")
+                .query("offset", &offset.to_string()).query("rating", "g");
+            if let Some(query) = &query {request = request.query("q", query);}
+            let body: serde_json::Value = request.call().ok()
+                .and_then(|response| response.into_json().ok()).ok_or(GifError::Unavailable)?;
+            let data = body.get("data").and_then(|value| value.as_array())
+                .ok_or(GifError::Unavailable)?;
+            let total = body.get("pagination").and_then(|value| value.get("total_count"))
+                .and_then(|value| value.as_u64());
+            let mut batch = GifBatch {
+                gifs: Vec::new(), failures: Vec::new(), next_offset: offset + data.len(),
+                more: !data.is_empty() && total.is_none_or(|n| ((offset + data.len()) as u64) < n),
+            };
+            for (index, value) in data.iter().enumerate() {
+                let parse = || {
+                    let text = |v: &serde_json::Value, key: &str| v.get(key)?.as_str().map(str::to_owned);
+                    let number = |v: &serde_json::Value, key: &str| v.get(key)?.as_str()?.parse().ok();
+                    let images = value.get("images")?;
+                    let full = images.get("fixed_width")?;
+                    let small = images.get("fixed_width_small").unwrap_or(full);
+                    Some(Gif {
+                        id: text(value, "id")?, url: text(full, "url")?,
+                        width: number(full, "width")?, height: number(full, "height")?,
+                        preview: text(small, "url")?,
+                    })
+                };
+                match parse() {
+                    Some(gif) => batch.gifs.push(gif),
+                    None => batch.failures.push(format!("GIF {} has invalid metadata", offset + index)),
+                }
+            }
+            Ok(batch)
+        })
+    }
+}
+impl Default for Gifs {
+    fn default() -> Self {
+        Self(Arc::new(Mutex::new(GifCache {
+            key: option_env!("GIPHY_API_KEY").map(str::to_owned),
+            client: ureq::AgentBuilder::new().timeout(Duration::from_secs(20)).build(),
+            entries: BTreeMap::new(), recent: VecDeque::new(), bytes: 0,
+            downloading: 0, waiting: Vec::new(),
+        })))
+    }
+}
+impl std::fmt::Debug for Gifs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {f.write_str("Gifs")}
 }
 
 #[derive(Debug, Clone, Component)]
 pub struct GifPlayer {
     layout: Stack,
-    image: Option<Image>,
+    image: Option<MaskedImage>,
     placeholder: Option<Rectangle>,
     #[skip] url: String,
-    #[skip] crop: Option<(u32, u32)>,
-    #[skip] size: (f32, f32),
+    #[skip] gifs: Gifs,
+    #[skip] loading: Option<GifLoad>,
+    #[skip] retry: Timer,
     #[skip] radius: f32,
     #[skip] color: Color,
-    #[skip] frames: Option<Arc<GifFrames>>,
-    #[skip] started: Instant,
-    #[skip] shown: usize,
-    #[skip] live: bool,
+    #[skip] player: Option<Player>,
+    #[skip] active: bool,
 }
-
 impl GifPlayer {
     pub fn message(theme: &Theme, gif: &Gif) -> Self {
         let (w, h) = (gif.width.max(1) as f32, gif.height.max(1) as f32);
         let scale = (200.0 / w).min(280.0 / h);
         let color = theme.colors().get(ptsd::Background::Secondary);
-        Self::new(&gif.url, None, ((w * scale).round(), (h * scale).round()), 16.0, color)
+        Self::new(theme, &gif.url, ((w * scale).round(), (h * scale).round()), 16.0, color)
     }
 
-    pub fn thumbnail(gif: &Gif, size: (f32, f32)) -> Self {
-        let (w, h) = (size.0.round().max(1.0) as u32, size.1.round().max(1.0) as u32);
-        let (mut common, mut rest) = (w, h);
-        while rest != 0 { (common, rest) = (rest, common % rest); }
-        let url = if size.0 > 125.0 { &gif.url } else { &gif.preview };
-        Self::new(url, Some((w / common, h / common)), size, 8.0, Color::from_hex("ffffff", 40))
+    pub fn thumbnail(theme: &Theme, gif: &Gif, size: (f32, f32)) -> Self {
+        let url = if size.0 > 125.0 {&gif.url} else {&gif.preview};
+        Self::new(theme, url, size, 8.0, Color::from_hex("ffffff", 5))
     }
 
-    fn new(url: &str, crop: Option<(u32, u32)>, size: (f32, f32), radius: f32, color: Color) -> Self {
-        GifPlayer {
-            layout: Stack(Offset::Center, Offset::Center, Size::Static(size.0), Size::Static(size.1), Padding::default()),
-            image: None,
-            placeholder: Some(Rectangle::new(color, radius, None)),
-            url: url.to_string(),
-            crop,
-            size,
-            radius,
-            color,
-            frames: None,
-            started: Instant::now(),
-            shown: usize::MAX,
-            live: true,
+    pub fn set_active(&mut self, active: bool) {
+        if active == self.active {return}
+        self.active = active;
+        self.loading = active.then(|| GifLoad {url: self.url.clone(), gifs: self.gifs.clone()});
+        self.retry.cancel();
+        if !active {
+            self.image = None;
+            self.placeholder = Some(Rectangle::new(self.color, self.radius, None));
+            self.player = None;
         }
     }
 
-    pub fn set_live(&mut self, live: bool) {
-        if live == self.live { return; }
-        self.live = live;
-        if !live {
-            self.image = None;
-            self.placeholder = Some(Rectangle::new(self.color, self.radius, None));
-            self.frames = None;
-            self.shown = usize::MAX;
+    fn new(theme: &Theme, url: &str, size: (f32, f32), radius: f32, color: Color) -> Self {
+        GifPlayer {
+            layout: Stack(
+                Offset::Center, Offset::Center, Size::Static(size.0), Size::Static(size.1),
+                Padding::default(),
+            ),
+            image: None, placeholder: Some(Rectangle::new(color, radius, None)),
+            url: url.to_string(), gifs: theme.gifs().clone(),
+            loading: Some(GifLoad {url: url.to_string(), gifs: theme.gifs().clone()}),
+            retry: Timer::default(), radius, color, player: None, active: true,
+        }
+    }
+
+    fn show_frame(&mut self, frame: Image) {
+        self.image = Some(MaskedImage(frame, Variant::RoundedRectangle(self.radius)));
+        self.placeholder = None;
+    }
+}
+#[on_change(ChangeSource::changed(&mut self.loading))]
+impl OnChange<Result<Arc<Vec<u8>>, Instant>> for GifPlayer {
+    fn on_change(&mut self, ctx: &mut Context, result: Result<Arc<Vec<u8>>, Instant>) {
+        self.loading = None;
+        let bytes = match result {
+            Ok(bytes) => bytes,
+            Err(at) => {
+                self.retry.reset(at.saturating_duration_since(Instant::now()));
+                return
+            }
+        };
+        let player = ctx.hardware.read_media(Cursor::new(bytes.as_slice())).and_then(|media| {
+            media.dimensions().ok_or("Media has no video track")?;
+            Player::new(media)
+        });
+        match player {
+            Ok(player) => {
+                player.set_mode(PlaybackMode::Loop);
+                if let Some(image) = player.frame().image {self.show_frame(image);}
+                player.start();
+                self.player = Some(player);
+            }
+            Err(_) => {
+                let at = Instant::now();
+                let mut gifs = self.gifs.0.lock().unwrap();
+                if let Some(CacheEntry::Ready(bytes)) = gifs.entries.remove(&self.url) {
+                    gifs.bytes -= bytes.len();
+                }
+                gifs.recent.retain(|url| url != &self.url);
+                gifs.entries.insert(self.url.clone(), CacheEntry::Failed(at));
+                self.retry.reset(Duration::from_secs(30));
+            }
         }
     }
 }
+#[on_change(ChangeSource::changed(&mut self.retry))]
+impl OnChange<()> for GifPlayer {
+    fn on_change(&mut self, _ctx: &mut Context, _: ()) {
+        self.loading = Some(GifLoad {url: self.url.clone(), gifs: self.gifs.clone()});
+    }
+}
+#[on_change(ChangeSource::changed(&mut self.player))]
+impl OnChange<Frame> for GifPlayer {
+    fn on_change(&mut self, _ctx: &mut Context, frame: Frame) {
+        if let Some(image) = frame.image {self.show_frame(image);}
+    }
+}
 
-impl OnEvent for GifPlayer {
-    fn on_event(&mut self, _ctx: &mut Context, _sized: &SizedTree, event: Box<dyn Event>) -> Vec<Box<dyn Event>> {
-        if event.downcast_ref::<TickEvent>().is_some() && self.live {
-            if self.frames.is_none() && let Some(frames) = load_gif(&self.url, self.crop) {
-                self.frames = Some(frames);
-                self.started = Instant::now();
-                self.placeholder = None;
-            }
+enum CacheEntry {
+    Loading,
+    Ready(Arc<Vec<u8>>),
+    Failed(Instant),
+}
 
-            if let Some(frames) = &self.frames {
-                let (index, frame) = frames.frame_at(self.started.elapsed());
-                if index != self.shown {
-                    self.shown = index;
-                    match &mut self.image {
-                        Some(image) => image.image = frame.clone(),
-                        None => {
-                            let shape = ShapeType::RoundedRectangle(0.0, self.size, 0.0, self.radius);
-                            self.image = Some(Image { shape, image: frame.clone(), color: None });
-                        }
+struct GifCache {
+    key: Option<String>,
+    client: ureq::Agent,
+    downloading: usize,
+    entries: BTreeMap<String, CacheEntry>,
+    recent: VecDeque<String>,
+    bytes: usize,
+    waiting: Vec<oneshot::Sender<()>>,
+}
+
+#[derive(Debug, Clone)]
+struct GifLoad {
+    url: String,
+    gifs: Gifs,
+}
+impl ChangeSource for GifLoad {
+    type Update = Result<Arc<Vec<u8>>, Instant>;
+    async fn next(&mut self) -> Option<Self::Update> {
+        loop {
+            let waiting = {
+                let mut gifs = self.gifs.0.lock().unwrap();
+                match gifs.entries.get(&self.url) {
+                    Some(CacheEntry::Ready(bytes)) => {
+                        let bytes = bytes.clone();
+                        gifs.recent.retain(|url| url != &self.url);
+                        gifs.recent.push_back(self.url.clone());
+                        return Some(Ok(bytes))
                     }
+                    Some(CacheEntry::Failed(at)) if at.elapsed() < Duration::from_secs(30) => {
+                        return Some(Err(*at + Duration::from_secs(30)))
+                    }
+                    _ => {},
                 }
-            }
+                if gifs.downloading < 4 && !matches!(gifs.entries.get(&self.url), Some(CacheEntry::Loading)) {
+                    gifs.downloading += 1;
+                    gifs.entries.insert(self.url.clone(), CacheEntry::Loading);
+                    let url = self.url.clone();
+                    let owner = self.gifs.clone();
+                    let client = gifs.client.clone();
+                    std::thread::spawn(move || {
+                        let bytes = client.get(&url).call().ok().and_then(|response| {
+                            let mut bytes = Vec::new();
+                            response.into_reader().take(8 * 1024 * 1024 + 1)
+                                .read_to_end(&mut bytes).ok()?;
+                            (!bytes.is_empty() && bytes.len() <= 8 * 1024 * 1024).then_some(bytes)
+                        });
+                        let mut gifs = owner.0.lock().unwrap();
+                        gifs.downloading -= 1;
+                        match bytes {
+                            Some(bytes) => {
+                                gifs.bytes += bytes.len();
+                                gifs.entries.insert(url.clone(), CacheEntry::Ready(Arc::new(bytes)));
+                                gifs.recent.push_back(url.clone());
+                            }
+                            None => {gifs.entries.insert(url.clone(), CacheEntry::Failed(Instant::now()));}
+                        }
+                        if gifs.entries.len() > 512 {
+                            let failed: Vec<_> = gifs.entries.iter().filter_map(|(key, entry)| {
+                                (key != &url && matches!(entry, CacheEntry::Failed(_)))
+                                    .then_some(key.clone())
+                            }).take(gifs.entries.len() - 512).collect();
+                            for url in failed {gifs.entries.remove(&url);}
+                        }
+                        while (gifs.bytes > 96 * 1024 * 1024 || gifs.entries.len() > 512)
+                            && gifs.recent.len() > 1
+                        {
+                            let old = gifs.recent.pop_front().unwrap();
+                            if let Some(CacheEntry::Ready(bytes)) = gifs.entries.remove(&old) {
+                                gifs.bytes -= bytes.len();
+                            }
+                        }
+                        let waiting = std::mem::take(&mut gifs.waiting);
+                        drop(gifs);
+                        for sender in waiting {let _ = sender.send(());}
+                    });
+                }
+                let (sender, receiver) = oneshot::channel();
+                gifs.waiting.retain(|sender| !sender.is_canceled());
+                gifs.waiting.push(sender);
+                receiver
+            };
+            waiting.await.unwrap();
         }
-        vec![event]
     }
 }

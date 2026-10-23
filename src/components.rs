@@ -31,7 +31,7 @@ mod qr_code;
 pub use qr_code::QRCode;
 
 mod qr_scanner;
-pub use qr_scanner::{QRCodeScanner, QRCodeScannedEvent};
+pub use qr_scanner::{QRCodeScanner, QrCodeFound};
 
 mod data_item;
 pub use data_item::DataItem;
@@ -52,4 +52,4 @@ mod sticker;
 pub use sticker::{Sticker, StickerView, StickerPack, StickerPackAction};
 
 mod gif;
-pub use gif::{Gif, GifPlayer, GifFrames, GifBatch, GifError, find_gifs, load_gif, set_giphy_api_key};
+pub use gif::{Gifs, Gif, GifPlayer, GifBatch, GifError};

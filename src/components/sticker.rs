@@ -1,20 +1,21 @@
-use prism::event::OnEvent;
-use prism::drawable::Component;
-use prism::layout::{Stack, Offset, Size, Padding};
-use prism::canvas::{Image, ShapeType};
-use prism::Context;
-
-use image::RgbaImage;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use image::{RgbaImage, ColorType};
+use image::codecs::jpeg::JpegEncoder;
 use image::imageops;
-
+use prism::air::{Metadata, Contract, Id, Name, Instance};
+use prism::drawable::{Component, shape::Variant};
+use prism::Context;
+use prism::hardware::Hardware;
+use ptsd::layout::{Stack, Offset, Size, Padding};
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
-
-use maverick_os::air::{Metadata, Contract, Id, Name, Instance};
 
 use std::sync::Arc;
 use std::hash::Hash;
 
-use crate::components::Photo;
+use crate::components::images::MaskedImage;
+
+#[derive(Debug, Clone, Hash, Serialize, Deserialize)]
+pub enum StickerPackAction {Add(Sticker), Remove(Sticker)}
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Sticker {
@@ -24,14 +25,16 @@ pub struct Sticker {
 
 impl Serialize for Sticker {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        crate::base64_bytes::serialize(&self.bytes, serializer)
+        serializer.serialize_str(&STANDARD.encode(&self.bytes))
     }
 }
 
 impl<'de> Deserialize<'de> for Sticker {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let bytes = crate::base64_bytes::deserialize(deserializer)?;
-        Ok(Sticker::from_bytes(bytes.to_vec()).unwrap_or_else(|| Sticker { bytes, image: Arc::new(RgbaImage::new(1, 1)) }))
+        let encoded = String::deserialize(deserializer)?;
+        let bytes = STANDARD.decode(encoded).map_err(serde::de::Error::custom)?;
+        Sticker::from_bytes(bytes)
+            .ok_or_else(|| serde::de::Error::custom("Invalid sticker image"))
     }
 }
 
@@ -40,7 +43,17 @@ impl Sticker {
         let (w, h) = photo.dimensions();
         let side = w.min(h);
         let square = imageops::crop_imm(photo, (w - side) / 2, (h - side) / 2, side, side).to_image();
-        Sticker::from_bytes(Photo::encode(&square, 320, 80)?.jpeg().to_vec())
+        if side == 0 {return None;}
+        let size = side.min(320);
+        let square = imageops::resize(&square, size, size, imageops::FilterType::Triangle);
+        let rgb: Vec<u8> = square.as_raw().chunks_exact(4).flat_map(|pixel| {
+            let alpha = pixel[3] as u32;
+            [0, 1, 2].map(|i| ((pixel[i] as u32 * alpha + 255 * (255 - alpha)) / 255) as u8)
+        }).collect();
+        let mut jpeg = Vec::new();
+        JpegEncoder::new_with_quality(&mut jpeg, 80)
+            .encode(&rgb, size, size, ColorType::Rgb8).ok()?;
+        Sticker::from_bytes(jpeg)
     }
 
     pub fn from_bytes(bytes: Vec<u8>) -> Option<Self> {
@@ -50,19 +63,6 @@ impl Sticker {
 
     pub fn image(&self) -> Arc<RgbaImage> { self.image.clone() }
     pub fn bytes(&self) -> &[u8] { &self.bytes }
-}
-
-#[derive(Debug, Clone, Component)]
-pub struct StickerView(Stack, Image);
-impl OnEvent for StickerView {}
-
-impl StickerView {
-    pub fn message(sticker: &Sticker) -> Self {
-        StickerView(
-            Stack(Offset::Center, Offset::Center, Size::Static(120.0), Size::Static(120.0), Padding::default()),
-            Image { shape: ShapeType::RoundedRectangle(0.0, (120.0, 120.0), 0.0, 16.0), image: sticker.image(), color: None },
-        )
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
@@ -78,9 +78,7 @@ impl Contract for StickerPack {
 
     fn id() -> Id {Id::hash("StickerPack")}
 
-    fn init(owner: Self::Init, _metadata: Metadata) -> Self {
-        StickerPack { owner, stickers: Vec::new() }
-    }
+    fn init(owner: Self::Init, _metadata: Metadata) -> Self {StickerPack {owner, stickers: Vec::new()}}
 
     fn apply(&mut self, message: Self::Message, metadata: Metadata) -> Self::Result {
         if metadata.signer != self.owner { return; }
@@ -97,14 +95,25 @@ impl Contract for StickerPack {
 
 impl StickerPack {
     pub fn mine(ctx: &mut Context) -> Instance<StickerPack> {
-        let me = ctx.me();
-        let existing = ctx.list::<StickerPack>().into_values().find(|pack| pack.pending().owner == me);
-        existing.unwrap_or_else(|| ctx.create::<StickerPack>(me))
+        let me = ctx.air.me();
+        let existing = ctx.air.instances::<StickerPack>().list().into_values()
+            .find(|pack| pack.pending().owner == me);
+        existing.unwrap_or_else(|| ctx.air.instances::<StickerPack>().create(me))
     }
 }
 
-#[derive(Debug, Clone, Hash, Serialize, Deserialize)]
-pub enum StickerPackAction {
-    Add(Sticker),
-    Remove(Sticker),
+#[derive(Debug, Clone, Component)]
+pub struct StickerView(Stack, MaskedImage);
+
+impl StickerView {
+    pub fn message(hardware: &Hardware, sticker: &Sticker) -> Self {
+        StickerView(
+            Stack(
+                Offset::Center, Offset::Center, Size::Static(120.0), Size::Static(120.0), Padding::default(),
+            ),
+            MaskedImage(
+                hardware.image_from_rgba(sticker.image()), Variant::RoundedRectangle(16.0),
+            ),
+        )
+    }
 }

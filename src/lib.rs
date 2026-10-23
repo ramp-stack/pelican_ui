@@ -1,17 +1,18 @@
-pub mod components;
-pub mod interface;
-
-pub mod theme;
-use theme::Theme;
-
+use futures::{channel::mpsc, lock::Mutex, StreamExt};
+use prism::events::ChangeSource;
 pub use prism::*;
 pub use ptsd::{colors, utils, navigation};
-
+pub use ptsd::{Validate, Validator, Watched};
 pub use image;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 extern crate self as pelican_ui;
+
+pub mod components;
+pub mod interface;
+pub mod theme;
+use theme::Theme;
 
 macro_rules! closure_trait {
     ($name:ident, $($signature:tt)+) => {
@@ -19,7 +20,7 @@ macro_rules! closure_trait {
             fn clone_box(&self) -> Box<dyn $name>;
         }
 
-        impl<F> $name for F where F: $($signature)+ + Clone + 'static {
+        impl<F: $($signature)+ + Clone + 'static> $name for F {
             fn clone_box(&self) -> Box<dyn $name> { Box::new(self.clone()) }
         }
 
@@ -30,49 +31,34 @@ macro_rules! closure_trait {
         impl PartialEq for dyn $name { fn eq(&self, _: &Self) -> bool { true } }
 
         impl std::fmt::Debug for dyn $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{}", stringify!($name)) }
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", stringify!($name))
+            }
         }
     };
 }
-pub(crate) use closure_trait;
+
+use closure_trait;
 
 closure_trait!(Callback, FnMut(&mut Context, &Theme));
 
-pub struct Task<T>(Arc<Mutex<Option<T>>>);
-
+pub struct Task<T>(Arc<Mutex<mpsc::Receiver<T>>>);
 impl<T: Send + 'static> Task<T> {
     pub fn spawn(work: impl FnOnce() -> T + Send + 'static) -> Self {
-        let slot = Arc::new(Mutex::new(None));
-        let result = slot.clone();
+        let (mut sender, receiver) = mpsc::channel(1);
         std::thread::spawn(move || {
-            let value = work();
-            if let Ok(mut slot) = result.lock() { *slot = Some(value); }
+            let _ = sender.try_send(work());
         });
-        Task(slot)
+        Self(Arc::new(Mutex::new(receiver)))
     }
-
-    pub fn take(&self) -> Option<T> { self.0.lock().ok()?.take() }
 }
-
 impl<T> Clone for Task<T> {
-    fn clone(&self) -> Self { Task(self.0.clone()) }
+    fn clone(&self) -> Self { Self(self.0.clone()) }
 }
-
 impl<T> std::fmt::Debug for Task<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "Task") }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("Task") }
 }
-
-pub(crate) mod base64_bytes {
-    use base64::{engine::general_purpose::STANDARD, Engine as _};
-    use serde::{Deserialize, Deserializer, Serializer};
-    use std::sync::Arc;
-
-    pub fn serialize<S: Serializer>(bytes: &Arc<[u8]>, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&STANDARD.encode(bytes))
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Arc<[u8]>, D::Error> {
-        let text = String::deserialize(deserializer)?;
-        STANDARD.decode(text).map(Into::into).map_err(serde::de::Error::custom)
-    }
+impl<T: 'static> ChangeSource for Task<T> {
+    type Update = T;
+    async fn next(&mut self) -> Option<T> { self.0.lock().await.next().await }
 }
