@@ -1,5 +1,13 @@
 # Pelican UI Overview
 
+## Frontend development setup
+
+Clone `orange`, `chk`, `pelican_ui`, and `ptsd` into sibling directories and update
+their default branches together. Frontend dependencies use these local checkouts;
+backend dependencies use published crates. Follow the
+[Orange setup instructions](https://github.com/ramp-stack/orange#frontend-setup)
+for Cargo Piston, the shared team identity, and build troubleshooting.
+
 Pelican UI is a Rust UI crate designed to enable developers to build applications using a predefined set of components and layout rules. Rather than serving as a general-purpose UI framework, Pelican UI provides a structured component library and layout system intended for building consistent application interfaces quickly and predictably.
 
 The crate is built on top of several underlying systems:
