@@ -39,13 +39,14 @@ In portrait, the custom keyboard paints its own background through the bottom sa
 while visible. Its keys keep their safe-area layout and touch bounds; hiding the keyboard restores
 the theme background, and landscape keeps the normal safe-area clipping.
 
-Drag downward from the content above the keyboard into its top edge, or start in its empty
-top padding, to dismiss it interactively. The keyboard follows the pointer and gives the page
-back space as it moves. Release after a sufficiently long drag or downward flick to close it;
-a short drag or upward reversal returns it to its original position. Keys continue activating
-on touch and cannot start dismissal drags. Mouse dragging and active touchscreen scrolling
-use the same keyboard behavior; hover, wheel input without a press, and trailing touch momentum
-do not start a dismissal.
+Drag downward from the keyboard's empty top edge to dismiss it interactively. The keyboard
+follows the pointer and gives the page back space as it moves. Release after a sufficiently
+long drag or downward flick to close it; a short drag or upward reversal returns it to its
+original position. The interface observes
+pointer events for dismissal and forwards them unchanged. Keys continue activating on touch,
+including during dismissal; a press on a key does not start dismissal. Mouse dragging and
+active touchscreen scrolling use the same keyboard behavior; hover, wheel input without a
+press, and trailing touch momentum do not start a dismissal.
 
 The reusable gesture and moving layout live in PTSD's `display::Dismissible`, configured
 with `DismissEdge::Bottom`. Pelican owns the keyboard content, safe-area paint, and the
@@ -54,10 +55,12 @@ container with `DismissEdge::Top` to dismiss toward the top of the screen.
 
 ## Keyboards and picker panels
 
-`Interface::new(ctx, theme, roots, keyboard, on_event)` accepts an optional text keyboard.
+`Interface::new(ctx, theme, roots, keyboard)` accepts an optional text keyboard.
 Pass `None` to use the native keyboard on iOS and Android. To use Pelican's typing keyboard,
 construct `CustomKeyboard::new(ctx, theme)` and pass it as `Some(Box::new(keyboard))`.
 CHK's `App::keyboard` defaults to `None`; override that method to select a custom keyboard.
+Handle application events with typed `#[on_event] impl OnEvent<E>` implementations on the
+page or root component that owns the behavior.
 
 `CustomKeyboard`, `EmojiPanel`, `StickerPanel`, and `GifPanel` are separate exports from
 `interface::system`. The custom keyboard contains only typing controls. Emoji selection and
@@ -65,14 +68,22 @@ backspace emit standard Prism keyboard events; sticker and GIF selection retain 
 `SendEvent` messages. GIF search uses a normal text input and independent `GifSearchEvent`
 commands (`Open`, `Submit`, `Close`). `TextInput::new` no longer takes `KeyboardPages`.
 
-`MessageBar` owns its toolbar and a dismissible `Panels` tray on every platform. Native keyboard
-mode shows stickers, GIFs, and the photo picker; custom keyboard mode also shows keyboard and
-emoji buttons. Desktop keeps emoji, stickers, GIFs, and photos. Each newly created message bar
-requests the interface's keyboard mode, including message bars created after navigation.
+`MessageBar` owns its toolbar and a dismissible `Panels` tray on every platform. It uses
+`ctx.window.is_mobile` to assume a native keyboard on mobile and show stickers, GIFs, and
+the photo picker. Desktop also shows emoji. There is no keyboard-mode query or keyboard
+selection button, including when an application supplies a custom typing keyboard.
 
-Selecting a picker dismisses the text keyboard. The tray waits until native keyboard visibility
-in `ctx.window.keyboard_visible` reports that it has closed, avoiding two stacked input areas
-during the hide animation. Tapping the message input closes the tray and resumes typing.
+On mobile, the toolbar appears while a native or custom keyboard is visible or a picker is active.
+Native visibility from `ctx.hardware.keyboard().visible()` includes opening, closing, and partial swipe
+dismissal while any part of the keyboard remains visible. The native keyboard request includes
+the measured toolbar height and its bottom padding as dismissal padding. The toolbar uses
+`Dismissible`: window movement absorbs the drag first, and further finger movement slides the
+toolbar away. It remains present until its drag or settling animation finishes. The Down button
+requests native dismissal and starts the same toolbar dismissal; its remaining slide waits while
+the window edge moves. Toolbar taps remain active, and captured drags cancel the pending tap.
+Selecting a picker dismisses the text keyboard and shows the tray once the native keyboard is
+fully hidden. The toolbar then handles dragging the picker tray. Tapping the message input closes
+the tray and resumes typing.
 GIF search opens the configured text keyboard and allows the results area to shrink into the available space;
 submitting or closing search dismisses typing and returns to browsing without changing the
 message draft. Keyboard and picker heights remain content-sized, not matched to the native
@@ -85,6 +96,12 @@ constructing another theme creates an independent service.
 Photos retain their existing JPEG, width, and height wire representation. Deserialization
 validates the encoded image before exposing it to views; malformed incoming photo messages
 are discarded by AIR without a UI error. No format migration or snapshot replay is required.
+
+Still-image views and video/GIF previews hold `media::Image` directly. Cloning an image shares
+its pixels; editing a clone copies the buffer on the first mutation. Playback uses
+`ctx.hardware.player(media.player())`; the QR scanner consumes camera frames directly. GIF and video
+downloads retain shared owned bytes for lazy decoding. Video attachments preserve both tracks, reuse compatible MP4 source settings, and
+use an 8 Mbps MPEG-4 video target when conversion is needed.
 
 ## Scope
 
@@ -128,14 +145,8 @@ emit events to the application, and pages retain their state when switching tabs
 The library uses PTSD and Prism. RAMP is optional and is enabled only by the `demo`
 feature to run the native application; it is not required by library consumers.
 
-Applications using sticker packs or shared video clips must register their contracts:
-
-```rust,ignore
-fn contracts<A: prism::traits::Air>(contracts: prism::air::Contracts<A>) -> prism::air::Contracts<A> {
-    contracts.add::<pelican_ui::components::StickerPack>()
-        .add::<pelican_ui::components::VideoClip>()
-}
-```
+Sticker packs and shared video clips register their contracts when their components access
+`ctx.air.instances::<C>()`. Applications do not need a separate contract-registration method.
 
 ## Discord
 

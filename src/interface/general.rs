@@ -1,13 +1,13 @@
 use prism::Context;
 use prism::events::{DynEvent, Event, ChildEvent, OnChange, on_change};
-use prism::events::{Timer, OnEvent, on_event};
+use prism::events::{MouseEvent, WindowEvent, Timer, OnEvent, on_event};
 use prism::drawable::{Drawable, Component};
 use prism::drawable::text::Align;
 use ptsd::display::Bin;
 use ptsd::layout::{Column, Stack, Row, Padding, Offset, Size};
 use ptsd::emitters::Scrollable;
 use uuid::Uuid;
-use ptsd::interfaces::{Body, Navigator as PTSDNavigator};
+use ptsd::interfaces::{Body, Navigator as PTSDNavigator, ShowKeyboard};
 use ptsd::navigation::{NavigationEvent, NavigationChanged, AppPage};
 use ptsd::utils::ValidationFn;
 pub use ptsd::navigation::Pages;
@@ -17,51 +17,22 @@ use std::time::Duration;
 use crate::Callback;
 use crate::theme::{Theme, Icons};
 use crate::components::{Rectangle, ValidFn, Profile};
-use crate::components::text::{TextStyle, TextSize, ExpandableText};
+use crate::components::text::{TextStyle, TextSize, Text};
 use crate::components::button::{GhostIconButton, PrimaryButton, SecondaryButton};
 use crate::components::avatar::AvatarGroup;
 use crate::interface::system::CustomKeyboard;
-use crate::interface::message_bar::{MessageBar, KeyboardMode};
+use crate::interface::message_bar::MessageBar;
 use crate::interface::navigation::{RootInfo, Navigator};
 use crate::components::Alert;
 
-crate::closure_trait!(OnEventFn, FnMut(&mut Context, Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>>);
-
 #[derive(Component, Debug, Clone)]
-#[on_dyn_event]
 pub struct Interface {
     layout: Stack,
     inner: ptsd::interfaces::Interface,
-    #[skip]
-    pub on_event: Box<dyn OnEventFn>,
 }
 
 impl Interface {
-    fn on_event(&mut self, ctx: &mut Context, mut event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        if let ptsd::interfaces::Interface::Mobile { keyboard: Some(keyboard), .. } =
-            &mut self.inner {
-            let showing = keyboard.is_showing();
-            if let Some(keyboard) = keyboard.inner().downcast_mut::<CustomKeyboard>() {
-                keyboard.on_interface_event(ctx, &mut *event, showing);
-            }
-        }
-
-        if matches!(event.downcast_ref::<KeyboardMode>(), Some(KeyboardMode::Request)) {
-            ctx.emit(match &self.inner {
-                ptsd::interfaces::Interface::Mobile { keyboard: Some(_), .. } => {
-                    KeyboardMode::Custom
-                }
-                ptsd::interfaces::Interface::Mobile { .. } => KeyboardMode::Native,
-                _ => KeyboardMode::Physical,
-            });
-            return vec![];
-        }
-        (self.on_event)(ctx, event)
-    }
-}
-
-impl Interface {
-    pub fn new(ctx: &mut Context, theme: &Theme, mut roots: Vec<RootInfo>, keyboard: Option<Box<dyn Drawable>>, on_event: Box<dyn OnEventFn>) -> Self {
+    pub fn new(ctx: &mut Context, theme: &Theme, mut roots: Vec<RootInfo>, keyboard: Option<Box<dyn Drawable>>) -> Self {
         ctx.background = theme.colors().get(ptsd::Background::Primary).into();
         let pages: Vec<(String, Box<dyn AppPage>)> = roots
             .iter_mut()
@@ -71,7 +42,7 @@ impl Interface {
             layout: Stack::new(
                 Offset::Start, Offset::Start, Size::Fill, Size::Fill, Padding::default(),
             ),
-            inner: if ctx.window.touch_controls {
+            inner: if ctx.window.is_mobile {
                 let navigator = (pages.len() > 1)
                     .then_some(Box::new(Navigator::mobile(theme, roots)) as Box<dyn PTSDNavigator>);
                 ptsd::interfaces::Interface::mobile(
@@ -86,11 +57,10 @@ impl Interface {
                     navigator, Screen::desktop(theme, Pages::new(pages)),
                 )
             },
-            on_event,
         }
     }
 
-    pub fn web(ctx: &mut Context, theme: &Theme, mut roots: Vec<RootInfo>, on_event: Box<dyn OnEventFn>) -> Self {
+    pub fn web(ctx: &mut Context, theme: &Theme, mut roots: Vec<RootInfo>) -> Self {
         ctx.background = theme.colors().get(ptsd::Background::Primary).into();
         let pages = roots
             .iter_mut()
@@ -103,8 +73,50 @@ impl Interface {
                 Offset::Start, Offset::Start, Size::Fill, Size::Fill, Padding::default(),
             ),
             inner: ptsd::interfaces::Interface::web(navigator, Screen::web(Pages::new(pages))),
-            on_event,
         }
+    }
+
+    fn custom_keyboard(&mut self) -> Option<(&mut CustomKeyboard, bool)> {
+        let ptsd::interfaces::Interface::Mobile {keyboard: Some(keyboard), ..} = &mut self.inner
+            else {return None};
+        let showing = keyboard.is_showing();
+        keyboard.inner().downcast_mut::<CustomKeyboard>().map(|keyboard| (keyboard, showing))
+    }
+}
+
+#[on_event]
+impl OnEvent<MouseEvent> for Interface {
+    fn on(&mut self, ctx: &mut Context, event: MouseEvent) -> Vec<Box<dyn DynEvent>> {
+        if let Some((keyboard, showing)) = self.custom_keyboard() {
+            keyboard.observe_mouse(ctx.window, event.clone(), showing);
+        }
+        prism::events![event]
+    }
+}
+
+#[on_event]
+impl OnEvent<WindowEvent> for Interface {
+    fn on(&mut self, _ctx: &mut Context, event: WindowEvent) -> Vec<Box<dyn DynEvent>> {
+        if let Some((keyboard, showing)) = self.custom_keyboard() {
+            keyboard.on_window_event(event, showing);
+        }
+        prism::events![event]
+    }
+}
+
+#[on_event]
+impl OnEvent<NavigationEvent> for Interface {
+    fn on(&mut self, _ctx: &mut Context, event: NavigationEvent) -> Vec<Box<dyn DynEvent>> {
+        if let Some((keyboard, _)) = self.custom_keyboard() {keyboard.reset();}
+        prism::events![event]
+    }
+}
+
+#[on_event]
+impl OnEvent<ShowKeyboard> for Interface {
+    fn on(&mut self, _ctx: &mut Context, event: ShowKeyboard) -> Vec<Box<dyn DynEvent>> {
+        if let Some((keyboard, _)) = self.custom_keyboard() {keyboard.reset();}
+        prism::events![event]
     }
 }
 
@@ -147,7 +159,6 @@ impl Event for FormEvent {
 }
 
 #[derive(Debug, Component, Clone)]
-#[on_dyn_event]
 pub struct Content {
     layout: Stack,
     pub children: Scrollable<ContentChildren>,
@@ -220,10 +231,10 @@ impl Content {
     }
 }
 
-impl Content {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        if let Some(FormEvent::Refresh(id)) = event.downcast_ref::<FormEvent>()
-            && *id == self.id {
+#[on_event]
+impl OnEvent<FormEvent> for Content {
+    fn on(&mut self, ctx: &mut Context, event: FormEvent) -> Vec<Box<dyn DynEvent>> {
+        if let FormEvent::Refresh(id) = event && id == self.id {
             self.dirty.cancel();
             let valid = self.validation.validate(ctx, self.children.1.inner().iter_mut().collect());
             ctx.emit(FormEvent::Changed(self.id));
@@ -232,13 +243,19 @@ impl Content {
                 ctx.emit(FormEvent::Validated { id: self.id, valid });
             }
             return prism::events![FormEvent::Bind(self.id)];
-        } else if matches!(event.downcast_ref::<FormEvent>(), Some(FormEvent::Bind(_))) {
+        } else if matches!(event, FormEvent::Bind(_)) {
             // A nested form owns its controls independently of the surrounding form.
             return vec![];
-        } else if event.downcast_ref::<NavigationChanged>().is_some() {
-            self.invalidate();
         }
-        vec![event]
+        prism::events![event]
+    }
+}
+
+#[on_event]
+impl OnEvent<NavigationChanged> for Content {
+    fn on(&mut self, _ctx: &mut Context, event: NavigationChanged) -> Vec<Box<dyn DynEvent>> {
+        self.invalidate();
+        prism::events![event]
     }
 }
 
@@ -275,7 +292,7 @@ pub struct Header {
 
 impl Header {
     pub fn home(theme: &Theme, title: &str, icon: Option<(Icons, Box<dyn Callback>)>) -> Self {
-        let text = ExpandableText::new(
+        let text = Text::new(
             theme, title, TextSize::H3, TextStyle::Heading, Align::Center, Some(1),
         );
         Self::new(theme, text, None, icon)
@@ -283,7 +300,7 @@ impl Header {
 
     pub fn stack(theme: &Theme, title: &str, icon: Option<(Icons, Box<dyn Callback>)>) -> Self {
         let closure = |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::Pop);
-        let text = ExpandableText::new(
+        let text = Text::new(
             theme, title, TextSize::H4, TextStyle::Heading, Align::Center, Some(1),
         );
         Self::new(theme, text, Some((Icons::Left, Box::new(closure))), icon)
@@ -291,7 +308,7 @@ impl Header {
 
     pub fn stack_end(theme: &Theme, title: &str) -> Self {
         let closure = move |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::Reset);
-        let text = ExpandableText::new(
+        let text = Text::new(
             theme, title, TextSize::H4, TextStyle::Heading, Align::Center, Some(1),
         );
         Self::new(theme, text, Some((Icons::Close, Box::new(closure))), None)
@@ -320,10 +337,10 @@ impl Header {
 }
 
 #[derive(Debug, Clone, Component)]
-pub struct MessageHeader(Column, AvatarGroup, ExpandableText);
+pub struct MessageHeader(Column, AvatarGroup, Text);
 impl MessageHeader {
     pub fn new(theme: &Theme, title: String, profiles: Vec<Profile>) -> Self {
-        let text = ExpandableText::new(
+        let text = Text::new(
             theme, &title, TextSize::H4, TextStyle::Heading, Align::Center, Some(1),
         );
         let avatars = profiles.iter().map(|p| p.pfp.clone()).collect::<Vec<_>>();
@@ -338,7 +355,7 @@ pub struct HeaderIcon {
 }
 impl HeaderIcon {
     pub fn new(theme: &Theme, icon: Option<(Icons, Box<dyn Callback>)>, padding: Padding) -> Self {
-        let layout = Stack(
+        let layout = Stack::new(
             Offset::Center, Offset::Center, Size::Static(48.0), Size::custom(|_| (48.0, f32::MAX)),
             padding,
         );
@@ -405,9 +422,10 @@ impl Bumper {
     }
 
     pub fn input(theme: &Theme, placeholder: &str, on_submit: impl FnMut(&mut Context, &mut String) + Clone + 'static, valid: impl ValidFn) -> Self {
-        let bar = MessageBar::new(theme, placeholder, on_submit, valid);
+        let padding = Padding(24.0, 16.0, 24.0, 8.0);
+        let bar = MessageBar::new(theme, placeholder, padding.3, on_submit, valid);
         let (layout, background) = Self::layout(theme);
-        let content = BumperContent::new(vec![Box::new(bar)], Padding(24.0, 16.0, 24.0, 8.0));
+        let content = BumperContent::new(vec![Box::new(bar)], padding);
         Bumper { layout, background, content }
     }
 
@@ -431,19 +449,19 @@ impl Bumper {
             if index + 1 == count { 24.0 } else { 8.0 },
             16.0,
         );
-        Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, padding)
+        Stack::new(Offset::Center, Offset::Center, Size::Fit, Size::Fit, padding)
     }
 
     fn layout(theme: &Theme) -> (Stack, Bin<Stack, Rectangle>) {
         let background = Bin(
-            Stack(
+            Stack::new(
                 Offset::Center, Offset::Center, Size::Fill, Size::Fill,
                 Padding(24.0, 0.0, 24.0, 0.0),
             ), Rectangle::new(theme.colors().get(ptsd::Background::Primary), 0.0, None),
         );
         let width = Size::custom(|widths| (widths[0].0.min(423.0), 423.0));
         let height = Size::custom(|heights| heights[1]);
-        let layout = Stack(Offset::Center, Offset::Start, width, height, Padding::default());
+        let layout = Stack::new(Offset::Center, Offset::Start, width, height, Padding::default());
         (layout, background)
     }
 
@@ -508,23 +526,12 @@ impl prism::events::Event for InterfaceEvent {
 }
 
 #[derive(Debug, Component, Clone)]
-#[on_dyn_event]
 pub struct Screen(Stack, Pages, Option<Bin<Stack, Rectangle>>);
-
-impl Screen {
-    fn on_event(&mut self, _ctx: &mut Context, mut event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        if let Some(NavigationEvent::Push(_, v)) = event.downcast_mut::<NavigationEvent>() {
-            *v = vec![1];
-        }
-
-        vec![event]
-    }
-}
 
 impl Screen {
     pub fn desktop(theme: &Theme, pages: Pages) -> Self {
         let color = theme.colors().get(ptsd::Outline::Secondary);
-        let line_layout = Stack(
+        let line_layout = Stack::new(
             Offset::default(), Offset::default(), Size::Static(1.0), Size::Fill, Padding::default(),
         );
         let border = Bin(line_layout, Rectangle::new(color, 0.0, None));
@@ -535,6 +542,14 @@ impl Screen {
     pub fn mobile(pages: Pages) -> Self { Screen(Stack::default(), pages, None) }
 
     pub fn web(pages: Pages) -> Self { Screen(Stack::default(), pages, None) }
+}
+
+#[on_event]
+impl OnEvent<NavigationEvent> for Screen {
+    fn on(&mut self, _ctx: &mut Context, mut event: NavigationEvent) -> Vec<Box<dyn DynEvent>> {
+        if let NavigationEvent::Push(_, excluded) = &mut event {*excluded = vec![1];}
+        prism::events![event]
+    }
 }
 
 impl Body for Screen {

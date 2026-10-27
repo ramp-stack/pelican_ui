@@ -5,11 +5,11 @@ use ptsd::layout::Column;
 use ptsd::interactions;
 
 use crate::theme::Theme;
-use crate::components::text::{TextSize, TextStyle, ExpandableText, Text};
+use crate::components::text::{Text, TextSize, TextStyle};
 use crate::components::{Circle, Rectangle};
 
 #[derive(Debug, Component, Clone)]
-pub struct Slider(Column, Option<Text>, Option<ExpandableText>, interactions::Slider);
+pub struct Slider(Column, Option<Text>, Option<Text>, interactions::Slider);
 impl Slider {
     pub fn new(
         theme: &Theme, start: f32, label: Option<&str>, description: Option<&str>,
@@ -19,9 +19,11 @@ impl Slider {
         let background = Rectangle::new(colors.get(ptsd::Outline::Primary), 3.0, None);
         let foreground = Rectangle::new(colors.get(ptsd::Brand), 3.0, None);
         let handle = Circle::new(18.0, colors.get(ptsd::Brand), false);
-        let label = label.map(|l| Text::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None));
+        let label = label.map(|l| {
+            Text::new(theme, l, TextSize::H5, TextStyle::Heading, Align::Left, None).fit()
+        });
         let description = description.map(|text| {
-            ExpandableText::new(theme, text, TextSize::Md, TextStyle::Primary, Align::Left, None)
+            Text::new(theme, text, TextSize::Md, TextStyle::Primary, Align::Left, None)
         });
 
         let theme = theme.clone();

@@ -1,7 +1,7 @@
-use prism::drawable::{Component, Drawable, LayoutTree, RangeTree, Rect, Instruction, Item};
+use prism::drawable::{Component, Drawable, LayoutTree, Rect, Instruction, Item};
 use prism::drawable::shape::Variant;
 use prism::drawable::Svg;
-use prism::hardware::Image;
+use media::Image;
 use ptsd::display::Bin;
 use ptsd::layout::{Stack, Offset, Size, Padding};
 
@@ -31,7 +31,7 @@ pub struct AspectRatioImage;
 impl AspectRatioImage {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(image: Image, width: f32) -> Bin<Stack, Image> {
-        let dimensions = image.dimensions();
+        let dimensions = image.dimensions;
         let height = width * dimensions.1 as f32 / dimensions.0 as f32;
         Bin(Stack::new(
             Offset::Center, Offset::Center, Size::Static(width), Size::Static(height),
@@ -53,7 +53,9 @@ impl AspectRatioImage {
 pub struct MaskedImage<D: Drawable + Clone = Image>(pub D, pub Variant);
 
 impl<D: Drawable + Clone> Drawable for MaskedImage<D> {
-    fn size_range(&self) -> RangeTree { self.0.size_range() }
+    fn request_width(&mut self) -> (f32, f32) {self.0.request_width()}
+    fn request_height(&mut self, width: f32) -> (f32, f32) {self.0.request_height(width)}
+    fn layout(&mut self, size: (f32, f32)) -> LayoutTree {self.0.layout(size)}
     fn draw(&self, layout: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
         let mut instructions = self.0.draw(layout, offset, bound);
         for instruction in &mut instructions {
@@ -63,28 +65,5 @@ impl<D: Drawable + Clone> Drawable for MaskedImage<D> {
             }
         }
         instructions
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ExpandableImage(Image, Option<(f32, f32)>);
-
-impl ExpandableImage {
-    pub fn new(image: Image, size: Option<(f32, f32)>) -> Self { Self(image, size) }
-    pub fn image(&mut self) -> &mut Image { &mut self.0 }
-    pub fn dimensions(&mut self) -> &mut Option<(f32, f32)> { &mut self.1 }
-}
-
-impl Drawable for ExpandableImage {
-    fn size_range(&self) -> RangeTree {
-        let mut range = self.0.size_range();
-        if let Some((_, height)) = self.1 {
-            range.0.min_height = height;
-            range.0.max_height = height;
-        }
-        range
-    }
-    fn draw(&self, layout: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
-        self.0.draw(layout, offset, bound)
     }
 }

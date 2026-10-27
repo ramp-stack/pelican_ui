@@ -53,7 +53,9 @@ impl NavigatorSelectable {
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
             let icon_size = ButtonSize::Large.icon();
-            let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+            let text = Text::new(
+                theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None,
+            ).fit();
             let icon = Icon::new(theme, icon, Some(colors.label), icon_size);
             Bin(layout.clone(), Button::new(
                 vec![Box::new(icon), Box::new(text)], ButtonSize::Large, ButtonWidth::Fill,
@@ -76,7 +78,9 @@ impl NavigatorSelectable {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.default, colors.pressed].map(|colors| {
             let font_size = ButtonSize::Large.font();
-            let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+            let text = Text::new(
+                theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None,
+            ).fit();
             let avatar = Avatar::new(theme, avatar.clone(), None, false, AvatarSize::Xs, None);
             Bin(layout.clone(), Button::new(
                 vec![Box::new(avatar), Box::new(text)], ButtonSize::Large, ButtonWidth::Fill,
@@ -152,7 +156,7 @@ impl Navigator {
             let root = info.label.to_string();
             let closure = move |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::root(&root.clone()));
 
-            let layout = Stack(
+            let layout = Stack::new(
                 Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding(16.0, 0.0, 16.0, 0.0),
             );
             match info.avatar {
@@ -171,7 +175,9 @@ impl Navigator {
 
         let spacer = has_profile.then(|| {
             let width = Size::custom(move |widths: Vec<(f32, f32)>|(widths[0].0, widths[0].1));
-            let spacer = Stack(Offset::Center, Offset::Center, width, Size::Fill, Padding::default());
+            let spacer = Stack::new(
+                Offset::Center, Offset::Center, width, Size::Fill, Padding::default(),
+            );
             Bin(spacer, Rectangle::new(Color::transparent(), 0.0, None))
         });
 
@@ -203,7 +209,7 @@ impl Navigator {
         }
 
         Navigator::Mobile {
-            layout: Stack(Offset::Center, Offset::Start, Size::Fill, height, Padding::default()),
+            layout: Stack::new(Offset::Center, Offset::Start, Size::Fill, height, Padding::default()),
             background: Rectangle::new(background, 0.0, None),
             content: MobileNavigatorContent::new(tabs)
         }
@@ -216,7 +222,7 @@ impl Navigator {
         for (index, info) in navigation.into_iter().enumerate() {
             let root = info.label.to_string();
             let closure = move |ctx: &mut Context, _: &Theme| ctx.emit(NavigationEvent::root(&root.clone()));
-            let layout = Stack(
+            let layout = Stack::new(
                 Offset::Center, Offset::Center, Size::Fit, Size::Fit, Padding(0.0, 48.0, 0.0, 48.0),
             );
             buttons.push(NavigatorSelectable::desktop_icon(
@@ -226,7 +232,7 @@ impl Navigator {
 
         let wordmark = theme.brand().wordmark.clone();
 
-        let bin_layout = Stack(
+        let bin_layout = Stack::new(
             Offset::Center, Offset::Center, Size::Fill, Size::Static(5.0), Padding::default(),
         );
         Navigator::Web {

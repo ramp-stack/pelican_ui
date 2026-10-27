@@ -74,7 +74,7 @@ impl GhostButton {
             if let Some(label) = label {
                 drawables.push(Box::new(Text::new(
                     theme, label, font_size, TextStyle::Label(colors.default.label), Align::Left, None,
-                )));
+                ).fit()));
             }
             if let Some(icon) = icon {
                 drawables.push(Box::new(Icon::new(theme, icon, Some(colors.default.label), icon_size)));
@@ -85,7 +85,9 @@ impl GhostButton {
             )
         };
 
-        let default = Bin(Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, padding), default);
+        let default = Bin(Stack::new(
+            Offset::Center, Offset::Center, Size::Fit, Size::Fit, padding,
+        ), default);
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
         GhostButton(Stack::default(), interactions::Button::new(

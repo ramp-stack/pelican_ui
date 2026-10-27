@@ -1,6 +1,7 @@
-use prism::events::{DynEvent, OnChange, on_change, Timer};
+use prism::events::{DynEvent, OnEvent, on_event, OnChange, on_change, Timer};
 use prism::drawable::text::Align;
-use prism::hardware::{Image, Camera, Frame, Player, PlaybackMode};
+use media::{Image, VideoFrame};
+use prism::hardware::Camera;
 use ptsd::display::{Bin, Opt};
 use prism::Context;
 use prism::drawable::Component;
@@ -19,7 +20,6 @@ use crate::interface::general::FormEvent;
 crate::closure_trait!(QrCodeFound, FnMut(&mut Context, String));
 
 #[derive(Component, Clone)]
-#[on_dyn_event]
 pub struct QRCodeScanner {
     layout: Stack,
     preview: Option<Bin<Stack, Image>>,
@@ -28,7 +28,6 @@ pub struct QRCodeScanner {
     #[skip] found: Option<String>,
     #[skip] last: Option<String>,
     #[skip] on_find: Box<dyn QrCodeFound>,
-    #[skip] player: Option<Player>,
     #[skip] camera: Option<Camera>,
     #[skip] form: Option<Uuid>,
     #[skip] initial: Timer,
@@ -44,7 +43,6 @@ impl QRCodeScanner {
             found: None,
             last: None,
             on_find,
-            player: None,
             camera: None,
             form: None, initial: Timer::new(std::time::Duration::ZERO),
         }
@@ -59,22 +57,24 @@ impl std::fmt::Debug for QRCodeScanner {
     }
 }
 
-impl QRCodeScanner {
-    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        if let Some(FormEvent::Bind(form)) = event.downcast_ref::<FormEvent>() {
-            self.form = Some(*form);
-        }
-        vec![event]
+#[on_event]
+impl OnEvent<FormEvent> for QRCodeScanner {
+    fn on(&mut self, _ctx: &mut Context, event: FormEvent) -> Vec<Box<dyn DynEvent>> {
+        if let FormEvent::Bind(form) = event {self.form = Some(form);}
+        prism::events![event]
     }
+}
 
+impl QRCodeScanner {
     fn show(&mut self, image: Image) {
         // bardecoder needs at least one 5x5 block.
-        let (width, height) = image.dimensions();
+        let (width, height) = image.dimensions;
         if width < 5 || height < 5 { return; }
         if self.decoding.is_none() {
             let image = image.clone();
             self.decoding = Some(Task::spawn(move || {
-                let ((width, height), pixels) = image.pixels();
+                let (width, height) = image.dimensions;
+                let pixels = image.as_ref();
                 if width < 5 || height < 5 {return None}
                 let pixels = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, pixels).unwrap();
                 let decode = |image: &ImageBuffer<Rgba<u8>, &[u8]>| {
@@ -91,7 +91,7 @@ impl QRCodeScanner {
         }
         self.guide.1.display(false);
         self.guide.3.display(false);
-        let layout = Stack(
+        let layout = Stack::new(
             Offset::Center, Offset::Center, Size::Static(300.0), Size::Static(300.0), Padding::default(),
         );
         self.preview = Some(Bin(layout, image));
@@ -100,7 +100,6 @@ impl QRCodeScanner {
     fn error(&mut self, error: String) {
         self.decoding = None;
         self.preview = None;
-        self.player = None;
         self.camera = None;
         self.guide.1.display(true);
         self.guide.3.inner().2.spans[0].text = error;
@@ -110,32 +109,28 @@ impl QRCodeScanner {
 #[on_change(self.initial.next())]
 impl OnChange<()> for QRCodeScanner {
     fn on_change(&mut self, ctx: &mut Context, _: ()) {
-        let capture = ctx.hardware.start_camera().and_then(|camera| {
-            Player::new(&camera).map(|player| (camera, player))
-        });
-        let (camera, player) = match capture {
-            Ok(capture) => capture,
-            Err(error) => {self.error(error); return},
-        };
-        player.set_mode(PlaybackMode::Live(std::time::Duration::ZERO));
-        player.start();
-        let frame = player.frame();
-        if let Some(error) = frame.error {self.error(error); return}
-        if let Some(image) = frame.image {self.show(image);}
-        self.player = Some(player);
-        self.camera = Some(camera);
+        match ctx.hardware.start_camera() {
+            Ok(camera) => self.camera = Some(camera),
+            Err(error) => self.error(error),
+        }
     }
 }
 #[on_change(async {
-    match &mut self.player {
-        Some(source) => source.next().await,
+    match &mut self.camera {
+        Some(camera) => camera.next().await,
         None => std::future::pending().await,
     }
 })]
-impl OnChange<Frame> for QRCodeScanner {
-    fn on_change(&mut self, _ctx: &mut Context, frame: Frame) {
-        if let Some(error) = frame.error {self.error(error); return}
-        if let Some(image) = frame.image {self.show(image);}
+impl OnChange<Option<VideoFrame>> for QRCodeScanner {
+    fn on_change(&mut self, _ctx: &mut Context, frame: Option<VideoFrame>) {
+        match frame {
+            Some(frame) => self.show(frame.image),
+            None => {
+                let error = self.camera.as_ref().and_then(Camera::error)
+                    .unwrap_or_else(|| "Camera capture stopped".into());
+                self.error(error);
+            }
+        }
     }
 }
 #[on_change(async {
@@ -149,7 +144,6 @@ impl OnChange<Option<String>> for QRCodeScanner {
         if let Some(code) = self.found.clone() && self.last.as_ref() != Some(&code) {
             self.last = Some(code.clone());
             self.preview = None;
-            self.player = None;
             self.camera = None;
             if let Some(form) = self.form {ctx.emit(FormEvent::Refresh(form));}
             let mut on_find = self.on_find.clone();
@@ -168,7 +162,7 @@ impl QRGuide {
         let background = theme.colors().get(ptsd::Background::Secondary);
         let outline = theme.colors().get(ptsd::Outline::Secondary);
         QRGuide(
-            Stack(
+            Stack::new(
                 Offset::Center, Offset::Center,
                 Size::Static(308.0), Size::Static(308.0), Padding::default(),
             ),
@@ -186,7 +180,7 @@ impl Message {
     fn new(theme: &Theme, icon: Icons, msg: &str) -> Self {
         Message(Column::center(4.0),
             Icon::new(theme, icon, Some(theme.colors().get(ptsd::Text::Heading)), 48.0),
-            Text::new(theme, msg, TextSize::Sm, TextStyle::Secondary, Align::Left, None)
+            Text::new(theme, msg, TextSize::Sm, TextStyle::Secondary, Align::Left, None).fit()
         )
     }
 }

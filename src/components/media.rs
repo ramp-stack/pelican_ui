@@ -5,8 +5,9 @@ use image::imageops::FilterType;
 use prism::Context;
 use prism::air::{Contract, Metadata, Id, Name, Instances, Instance};
 use prism::drawable::{Component, text::Align, shape::Variant};
-use prism::events::{Event, DynEvent, OnChange, on_change};
-use prism::hardware::{Media, Format, Image, Picked, Player, Visual};
+use prism::events::{Event, DynEvent, OnEvent, on_event, OnChange, on_change};
+use media::{Media, Format, Image};
+use prism::hardware::{Picked, Player, Visual};
 use ptsd::display::Bin;
 use ptsd::interactions;
 use ptsd::layout::{Stack, Offset, Size, Padding};
@@ -37,7 +38,8 @@ impl Photo {
     pub fn from_image(image: &Image) -> Option<Self> { Self::encode(image, 1600, 82) }
 
     pub fn encode(image: &Image, side: u32, quality: u8) -> Option<Self> {
-        let ((w, h), pixels) = image.pixels();
+        let (w, h) = image.dimensions;
+        let pixels = image.as_ref();
         let scale = (side as f32 / w.max(h) as f32).min(1.0);
         let width = ((w as f32 * scale).round() as u32).max(1);
         let height = ((h as f32 * scale).round() as u32).max(1);
@@ -59,7 +61,7 @@ impl Photo {
         Some(Self { jpeg: (bytes.into(), (width, height)), width, height })
     }
 
-    pub fn image(&self) -> Image { Image::read(&*self.jpeg.0).unwrap() }
+    pub fn image(&self) -> Image {Image::read(&*self.jpeg.0).unwrap()}
     pub fn size(&self) -> (u32, u32) {self.jpeg.1}
     pub fn jpeg(&self) -> &[u8] { &self.jpeg.0 }
 
@@ -97,23 +99,23 @@ pub struct Video {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Mp4(Arc<Vec<u8>>);
+pub struct Mp4(Arc<[u8]>);
 
 impl Serialize for Mp4 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&STANDARD.encode(self.0.as_slice()))
+        serializer.serialize_str(&STANDARD.encode(&self.0))
     }
 }
 
 impl<'de> Deserialize<'de> for Mp4 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
-        STANDARD.decode(text).map(|bytes| Self(Arc::new(bytes))).map_err(serde::de::Error::custom)
+        STANDARD.decode(text).map(|bytes| Self(bytes.into())).map_err(serde::de::Error::custom)
     }
 }
 
 impl Mp4 {
-    pub fn new(mp4: Arc<Vec<u8>>) -> Self { Mp4(mp4) }
+    pub fn new(mp4: Arc<[u8]>) -> Self { Mp4(mp4) }
     pub fn id(&self) -> Id { Id::hash(&self.0[..]) }
 }
 
@@ -150,7 +152,7 @@ impl Contract for VideoClip {
 impl VideoClip {
     pub fn listen(ctx: &mut Context) { let _ = ctx.air.instances::<VideoClip>().list(); }
 
-    pub fn find(ctx: &mut Context, id: Id) -> Option<Arc<Vec<u8>>> {
+    pub fn find(ctx: &mut Context, id: Id) -> Option<Arc<[u8]>> {
         ctx.air.instances::<VideoClip>().list().values().find_map(|clip| {
             let clip = clip.pending();
             (clip.id == id).then(|| clip.mp4.0.clone())
@@ -160,7 +162,7 @@ impl VideoClip {
 
 #[derive(Clone)]
 pub struct NewVideo {
-    pub mp4: Arc<Vec<u8>>,
+    pub mp4: Arc<[u8]>,
     pub poster: Photo,
     pub duration: Duration,
 }
@@ -177,7 +179,7 @@ impl NewVideo {
         let clip = mp4.id();
         let instance = ctx.air.instances::<VideoClip>().create(mp4);
         let me = ctx.air.me();
-        for member in members.iter().chain((!members.contains(&me)).then_some(&me)) {
+        for member in members.iter().filter(|name| **name != me) {
             instance.share(*member);
         }
         Video { clip, poster: self.poster.clone(), duration_ms: self.duration.as_millis() as u64 }
@@ -198,7 +200,7 @@ impl PhotoView {
         let scale = (240.0 / width).min(320.0 / height);
         let size = ((width * scale).round(), (height * scale).round());
         Self {
-            layout: Stack(
+            layout: Stack::new(
                 Offset::Center, Offset::Center, Size::Static(size.0), Size::Static(size.1),
                 Padding::default(),
             ), image: MaskedImage(photo.image(), Variant::RoundedRectangle(16.0)), size,
@@ -207,7 +209,6 @@ impl PhotoView {
 }
 
 #[derive(Debug, Clone, Component)]
-#[on_dyn_event]
 pub struct VideoView {
     layout: Stack,
     button: Option<interactions::Button>,
@@ -229,7 +230,7 @@ impl VideoView {
         let poster = PhotoView::message(&video.poster);
         let size = poster.size;
         let fill = |x: Offset, y: Offset, p: Padding| {
-            Stack(x, y, Size::Static(size.0 - p.0 - p.2), Size::Static(size.1 - p.1 - p.3), p)
+            Stack::new(x, y, Size::Static(size.0 - p.0 - p.2), Size::Static(size.1 - p.1 - p.3), p)
         };
         let seconds = (video.duration_ms + 500) / 1000;
         let (h, m, s) = (seconds / 3600, seconds / 60 % 60, seconds % 60);
@@ -238,7 +239,7 @@ impl VideoView {
             _ => format!("{h}:{m:02}:{s:02}"),
         };
         let face = VideoFace(
-            Stack(
+            Stack::new(
                 Offset::Start, Offset::Start, Size::Static(size.0), Size::Static(size.1),
                 Padding::default(),
             ), poster,
@@ -250,7 +251,7 @@ impl VideoView {
         );
         let callback = move |ctx: &mut Context| ctx.emit(VideoViewEvent::Play(id));
         VideoView {
-            layout: Stack(
+            layout: Stack::new(
                 Offset::Center, Offset::Center, Size::Static(size.0), Size::Static(size.1),
                 Padding::default(),
             ),
@@ -263,24 +264,27 @@ impl VideoView {
     }
 }
 
-impl VideoView {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        if matches!(event.downcast_ref::<VideoViewEvent>(), Some(VideoViewEvent::Play(id)) if *id == self.id)
-        {
+#[on_event]
+impl OnEvent<VideoViewEvent> for VideoView {
+    fn on(&mut self, ctx: &mut Context, event: VideoViewEvent) -> Vec<Box<dyn DynEvent>> {
+        if matches!(event, VideoViewEvent::Play(id) if id == self.id) {
             self.clips = Some(ctx.air.instances::<VideoClip>());
             self.load(ctx);
         }
-        vec![event]
+        prism::events![event]
     }
+}
+
+impl VideoView {
     fn load(&mut self, ctx: &mut Context) {
         match VideoClip::find(ctx, self.video.clip) {
             Some(mp4) => {
                 self.clips = None;
                 self.loading = None;
-                let player = Media::read(std::io::Cursor::new(mp4.as_slice()))
+                let player = Media::read(std::io::Cursor::new(mp4))
                     .and_then(|media| {
-                        media.dimensions().ok_or("Media has no video track")?;
-                        Player::new(media)
+                        media.video.dimensions().ok_or("Media has no video track")?;
+                        ctx.hardware.player(media.player())
                     });
                 match player {
                     Ok(player) => {
@@ -296,7 +300,7 @@ impl VideoView {
                 }
             }
             None => {
-                let layout = Stack(
+                let layout = Stack::new(
                     Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default(),
                 );
                 self.loading = Some(Bin(layout, Badge::label(&self.theme, "Loading…")));
@@ -317,7 +321,6 @@ impl OnChange<Instance<VideoClip>> for VideoView {
 }
 
 #[derive(Clone, Component)]
-#[on_dyn_event]
 pub struct AttachButton {
     layout: Stack,
     button: GhostIconButton,
@@ -348,13 +351,13 @@ impl std::fmt::Debug for AttachButton {
     }
 }
 
-impl AttachButton {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        if let Some(AttachButtonEvent::Pick(id)) = event.downcast_ref::<AttachButtonEvent>()
-            && *id == self.id
-        { self.picked = Some(ctx.hardware.pick::<Visual>()); }
-
-        vec![event]
+#[on_event]
+impl OnEvent<AttachButtonEvent> for AttachButton {
+    fn on(&mut self, ctx: &mut Context, event: AttachButtonEvent) -> Vec<Box<dyn DynEvent>> {
+        if matches!(event, AttachButtonEvent::Pick(id) if id == self.id) {
+            self.picked = Some(ctx.hardware.pick::<Visual>());
+        }
+        prism::events![event]
     }
 }
 
@@ -372,13 +375,17 @@ impl OnChange<prism::hardware::PickResult<Visual>> for AttachButton {
                 Task::spawn(move || Photo::from_image(&image).map(SendEvent::Photo))
             }
             Ok(Visual::Video(video)) => Task::spawn(move || {
-                let thumbnail = video.0.thumbnail()?;
-                let poster = Photo::encode(&thumbnail, 640, 75)?;
-                let mut output = std::io::Cursor::new(Vec::new());
-                video.0.write(&mut output, Format::Mp4_Mpeg4p2_Aac)
-                    .expect("Could not write selected video");
+                let thumbnail = video.video.cursor().video()?;
+                let poster = Photo::encode(&thumbnail.image, 640, 75)?;
+                let format = video.video.format()
+                    .filter(|format| matches!(format, Format::Mp4_Mpeg4p2_Aac {..}))
+                    .unwrap_or(Format::Mp4_Mpeg4p2_Aac {bitrate: 8_000_000});
+                let mut output = Vec::new();
+                for chunk in video.encode(format).expect("Could not encode selected video") {
+                    output.extend(chunk.expect("Could not encode selected video"));
+                }
                 Some(SendEvent::Video(NewVideo {
-                    mp4: Arc::new(output.into_inner()), poster, duration: video.0.duration(),
+                    mp4: output.into(), poster, duration: video.duration(),
                 }))
             }), Err(_) => return,
         };
@@ -421,7 +428,7 @@ struct Badge(Stack, Rectangle, Option<Icon>, Option<Text>);
 impl Badge {
     fn play(theme: &Theme) -> Self {
         Badge(
-            Stack(
+            Stack::new(
                 Offset::Center, Offset::Center, Size::Static(52.0), Size::Static(52.0),
                 Padding::default(),
             ), Rectangle::new(Color::from_hex("000000", 67), 26.0, None),
@@ -432,18 +439,18 @@ impl Badge {
     fn label(theme: &Theme, text: &str) -> Self {
         let around_text = |margin: f32| {
             Size::custom(move |children: Vec<(f32, f32)>| {
-                let text = children.last().map(|c| c.0).unwrap_or_default() + 2.0 * margin;
+                let text = children.last().map(|c| c.1).unwrap_or_default() + 2.0 * margin;
                 (text, text)
             })
         };
         Badge(
-            Stack(
+            Stack::new(
                 Offset::Center, Offset::Center, around_text(8.0), around_text(3.0),
                 Padding::default(),
             ), Rectangle::new(Color::from_hex("000000", 67), 10.0, None), None,
             Some(Text::new(
                 theme, text, TextSize::Sm, TextStyle::Label(Color::white()), Align::Left, None,
-            )),
+            ).fit()),
         )
     }
 }

@@ -5,7 +5,7 @@ use image::imageops;
 use prism::air::{Metadata, Contract, Id, Name, Instance};
 use prism::drawable::{Component, shape::Variant};
 use prism::Context;
-use prism::hardware::Image;
+use media::Image;
 use ptsd::layout::{Stack, Offset, Size, Padding};
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 
@@ -17,24 +17,17 @@ use crate::components::images::MaskedImage;
 #[derive(Debug, Clone, Hash, Serialize, Deserialize)]
 pub enum StickerPackAction {Add(Sticker), Remove(Sticker)}
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sticker {
     bytes: Arc<[u8]>,
     image: Image,
 }
 
-impl PartialEq for Sticker {
-    fn eq(&self, other: &Self) -> bool {
-        self.bytes == other.bytes
-            && (self.image == other.image || self.image.pixels() == other.image.pixels())
-    }
-}
-impl Eq for Sticker {}
 impl Hash for Sticker {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.bytes.hash(state);
-        let ((width, height), pixels) = self.image.pixels();
-        ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, pixels).unwrap().hash(state);
+        self.image.dimensions.hash(state);
+        self.image.as_ref().hash(state);
     }
 }
 
@@ -55,7 +48,8 @@ impl<'de> Deserialize<'de> for Sticker {
 
 impl Sticker {
     pub fn from_photo(photo: &Image) -> Option<Self> {
-        let ((w, h), pixels) = photo.pixels();
+        let (w, h) = photo.dimensions;
+        let pixels = photo.as_ref();
         let photo = ImageBuffer::<Rgba<u8>, _>::from_raw(w, h, pixels).unwrap();
         let side = w.min(h);
         let square = imageops::crop_imm(&photo, (w - side) / 2, (h - side) / 2, side, side);
@@ -72,10 +66,8 @@ impl Sticker {
     }
 
     pub fn from_bytes(bytes: Vec<u8>) -> Option<Self> {
-        let image = image::load_from_memory(&bytes).ok()?.into_rgba8();
-        Some(Sticker {
-            bytes: bytes.into(), image: Image::from_rgba(image.dimensions(), image.into_raw()),
-        })
+        let image = Image::read(bytes.as_slice()).ok()?;
+        Some(Sticker {bytes: bytes.into(), image})
     }
 
     pub fn image(&self) -> Image { self.image.clone() }
@@ -125,7 +117,7 @@ pub struct StickerView(Stack, MaskedImage);
 impl StickerView {
     pub fn message(sticker: &Sticker) -> Self {
         StickerView(
-            Stack(
+            Stack::new(
                 Offset::Center, Offset::Center, Size::Static(120.0), Size::Static(120.0), Padding::default(),
             ),
             MaskedImage(sticker.image(), Variant::RoundedRectangle(16.0)),

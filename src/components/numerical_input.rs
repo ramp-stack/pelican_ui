@@ -1,4 +1,4 @@
-use prism::events::{DynEvent, Key, OnChange, on_change};
+use prism::events::{DynEvent, Key, OnEvent, on_event, OnChange, on_change};
 use prism::drawable::{Component, text::Align};
 use prism::Context;
 use ptsd::{events as event, emitters};
@@ -10,7 +10,7 @@ use uuid::Uuid;
 use std::rc::Rc;
 use std::pin::Pin;
 
-use crate::components::text::{Text, ExpandableText, TextStyle};
+use crate::components::text::{Text, TextStyle};
 use crate::components::Icon;
 use crate::theme::{Theme, Icons};
 use crate::interface::general::FormEvent;
@@ -138,13 +138,17 @@ impl NumericalInput {
 
     pub fn display_currency(theme: &Theme, amount: impl Into<Number>, instructions: &str) -> Self {
         let input = _NumericalInput::new(theme, instructions, SlotDisplay::display_currency(theme, amount));
-        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fit, Padding::default());
+        let layout = Stack::new(
+            Offset::Center, Offset::Center, Size::Fill, Size::Fit, Padding::default(),
+        );
         NumericalInput(layout, input)
     }
 
     pub fn display_number(theme: &Theme, amount: impl Into<Number>, instructions: &str) -> Self {
         let input = _NumericalInput::new(theme, instructions, SlotDisplay::display_number(theme, amount));
-        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fit, Padding::default());
+        let layout = Stack::new(
+            Offset::Center, Offset::Center, Size::Fill, Size::Fit, Padding::default(),
+        );
         NumericalInput(layout, input)
     }
 
@@ -177,7 +181,9 @@ impl NumericalInput {
 
     fn new(theme: &Theme, instructions: &str, input: SlotDisplay) -> Self {
         let input = _NumericalInput::new(theme, instructions, input);
-        let layout = Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default());
+        let layout = Stack::new(
+            Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default(),
+        );
         NumericalInput(layout, input)
     }
 }
@@ -186,7 +192,7 @@ impl NumericalInput {
 pub struct _NumericalInput {
     layout: Column,
     inner: emitters::TextInput<SlotDisplay>,
-    _subtext: EitherOr<ExpandableText, NumericalInputError>,
+    _subtext: EitherOr<Text, NumericalInputError>,
     #[skip] error: Option<String>,
     #[skip] subtext: (Option<String>, String),
 }
@@ -210,14 +216,14 @@ impl _NumericalInput {
             self._subtext.display_left(false);
         } else {
             let help = if self.error.is_none() {self.subtext.0.as_ref()} else {None};
-            self._subtext.left().0.spans[0].text.clone_from(help.unwrap_or(&self.subtext.1));
+            self._subtext.left().spans[0].text.clone_from(help.unwrap_or(&self.subtext.1));
             self._subtext.display_left(true);
         }
     }
 
     fn new(theme: &Theme, instructions: &str, input: SlotDisplay) -> Self {
         let layout = Column::new(24.0, Offset::Center, Size::Fit, Padding::new(64.0), None);
-        let help = ExpandableText::new(
+        let help = Text::new(
             theme, instructions, TextSize::Lg, TextStyle::Secondary, Align::Center, None,
         );
         let error = NumericalInputError::new(theme);
@@ -234,13 +240,12 @@ impl NumericalInputError {
     pub fn new(theme: &Theme) -> Self {
         let error = theme.colors().get(ptsd::Status::Danger);
         let icon = Icon::new(theme, Icons::Error, Some(error), 18.0);
-        let text = Text::new(theme, "", TextSize::Lg, TextStyle::Error, Align::Center, None);
+        let text = Text::new(theme, "", TextSize::Lg, TextStyle::Error, Align::Center, None).fit();
         NumericalInputError(Row::center(8.0), icon, text)
     }
 }
 
 #[derive(Clone, Debug, Component)]
-#[on_dyn_event]
 pub struct SlotDisplay(
     Row, Vec<Slot>, #[skip] bool, #[skip] Option<Number>,
     #[skip] bool, #[skip] Theme, #[skip] Option<Uuid>,
@@ -330,13 +335,20 @@ impl SlotDisplay {
         self.1 = text.chars().map(|c| Slot::new(&self.5, SlotType::Fixed(c))).collect();
         true
     }
+}
 
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        if let Some(FormEvent::Bind(form)) = event.downcast_ref::<FormEvent>() {
-            self.6 = Some(*form);
-        } else if let Some(e) = event.downcast_ref::<event::TextInput>() && self.2
-            && let event::TextInput::Edited(key) = e
-        {
+#[on_event]
+impl OnEvent<FormEvent> for SlotDisplay {
+    fn on(&mut self, _ctx: &mut Context, event: FormEvent) -> Vec<Box<dyn DynEvent>> {
+        if let FormEvent::Bind(form) = event {self.6 = Some(form);}
+        prism::events![event]
+    }
+}
+
+#[on_event]
+impl OnEvent<event::TextInput> for SlotDisplay {
+    fn on(&mut self, ctx: &mut Context, event: event::TextInput) -> Vec<Box<dyn DynEvent>> {
+        if self.2 && let event::TextInput::Edited(key) = &event {
             let mut changed = false;
             let mut reversed = false;
             let mut slots: Vec<Slot> = vec![];
@@ -460,7 +472,7 @@ impl SlotDisplay {
             }
             if changed && let Some(form) = self.6 {ctx.emit(FormEvent::Refresh(form));}
         }
-        vec![event]
+        prism::events![event]
     }
 }
 
@@ -476,8 +488,8 @@ impl Slot {
         };
 
         let mut eo = EitherOr::new(
-            Text::new(theme, &text, TextSize::H1, TextStyle::Heading, Align::Left, None),
-            Text::new(theme, &text, TextSize::H1, TextStyle::Label(ghost), Align::Left, None),
+            Text::new(theme, &text, TextSize::H1, TextStyle::Heading, Align::Left, None).fit(),
+            Text::new(theme, &text, TextSize::H1, TextStyle::Label(ghost), Align::Left, None).fit(),
         );
 
         eo.display_left(display_left);

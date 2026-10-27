@@ -6,7 +6,7 @@ use ptsd::interactions;
 use ptsd::utils::{TitleSubtitle};
 
 use crate::theme::{Theme, Color, Icons};
-use crate::components::text::{Text, TextSize, ExpandableText, TextStyle};
+use crate::components::text::{Text, TextSize, TextStyle};
 use crate::components::Icon;
 use crate::components::avatar::Avatar;
 
@@ -66,22 +66,26 @@ impl Group {
 }
 
 #[derive(Debug, Component, Clone)]
-pub struct ListItemGroup(Stack, Option<ExpandableText>, Option<Group>);
+pub struct ListItemGroup(Stack, Option<Text>, Option<Group>);
 
 impl ListItemGroup {
     pub fn new(theme: &Theme, instructions: Option<String>, mut items: Vec<ListItem>, has_label: bool) -> Self {
         items.iter_mut().for_each(|i| i.1.set_trigger_on_release());
 
         let layout = match items.is_empty() {
-            true if has_label => Stack(
+            true if has_label => Stack::new(
                 Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding::default(),
             ),
-            true => Stack(Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default()),
-            false => Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fill, Padding::default()),
+            true => Stack::new(
+                Offset::Center, Offset::Center, Size::Fill, Size::Fill, Padding::default(),
+            ),
+            false => Stack::new(
+                Offset::Start, Offset::Start, Size::Fill, Size::Fill, Padding::default(),
+            ),
         };
 
         let align = if has_label {Align::Left} else {Align::Center};
-        let instructions = items.is_empty().then_some(ExpandableText::new(
+        let instructions = items.is_empty().then_some(Text::new(
             theme, &instructions.unwrap_or_default(), TextSize::Md, TextStyle::Secondary, align, None,
         ));
         let group = (!items.is_empty()).then_some(Group::new(items));
@@ -90,12 +94,12 @@ impl ListItemGroup {
 }
 
 #[derive(Debug, Component, Clone)]
-pub struct ListItemSection(Column, Option<ExpandableText>, ListItemGroup);
+pub struct ListItemSection(Column, Option<Text>, ListItemGroup);
 
 impl ListItemSection {
     pub fn new(theme: &Theme, label: Option<String>, instructions: Option<String>, items: Vec<ListItem>) -> Self {
         let text = label.as_ref().map(|label| {
-            ExpandableText::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None)
+            Text::new(theme, label, TextSize::H5, TextStyle::Heading, Align::Left, None)
         });
         ListItemSection(
             Column::start(16.0), text, ListItemGroup::new(theme, instructions, items, label.is_some()),
@@ -133,28 +137,28 @@ impl ListItemData {
 }
 
 #[derive(Debug, Component, Clone)]
-struct LeftData(Column, TitleRow, Option<ExpandableText>, Option<ExpandableText>);
+struct LeftData(Column, TitleRow, Option<Text>, Option<Text>);
 
 impl LeftData {
     fn new(theme: &Theme, info: ListItemInfoLeft) -> Self {
         let layout = Column::new(4.0, Offset::Start, Size::Fill, Padding::default(), None);
         let subtitle = info.title.subtitle.map(|text| {
-            ExpandableText::new(theme, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2))
+            Text::new(theme, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2))
         });
         let description = info.description.map(|text| {
-            ExpandableText::new(theme, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2))
+            Text::new(theme, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2))
         });
         LeftData(layout, TitleRow::new(theme, &info.title.title, info.flair), subtitle, description)
     }
 }
 
 #[derive(Debug, Component, Clone)]
-struct TitleRow(Row, ExpandableText, Option<Icon>);
+struct TitleRow(Row, Text, Option<Icon>);
 
 impl TitleRow {
     fn new(theme: &Theme, title: &str, flair: Option<(Icons, Color)>) -> Self {
         let layout = Row::new(4.0, Offset::Center, Size::Fit, Padding::default());
-        let text = ExpandableText::new(theme, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
+        let text = Text::new(theme, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
         let flair = flair.map(|(name, color)| Icon::new(theme, name, Some(color), 16.0));
         TitleRow(layout, text, flair)
     }
@@ -165,9 +169,11 @@ struct RightData(Column, Text, Option<Text>);
 
 impl RightData {
     fn new(theme: &Theme, info: TitleSubtitle) -> Self {
-        let title = Text::new(theme, &info.title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
+        let title = Text::new(
+            theme, &info.title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1),
+        ).fit();
         let subtitle = info.subtitle.map(|text| {
-            Text::new(theme, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2))
+            Text::new(theme, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2)).fit()
         });
         RightData(Column::end(4.0), title, subtitle)
     }

@@ -1,15 +1,14 @@
-use prism::events::{DynEvent, ListenFuture, KeyboardState, KeyboardEvent};
+use prism::events::{DynEvent, ListenCallback, OnChange, on_change, OnEvent, on_event};
+use prism::events::{KeyboardState, KeyboardEvent, MouseEvent, WindowEvent};
 use prism::drawable::text::Align;
 use prism::{Context, Window};
 use ptsd::emitters;
-use prism::drawable::{Drawable, Component, RangeTree, SizeRange, LayoutTree, Rect, Instruction, Item, Area};
+use prism::drawable::{Drawable, Component, LayoutTree, Rect, Instruction, Item, Area};
 use prism::drawable::shape::{Shape, Variant};
 use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding};
 use ptsd::display::{Bin, Enum, Dismissible, DismissEdge};
 use ptsd::interfaces::ShowKeyboard;
 use ptsd::interactions;
-
-use std::any::Any;
 
 use crate::theme::{Theme, Color, Icons};
 use crate::components::text::{Text, TextStyle, TextSize};
@@ -18,8 +17,6 @@ use crate::components::{Rectangle, Icon};
 use super::key::InputKey;
 
 #[derive(Component, Debug, Clone)]
-#[on_dyn_event]
-#[listen]
 pub struct CustomKeyboard {
     layout: Stack,
     panel: Dismissible<KeyboardBody>,
@@ -38,7 +35,10 @@ impl CustomKeyboard {
                     Size::custom(|heights| heights[1]), Padding::default()),
                 background: KeyboardBackground {color: color.into(), window: ctx.window},
                 content: Bin(
-                    Stack(Offset::Center, Offset::Start, Size::Fill, Size::Fit, Padding(8.0, 22.0, 8.0, 8.0)),
+                    Stack::new(
+                        Offset::Center, Offset::Start, Size::Fill, Size::Fit,
+                        Padding(8.0, 22.0, 8.0, 8.0),
+                    ),
                     KeyRows::new(theme, 0, false),
                 ),
             }, DismissEdge::Bottom),
@@ -46,38 +46,63 @@ impl CustomKeyboard {
         }
     }
 
-    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        let refresh = match event.downcast_ref::<KeyAction>() {
-            Some(KeyAction::Capslock(caps)) => {self.caps = *caps; true}
-            Some(KeyAction::Paginator(page)) => {self.keys_page = *page; true}
-            None => if self.caps && matches!(event.downcast_ref::<KeyboardEvent>(),
-                Some(KeyboardEvent {
-                    key: prism::events::Key::Character(_), state: KeyboardState::Pressed, ..
-                })) {
-                self.caps = false;
-                true
-            } else {false},
-        };
-        if refresh {self.panel.child.content.1 = KeyRows::new(&self.theme, self.keys_page, self.caps);}
-        vec![event]
+    pub fn observe_mouse(&mut self, window: Window, mut event: MouseEvent, showing: bool) {
+        let size = self.panel.size();
+        let area = showing.then_some(Area {
+            offset: (window.insets.1, window.size.1 - window.insets.2 - size.1), size,
+        });
+        if let Some(position) = &mut event.position {
+            position.0 += window.insets.1;
+            position.1 += window.insets.0;
+        }
+        // Dismissal updates its own state without cancelling the original pointer event.
+        self.panel.observe(&mut event, area, None);
     }
 
-    pub fn on_interface_event(&mut self, ctx: &Context, event: &mut dyn DynEvent, showing: bool) {
-        self.panel.child.background.window = ctx.window;
-        if event.downcast_ref::<ptsd::navigation::NavigationEvent>().is_some()
-            || event.downcast_ref::<ShowKeyboard>().is_some() {self.panel.reset();}
+    pub fn on_window_event(&mut self, mut event: WindowEvent, showing: bool) {
+        if let WindowEvent::Resized(window) = event {self.panel.child.background.window = window;}
+        let window = self.panel.child.background.window;
         let size = self.panel.size();
-        let area = showing.then_some(Area {offset: (0.0, ctx.window.area().size.1 - size.1), size});
-        self.panel.observe(event, area, None);
+        let area = showing.then_some(Area {
+            offset: (window.insets.1, window.size.1 - window.insets.2 - size.1), size,
+        });
+        self.panel.observe(&mut event, area, None);
+    }
+
+    pub fn reset(&mut self) {self.panel.reset();}
+}
+
+#[on_event]
+impl OnEvent<KeyAction> for CustomKeyboard {
+    fn on(&mut self, _ctx: &mut Context, event: KeyAction) -> Vec<Box<dyn DynEvent>> {
+        match event {
+            KeyAction::Capslock(caps) => self.caps = caps,
+            KeyAction::Paginator(page) => self.keys_page = page,
+        }
+        self.panel.child.content.1 = KeyRows::new(&self.theme, self.keys_page, self.caps);
+        vec![Box::new(event)]
     }
 }
 
-impl CustomKeyboard {
-    fn listen(&mut self) -> ListenFuture<'_> {Drawable::listen(&mut self.panel)}
-    fn update(&mut self, ctx: &mut Context, path: Vec<usize>, update: Box<dyn Any>) {
-        Drawable::update(&mut self.panel, ctx, path, update);
+#[on_event]
+impl OnEvent<KeyboardEvent> for CustomKeyboard {
+    fn on(&mut self, _ctx: &mut Context, event: KeyboardEvent) -> Vec<Box<dyn DynEvent>> {
+        if self.caps && matches!(event, KeyboardEvent {
+            key: prism::events::Key::Character(_), state: KeyboardState::Pressed, ..
+        }) {
+            self.caps = false;
+            self.panel.child.content.1 = KeyRows::new(&self.theme, self.keys_page, self.caps);
+        }
+        vec![Box::new(event)]
+    }
+}
+
+#[on_change(Component::listen(&mut self.panel))]
+impl OnChange<ListenCallback<Dismissible<KeyboardBody>>> for CustomKeyboard {
+    fn on_change(&mut self, ctx: &mut Context, callback: ListenCallback<Dismissible<KeyboardBody>>) {
+        callback(&mut self.panel, ctx);
         if self.panel.advance() {
-            ctx.emit(ShowKeyboard(false));
+            ctx.emit(ShowKeyboard::Hide);
             ctx.emit(ptsd::events::TextInput::Focused(false));
         }
     }
@@ -226,7 +251,7 @@ enum _Key {
 impl _Key {
     fn character(theme: &Theme, character: &str, state: ButtonState, background: bool) -> Self {
         _Key::Character {
-            layout: Stack(
+            layout: Stack::new(
                 Offset::Center, Offset::End, Size::Static(30.0), Size::Static(48.0),
                 Padding(3.0, 6.0, 3.0, 6.0),
             ),
@@ -235,20 +260,22 @@ impl _Key {
                 ButtonState::Pressed => Color::from_hex("ffffff", 57)
             }, 4.0, None)),
             text: Bin(
-                Stack(
+                Stack::new(
                     Offset::default(), Offset::default(), Size::default(), Size::default(),
                     Padding(0.0, 0.0, 0.0, 10.0),
                 ),
-                Text::new(theme, character, TextSize::Xl, TextStyle::Keyboard, Align::Left, None)
+                Text::new(
+                    theme, character, TextSize::Xl, TextStyle::Keyboard, Align::Left, None,
+                ).fit()
             )
         }
     }
 
     fn spacebar(theme: &Theme, caps_on: bool, state: ButtonState) -> Self {
         _Key::Spacebar {
-            layout: Stack(
+            layout: Stack::new(
                 Offset::Center, Offset::Center,
-                Size::custom(|widths: Vec<(f32, f32)>| (widths[1].0, f32::MAX)),
+                Size::custom(|widths: Vec<(f32, f32)>| (widths[1].1, f32::MAX)),
                 Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0),
             ),
             background: Rectangle::new(match state {
@@ -258,15 +285,15 @@ impl _Key {
             text: Text::new(theme, match caps_on {
                 true => "SPACE",
                 false => "space",
-            }, TextSize::Md, TextStyle::Keyboard, Align::Left, None)
+            }, TextSize::Md, TextStyle::Keyboard, Align::Left, None).fit()
         }
     }
 
     fn newline(theme: &Theme, caps_on: bool, state: ButtonState, label: &str) -> Self {
         _Key::Newline {
-            layout: Stack(
+            layout: Stack::new(
                 Offset::Center, Offset::Center,
-                Size::custom(|widths: Vec<(f32, f32)>| (widths[1].0, 92.0)),
+                Size::custom(|widths: Vec<(f32, f32)>| (widths[1].1, 92.0)),
                 Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0),
             ),
             background: Rectangle::new(match state {
@@ -276,7 +303,7 @@ impl _Key {
             text: Text::new(theme, &match caps_on {
                 true => label.to_uppercase(),
                 false => label.to_string(),
-            }, TextSize::Md, TextStyle::Keyboard, Align::Left, None)
+            }, TextSize::Md, TextStyle::Keyboard, Align::Left, None).fit()
         }
     }
 
@@ -287,7 +314,7 @@ impl _Key {
         };
 
         _Key::Capslock {
-            layout: Stack(
+            layout: Stack::new(
                 Offset::Center, Offset::Center,
                 Size::custom(|widths: Vec<(f32, f32)>| (widths[1].0, 42.0)),
                 Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0),
@@ -299,9 +326,9 @@ impl _Key {
 
     fn paginator(theme: &Theme, page: usize) -> Self {
         _Key::Paginator {
-            layout: Stack(
+            layout: Stack::new(
                 Offset::Center, Offset::Center,
-                Size::custom(|widths: Vec<(f32, f32)>| (widths[1].0, 92.0)),
+                Size::custom(|widths: Vec<(f32, f32)>| (widths[1].1, 92.0)),
                 Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0),
             ),
             background: Rectangle::new(Color::from_hex("ffffff", 40), 4.0, None),
@@ -317,12 +344,8 @@ struct KeyboardBackground {
 }
 
 impl Drawable for KeyboardBackground {
-    fn size_range(&self) -> RangeTree {
-        RangeTree(SizeRange {
-            min_width: 0.0, max_width: f32::INFINITY,
-            min_height: 0.0, max_height: f32::INFINITY,
-        }, vec![])
-    }
+    fn request_width(&mut self) -> (f32, f32) {(0.0, f32::INFINITY)}
+    fn request_height(&mut self, _width: f32) -> (f32, f32) {(0.0, f32::INFINITY)}
 
     fn draw(&self, layout: &LayoutTree, offset: (f32, f32), mut bound: Rect) -> Vec<Instruction> {
         let (width, height) = self.window.size;
@@ -357,9 +380,9 @@ impl PaginatorContent {
 
         PaginatorContent(
             Row::center(1.0),
-            Text::new(theme, "•", TextSize::H2, styles.0, Align::Left, None),
-            Text::new(theme, "•", TextSize::H2, styles.1, Align::Left, None),
-            Text::new(theme, "•", TextSize::H2, styles.2, Align::Left, None),
+            Text::new(theme, "•", TextSize::H2, styles.0, Align::Left, None).fit(),
+            Text::new(theme, "•", TextSize::H2, styles.1, Align::Left, None).fit(),
+            Text::new(theme, "•", TextSize::H2, styles.2, Align::Left, None).fit(),
         )
     }
 }
@@ -379,7 +402,6 @@ impl Paginator {
 }
 
 #[derive(Component, Debug, Clone)]
-#[on_dyn_event]
 struct _Paginator(Stack, Enum<Box<dyn Drawable>>, #[skip] usize);
 
 impl _Paginator {
@@ -398,10 +420,10 @@ impl _Paginator {
     }
 }
 
-impl _Paginator {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        if let Some(ptsd::events::Selectable::Selected(true)) =
-            event.downcast_ref::<ptsd::events::Selectable>() {
+#[on_event]
+impl OnEvent<ptsd::events::Selectable> for _Paginator {
+    fn on(&mut self, ctx: &mut Context, event: ptsd::events::Selectable) -> Vec<Box<dyn DynEvent>> {
+        if let ptsd::events::Selectable::Selected(true) = event {
             if &self.1.current() == "first" {
                 self.1.display("second");
                 self.2 = 1;
@@ -416,6 +438,6 @@ impl _Paginator {
             ctx.hardware.trigger_haptic();
             ctx.emit(KeyAction::Paginator(self.2));
         }
-        vec![event]
+        vec![Box::new(event)]
     }
 }

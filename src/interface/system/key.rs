@@ -1,6 +1,6 @@
 use prism::Context;
 use prism::drawable::{Component, Drawable};
-use prism::events::{DynEvent, Key, KeyboardEvent, KeyboardState, Modifiers};
+use prism::events::{DynEvent, Key, KeyboardEvent, KeyboardState, Modifiers, OnEvent, on_event};
 use prism::events::{MouseEvent, MouseState, MouseButton, WindowEvent, Timer, OnChange, on_change};
 use ptsd::interactions;
 use ptsd::layout::{Stack, Offset, Size, Padding};
@@ -11,7 +11,6 @@ use crate::theme::{Theme, Color, Icons};
 use crate::components::{Rectangle, Icon};
 
 #[derive(Debug, Component, Clone)]
-#[on_dyn_event]
 pub struct InputKey(Stack, interactions::Button, #[skip] Option<Repeat>);
 impl InputKey {
     pub fn new(default: impl Drawable, pressed: impl Drawable, key: Key, repeat: bool) -> Self {
@@ -30,33 +29,45 @@ impl InputKey {
 
     pub fn backspace(theme: &Theme, height: f32) -> Self {
         let face = |alpha| Backspace(
-            Stack(Offset::Center, Offset::Center, Size::custom(|widths| (widths[1].0, 42.0)),
-                Size::Static(height), Padding(3.0, 6.0, 3.0, 6.0)),
+            Stack::new(
+                Offset::Center, Offset::Center, Size::custom(|widths| (widths[1].0, 42.0)),
+                Size::Static(height), Padding(3.0, 6.0, 3.0, 6.0),
+            ),
             Rectangle::new(Color::from_hex("ffffff", alpha), 4.0, None),
             Icon::new(theme, Icons::Backspace, Some(Color::white()), 36.0),
         );
         Self::new(face(40), face(57), Key::Backspace, true)
     }
+}
 
-    fn on_event(&mut self, _ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
+#[on_event]
+impl OnEvent<MouseEvent> for InputKey {
+    fn on(&mut self, _ctx: &mut Context, event: MouseEvent) -> Vec<Box<dyn DynEvent>> {
         if let Some(hold) = &mut self.2 {
-            if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
-                match mouse.state {
-                    MouseState::Pressed(MouseButton::Left) if mouse.position.is_some() => {
-                        hold.started = Instant::now();
-                        hold.timer.reset(Duration::from_millis(500));
-                    }
-                    MouseState::Released(_) => hold.timer.cancel(),
-                    MouseState::Moved if mouse.position.is_none() => hold.timer.cancel(),
-                    _ => {}
+            match event.state {
+                MouseState::Pressed(MouseButton::Left) if event.position.is_some() => {
+                    hold.started = Instant::now();
+                    hold.timer.reset(Duration::from_millis(500));
                 }
-            } else if matches!(event.downcast_ref::<WindowEvent>(), Some(WindowEvent::Focused(false))) {
-                hold.timer.cancel();
+                MouseState::Released(_) => hold.timer.cancel(),
+                MouseState::Moved if event.position.is_none() => hold.timer.cancel(),
+                _ => {}
             }
         }
-        vec![event]
+        vec![Box::new(event)]
     }
 }
+
+#[on_event]
+impl OnEvent<WindowEvent> for InputKey {
+    fn on(&mut self, _ctx: &mut Context, event: WindowEvent) -> Vec<Box<dyn DynEvent>> {
+        if matches!(event, WindowEvent::Focused(false)) {
+            if let Some(hold) = &mut self.2 {hold.timer.cancel();}
+        }
+        vec![Box::new(event)]
+    }
+}
+
 #[on_change(async {
     match &mut self.2 {
         Some(repeat) => repeat.timer.next().await,

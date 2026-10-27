@@ -1,12 +1,11 @@
 use prism::drawable::{
-    Drawable, Component, LayoutTree, RangeTree, SizeRange, Rect, Instruction, Item,
-    Color as CanvasColor,
+    Drawable, Component, LayoutTree, Rect, Instruction, Item, Color as CanvasColor, Text as PrismText,
 };
 use prism::drawable::text::{Align, Span, Text as BasicText};
 use prism::drawable::shape::{Shape as CanvasShape, Variant as ShapeType};
 use prism::events::{
     Key, KeyboardEvent, KeyboardState, DynEvent, MouseEvent, MouseState, MouseButton,
-    ChangeHandler, ListenFuture, Timer, WindowEvent,
+    ChangeHandler, ListenCallback, ListenFuture, Timer, WindowEvent,
 };
 use prism::Context;
 use ptsd::display::{Bin, Opt};
@@ -18,7 +17,7 @@ use uuid::Uuid;
 
 use std::any::Any;
 use std::borrow::Cow;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Range};
 use std::time::Duration;
 
 use crate::components::{Rectangle, TextInputEvent};
@@ -48,14 +47,14 @@ impl TextStyle {
 #[derive(Component, Debug, Clone)]
 pub struct Text {
     layout: Stack,
-    inner: BasicText,
+    inner: PrismText,
 }
 
 impl Text {
     pub fn new(theme: &Theme, text: &str, text_size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         let (color, font) = style.get(theme);
         let size = theme.fonts().get_size(text_size);
-        let mut inner = BasicText::new(text, font.into(), size, color.into(), align);
+        let mut inner = PrismText::new(text, font.into(), size, color.into(), align);
         inner.spans[0].line_height = Some(size * 1.25);
         inner.max_lines = max_lines;
         Text { layout: Stack::default(), inner }
@@ -64,6 +63,8 @@ impl Text {
     pub fn default(theme: &Theme, text: &str) -> Self {
         Self::new(theme, text, TextSize::H4, TextStyle::Heading, Align::Center, None)
     }
+
+    pub fn fit(mut self) -> Self {self.inner = self.inner.fit(); self}
 }
 impl Deref for Text {
     type Target = BasicText;
@@ -73,61 +74,24 @@ impl DerefMut for Text {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.inner }
 }
 
-#[derive(Debug, Clone)]
-pub struct ExpandableText(pub Text);
-impl ExpandableText {
-    pub fn new(theme: &Theme, text: &str, size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
-        ExpandableText(Text::new(theme, text, size, style, align, max_lines))
-    }
-
-    pub fn default(theme: &Theme, text: &str) -> Self {
-        Self::new(theme, text, TextSize::H4, TextStyle::Heading, Align::Center, None)
-    }
-}
-
-impl Drawable for ExpandableText {
-    fn size_range(&self) -> RangeTree {
-        let size = self.0.inner.size();
-        RangeTree(
-            SizeRange {
-                min_width: 0.0, max_width: f32::MAX, min_height: size.1, max_height: size.1,
-            }, vec![],
-        )
-    }
-
-    fn layout(&mut self, size: (f32, f32), request: &RangeTree) -> LayoutTree {
-        let size = request.0.clamp(size);
-        self.0.inner.width = Some(size.0);
-        LayoutTree(size, vec![])
-    }
-
-    fn draw(&self, _sized: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
-        vec![Instruction { offset, bound, item: Item::Text(self.0.inner.clone()) }]
-    }
-
-    fn event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) {
-        self.0.event(ctx, sized, event)
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct TextEditor {
-    content: Bin<Stack, (ExpandableText, TextCursor, Magnifier)>,
+    content: Bin<Stack, (Text, TextCursor, Magnifier)>,
     scrub: Scrub,
-    id: Uuid,
     default_span: Span,
     dirty: Timer,
 }
 impl TextEditor {
     pub fn new(theme: &Theme, id: Uuid, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
-        let mut built = ExpandableText::new(theme, "", size, style, align, None);
-        let default_span = built.0.inner.spans[0].clone();
-        built.0.inner.spans[0].text = text.to_string();
-        built.0.inner.cursor = Some(text.len());
-        let magnifier = Magnifier::new(theme, style, built.0.inner.clone());
+        let mut built = Text::new(theme, "", size, style, align, None);
+        built.inner.id = id;
+        let default_span = built.inner.spans[0].clone();
+        built.inner.spans[0].text = text.to_string();
+        built.inner.cursor = Some(text.len());
+        let magnifier = Magnifier::new(theme, style, (*built.inner).clone());
         Self {
             content: Bin(Stack::start(), (built, TextCursor::new(theme, style, size), magnifier)),
-            scrub: Scrub::default(), id, default_span, dirty: Timer::default(),
+            scrub: Scrub::default(), default_span, dirty: Timer::default(),
         }
     }
 
@@ -136,17 +100,18 @@ impl TextEditor {
     }
 
     pub fn display_cursor(&mut self, display: bool) {
-        let (_, caret, _) = &mut self.content.1;
-        caret.1.display(display);
+        let inner = &mut self.content.1.0.inner;
+        inner.focused = display;
         if !display {
+            inner.anchor = None;
             self.scrub = Scrub::default();
-            self.sync();
         }
+        self.sync();
     }
 
-    pub fn id(&self) -> Uuid { self.id }
+    pub fn id(&self) -> Uuid {self.content.1.0.inner.id}
     pub fn value(&self) -> Cow<'_, str> {
-        match self.content.1.0.0.inner.spans.as_slice() {
+        match self.content.1.0.inner.spans.as_slice() {
             [] => Cow::Borrowed(""), [span] => Cow::Borrowed(&span.text),
             spans => Cow::Owned(spans.iter().map(|span| span.text.as_str()).collect()),
         }
@@ -154,8 +119,13 @@ impl TextEditor {
 
     pub fn insert(&mut self, ctx: &mut Context, text: &str) {
         if text.is_empty() { return; }
-        let index = Self::clamp_to_boundary(&self.value(), self.cursor.unwrap_or(self.text_len()));
-        let inner = &mut self.content.1.0.0.inner;
+        let anchor = self.content.1.0.inner.anchor.take();
+        let value = self.value();
+        let cursor = Self::clamp_to_boundary(&value, self.cursor.unwrap_or(value.len()));
+        let anchor = Self::clamp_to_boundary(&value, anchor.unwrap_or(cursor));
+        let index = cursor.min(anchor);
+        self.delete_range(index..cursor.max(anchor));
+        let inner = &mut self.content.1.0.inner;
         if inner.spans.is_empty() { inner.spans.push(self.default_span.clone()); }
         let mut offset = index;
         for span in &mut inner.spans {
@@ -170,25 +140,22 @@ impl TextEditor {
     }
 
     pub fn delete_back(&mut self, ctx: &mut Context) {
+        let anchor = self.content.1.0.inner.anchor.take();
         let value = self.value();
-        let index = Self::clamp_to_boundary(&value, self.cursor.unwrap_or(value.len()));
-        let Some((start, _)) = value[..index].grapheme_indices(true).next_back() else { return };
-        let inner = &mut self.content.1.0.0.inner;
-        let mut offset = 0;
-        for span in &mut inner.spans {
-            let end = offset + span.text.len();
-            let from = start.max(offset);
-            let to = index.min(end);
-            if from < to { span.text.replace_range(from - offset..to - offset, ""); }
-            offset = end;
-        }
-        inner.cursor = Some(start);
+        let cursor = Self::clamp_to_boundary(&value, self.cursor.unwrap_or(value.len()));
+        let anchor = Self::clamp_to_boundary(&value, anchor.unwrap_or(cursor));
+        let range = if anchor != cursor {anchor.min(cursor)..anchor.max(cursor)} else {
+            let Some((start, _)) = value[..cursor].grapheme_indices(true).next_back() else {return};
+            start..cursor
+        };
+        self.delete_range(range);
         self.changed(ctx);
     }
 
     pub fn set_text(&mut self, ctx: &mut Context, text: &str) {
-        if self.value() == text { return; }
-        let inner = &mut self.content.1.0.0.inner;
+        self.content.1.0.inner.anchor = None;
+        if self.value() == text { self.sync(); return; }
+        let inner = &mut self.content.1.0.inner;
         if inner.spans.is_empty() { inner.spans.push(self.default_span.clone()); }
         inner.spans.truncate(1);
         inner.spans[0].text = text.to_string();
@@ -205,7 +172,7 @@ impl TextEditor {
         self.sync();
     }
 
-    pub fn pointer_moved(&mut self, pos: Option<(f32, f32)>, delta: Option<(f32, f32)>, touch_controls: bool) {
+    pub fn pointer_moved(&mut self, pos: Option<(f32, f32)>, delta: Option<(f32, f32)>, is_mobile: bool) {
         if !self.scrub.pressed { return; }
 
         let step = match (delta, pos) {
@@ -223,7 +190,7 @@ impl TextEditor {
         let distance = self.scrub.moved.0.hypot(self.scrub.moved.1);
 
         if !self.scrub.active {
-            if touch_controls {
+            if is_mobile {
                 if distance > 10.0 { self.scrub = Scrub::default(); }
                 return;
             }
@@ -248,58 +215,55 @@ impl TextEditor {
         ctx.emit(TextInputEvent::Changed { id: self.id(), value: self.value().into_owned() });
     }
 
+    fn delete_range(&mut self, range: Range<usize>) {
+        let inner = &mut self.content.1.0.inner;
+        let mut offset = 0;
+        for span in &mut inner.spans {
+            let end = offset + span.text.len();
+            let from = range.start.max(offset);
+            let to = range.end.min(end);
+            if from < to {span.text.replace_range(from - offset..to - offset, "");}
+            offset = end;
+        }
+        inner.cursor = Some(range.start);
+    }
+
     fn clamp_to_boundary(text: &str, index: usize) -> usize {
         let mut index = index.min(text.len());
         while !text.is_char_boundary(index) { index -= 1; }
         index
     }
 
-    fn place_cursor(&mut self, pos: (f32, f32)) { self.content.1.0.0.inner.cursor_click(pos.0, pos.1); }
+    fn place_cursor(&mut self, pos: (f32, f32)) { self.content.1.0.inner.cursor_click(pos.0, pos.1); }
 
     fn sync(&mut self) {
-        if let Some(cursor) = self.content.1.0.0.inner.cursor {
-            self.content.1.0.0.inner.cursor = Some(Self::clamp_to_boundary(&self.value(), cursor));
+        if let Some(cursor) = self.content.1.0.inner.cursor {
+            self.content.1.0.inner.cursor = Some(Self::clamp_to_boundary(&self.value(), cursor));
+        }
+        if let Some(anchor) = self.content.1.0.inner.anchor {
+            self.content.1.0.inner.anchor = Some(Self::clamp_to_boundary(&self.value(), anchor));
         }
 
-        let (text, _, magnifier) = &mut self.content.1;
-        magnifier.active = self.scrub.active;
-        magnifier.text = text.0.inner.clone();
+        let (text, caret, magnifier) = &mut self.content.1;
+        let inner = &*text.inner;
+        // Re-enable the custom caret and magnifier when native text overlays are removed.
+        let custom_cursor = false;
+        caret.1.display(custom_cursor && inner.focused
+            && inner.anchor.is_none_or(|anchor| inner.cursor == Some(anchor)));
+        magnifier.active = custom_cursor && self.scrub.active;
+        magnifier.text = inner.clone();
     }
 }
 
 impl Drawable for TextEditor {
-    fn listen(&mut self) -> ListenFuture<'_> {
-        let (content, dirty, scrub) = (&mut self.content, &mut self.dirty, &mut self.scrub);
-        Box::pin(ChangeHandler::select(vec![
-            Drawable::listen(content),
-            Box::pin(async move {
-                dirty.next().await;
-                (Vec::new(), Box::new(()) as Box<dyn Any>)
-            }),
-            Box::pin(async move {
-                scrub.timer.next().await;
-                (Vec::new(), Box::new(()) as Box<dyn Any>)
-            }),
-        ]))
-    }
-    fn update(&mut self, ctx: &mut Context, mut path: Vec<usize>, update: Box<dyn Any>) {
-        match path.pop().unwrap() {
-            0 => Drawable::update(&mut self.content, ctx, path, update),
-            1 => self.changed(ctx),
-            2 => {
-                self.scrub.active = true;
-                self.place_cursor(self.scrub.pointer);
-                self.sync();
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    fn size_range(&self) -> RangeTree {self.content.size_range()}
-    fn layout(&mut self, size: (f32, f32), request: &RangeTree) -> LayoutTree {
-        let mut layout = Drawable::layout(&mut self.content, size, request);
+    fn request_width(&mut self) -> (f32, f32) {self.content.request_width()}
+    fn request_height(&mut self, width: f32) -> (f32, f32) {
         self.sync();
-        let (x, y) = self.content.1.0.0.inner.cursor_position();
+        self.content.request_height(width)
+    }
+    fn layout(&mut self, size: (f32, f32)) -> LayoutTree {
+        let mut layout = Drawable::layout(&mut self.content, size);
+        let (x, y) = self.content.1.0.inner.cursor_position();
         layout.1[1].0 = (layout.1[0].0.0 + x, layout.1[0].0.1 + y + 2.0);
         layout
     }
@@ -317,10 +281,10 @@ impl Drawable for TextEditor {
                     if let Some(position) = mouse.position {self.pointer_pressed(position);}
                 }
                 MouseState::Moved => {
-                    self.pointer_moved(mouse.position, None, ctx.window.touch_controls)
+                    self.pointer_moved(mouse.position, None, ctx.window.is_mobile)
                 }
-                MouseState::Scroll(x, y) if ctx.window.touch_controls => {
-                    self.pointer_moved(mouse.position, Some((-x, -y)), ctx.window.touch_controls);
+                MouseState::Scroll(x, y) if ctx.window.is_mobile => {
+                    self.pointer_moved(mouse.position, Some((-x, -y)), ctx.window.is_mobile);
                 }
                 MouseState::Released(MouseButton::Left) => self.pointer_released(),
                 _ => {}
@@ -337,19 +301,58 @@ impl Drawable for TextEditor {
             }
         }
 
+        if event.is::<MouseEvent>() || event.is::<KeyboardEvent>() || event.is::<WindowEvent>() {
+            self.content.event(ctx, sized, event);
+            return;
+        }
+
+        let value = self.value().into_owned();
+        let cursor = self.cursor;
+        let anchor = self.anchor;
+        let focused = self.focused;
         self.content.event(ctx, sized, event);
+        if !focused && self.focused {ctx.emit(TextInputEvent::Focus {id: self.id()});}
+        if self.value() != value {self.changed(ctx);}
+        else if self.cursor != cursor || self.anchor != anchor || self.focused != focused {self.sync();}
+    }
+
+    fn changed(&mut self) -> ListenFuture<'_> {
+        let (content, dirty, scrub) = (&mut self.content, &mut self.dirty, &mut self.scrub);
+        Box::pin(ChangeHandler::select(vec![
+            Box::pin(async move {
+                let callback = Component::listen(content).await;
+                Box::new(move |target: &mut dyn Any, ctx: &mut Context| {
+                    callback(&mut target.downcast_mut::<Self>().unwrap().content, ctx);
+                }) as ListenCallback
+            }),
+            Box::pin(async move {
+                dirty.next().await;
+                Box::new(|target: &mut dyn Any, ctx: &mut Context| {
+                    target.downcast_mut::<Self>().unwrap().changed(ctx);
+                }) as ListenCallback
+            }),
+            Box::pin(async move {
+                scrub.timer.next().await;
+                Box::new(|target: &mut dyn Any, _: &mut Context| {
+                    let target = target.downcast_mut::<Self>().unwrap();
+                    target.scrub.active = true;
+                    target.place_cursor(target.scrub.pointer);
+                    target.sync();
+                }) as ListenCallback
+            }),
+        ]))
     }
 }
 
 impl Deref for TextEditor {
     type Target = BasicText;
-    fn deref(&self) -> &Self::Target { &self.content.1.0.0.inner }
+    fn deref(&self) -> &Self::Target { &self.content.1.0.inner }
 }
 
 impl DerefMut for TextEditor {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.dirty.reset(Duration::ZERO);
-        &mut self.content.1.0.0.inner
+        &mut self.content.1.0.inner
     }
 }
 
@@ -361,7 +364,7 @@ impl TextCursor {
         let (color, _) = style.get(theme);
         let size = theme.fonts().get_size(size);
         TextCursor(
-            Stack(
+            Stack::new(
                 Offset::Start, Offset::End, Size::Static(2.0), Size::Static(size),
                 Padding::default(),
             ), Opt::new(Rectangle::new(color, 0.0, None), true),
@@ -392,11 +395,11 @@ impl Magnifier {
 }
 
 impl Drawable for Magnifier {
-    fn size_range(&self) -> RangeTree {
-        let h = self.text.size().1;
-        RangeTree(
-            SizeRange { min_width: 0.0, max_width: f32::MAX, min_height: h, max_height: h }, vec![],
-        )
+    fn request_width(&mut self) -> (f32, f32) {(0.0, f32::MAX)}
+    fn request_height(&mut self, width: f32) -> (f32, f32) {
+        self.text.width = Some(width);
+        let height = self.text.size().1;
+        (height, height)
     }
 
     fn draw(&self, _sized: &LayoutTree, offset: (f32, f32), _bound: Rect) -> Vec<Instruction> {
@@ -414,6 +417,8 @@ impl Drawable for Magnifier {
 
         let mut zoomed = self.text.clone();
         zoomed.cursor = None;
+        zoomed.anchor = None;
+        zoomed.focused = false;
         zoomed.scale(1.5);
 
         let rect = |x: f32, y: f32, w: f32, h: f32, stroke: f32, radius: f32, color: CanvasColor| {

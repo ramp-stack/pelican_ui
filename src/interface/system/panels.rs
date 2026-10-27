@@ -22,13 +22,22 @@ impl Panels {
     pub fn new(theme: &Theme) -> Self {
         let room = Padding::new(8.0);
         Self {
-            layout: Stack(Offset::Start, Offset::Start, Size::Fill,
-                Size::custom(|heights| heights.iter().skip(1).fold((0.0_f32, 0.0_f32),
-                    |size, h| (size.0.max(h.0), size.1.max(h.1)))), Padding::default()),
+            layout: Stack::new(
+                Offset::Start, Offset::Start, Size::Fill,
+                Size::custom(|heights| heights.iter().skip(1).fold(
+                    (0.0_f32, 0.0_f32), |size, h| (size.0.max(h.0), size.1.max(h.1)),
+                )), Padding::default(),
+            ),
             background: Rectangle::new(theme.colors().get(ptsd::Background::Secondary), 12.0, None),
-            emoji: Opt::new(Bin(Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fit, room), EmojiPanel::new(theme)), true),
-            stickers: Opt::new(Bin(Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fit, room), StickerPanel::new(theme)), false),
-            gifs: Opt::new(Bin(Stack(Offset::Start, Offset::Start, Size::Fill, Size::Fit, room), GifPanel::new(theme)), false),
+            emoji: Opt::new(Bin(Stack::new(
+                Offset::Start, Offset::Start, Size::Fill, Size::Fit, room,
+            ), EmojiPanel::new(theme)), true),
+            stickers: Opt::new(Bin(Stack::new(
+                Offset::Start, Offset::Start, Size::Fill, Size::Fit, room,
+            ), StickerPanel::new(theme)), false),
+            gifs: Opt::new(Bin(Stack::new(
+                Offset::Start, Offset::Start, Size::Fill, Size::Fit, room,
+            ), GifPanel::new(theme)), false),
         }
     }
 
