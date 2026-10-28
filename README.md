@@ -1,5 +1,13 @@
 # Pelican UI Overview
 
+## Frontend development setup
+
+Clone `orange`, `chk`, `pelican_ui`, and `ptsd` into sibling directories and update
+their default branches together. Frontend dependencies use these local checkouts;
+backend dependencies use published crates. Follow the
+[Orange setup instructions](https://github.com/ramp-stack/orange#frontend-setup)
+for Cargo Piston, the shared team identity, and build troubleshooting.
+
 Pelican UI is a Rust UI crate designed to enable developers to build applications using a predefined set of components and layout rules. Rather than serving as a general-purpose UI framework, Pelican UI provides a structured component library and layout system intended for building consistent application interfaces quickly and predictably.
 
 The crate is built on top of several underlying systems:
@@ -137,14 +145,8 @@ emit events to the application, and pages retain their state when switching tabs
 The library uses PTSD and Prism. RAMP is optional and is enabled only by the `demo`
 feature to run the native application; it is not required by library consumers.
 
-Applications using sticker packs or shared video clips must register their contracts:
-
-```rust,ignore
-fn contracts<A: prism::traits::Air>(contracts: prism::air::Contracts<A>) -> prism::air::Contracts<A> {
-    contracts.add::<pelican_ui::components::StickerPack>()
-        .add::<pelican_ui::components::VideoClip>()
-}
-```
+Sticker packs and shared video clips register their contracts when their components access
+`ctx.air.instances::<C>()`. Applications do not need a separate contract-registration method.
 
 ## Discord
 

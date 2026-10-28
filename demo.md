@@ -1,5 +1,9 @@
 # Recreating the Pelican UI Ticket Demo
 
+This is a historical tutorial for older APIs and does not build with the current release.
+For a current example, use the component studio in [src/main.rs](src/main.rs) and run
+`cargo run --features demo --bin pelican_ui` from this crate.
+
 This guide walks through the demo **step by step**, including why each type exists and how each page is built.
 
 It is written for this dependency setup:
