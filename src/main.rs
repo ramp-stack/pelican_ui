@@ -7,20 +7,24 @@ use pelican_ui::components::button::{
     ActionData, GhostIconButton, PrimaryButton, QuickActions, SecondaryButton,
 };
 use pelican_ui::components::list_item::{ListItem, ListItemInfoLeft};
-use pelican_ui::components::text::{ExpandableText, Text, TextSize, TextStyle};
+use pelican_ui::components::text::{Text, TextSize, TextStyle};
 use pelican_ui::theme::{Color, Icons, Theme};
 use prism::drawable::{Component, Drawable, text::Align};
 use prism::events::{on_event, ChildEvent, DynEvent, Event, OnEvent, OnChange, on_change};
-use prism::hardware::{Picked, Frame, Player, Video};
+use prism::hardware::{Picked, Frame, Player, Visual};
 use prism::{Application, Context};
 use ptsd::display::{Bin, Enum, Opt};
 use ptsd::emitters::Scrollable;
+use ptsd::interactions;
 use ptsd::layout::{Column, Offset, Padding, Row, Size, Stack, Wrap};
+
+type HeaderContent = Bin<Row, (Icon, Bin<Column, (Text, Text)>)>;
+type CardContent = Bin<Column, (Text, Text, Vec<Box<dyn Drawable>>)>;
 
 #[derive(Clone, Debug)]
 enum Action {
     Page(&'static str), Button(&'static str), Slider(f32), Toggle(bool), Checkbox(bool),
-    Radio(&'static str), Submit(String), PickVideo, Seek(f32), Preview,
+    Radio(&'static str), Submit(String), PickVideo, Seek(f32), TogglePlayback, Preview,
 }
 impl Event for Action {
     fn pass(&self, _ctx: &mut Context, children: &mut [ChildEvent<'_, Self>]) {
@@ -34,7 +38,7 @@ struct Demo {
     background: Rectangle,
     shell: Shell,
     #[skip] clicks: usize,
-    #[skip] picker: Option<Picked<Video>>,
+    #[skip] picker: Option<Picked<Visual>>,
 }
 impl Application for Demo {
     fn name() -> String {"Pelican UI · Component Studio".into()}
@@ -48,7 +52,7 @@ impl Application for Demo {
     }
 }
 impl Demo {
-    fn status(&mut self, message: String) {self.shell.status.0.spans[0].text = message;}
+    fn status(&mut self, message: String) {self.shell.status.spans[0].text = message;}
     fn media(&mut self) -> &mut MediaDemo {
         self.shell.pages.1.drawable().inner().downcast_mut::<MediaDemo>().unwrap()
     }
@@ -63,9 +67,8 @@ impl OnEvent<Action> for Demo {
     fn on(&mut self, ctx: &mut Context, action: Action) -> Vec<Box<dyn DynEvent>> {
         let message = match action {
             Action::Page(name) => {
-                if self.shell.pages.1.current() == "Media" {
-                    if let Some(player) = &self.media().player.1 {player.stop();}
-                }
+                if self.shell.pages.1.current() == "Media"
+                    && let Some(player) = &self.media().player {player.stop();}
                 self.shell.pages.1.display(name);
                 ctx.emit(ptsd::events::Scrollable::ScrollTo(0.0));
                 format!("{name} · controls keep their state when you switch pages")
@@ -80,12 +83,17 @@ impl OnEvent<Action> for Demo {
             Action::Radio(value) => format!("Delivery · {value}"),
             Action::Submit(value) => format!("Submitted · {value}"),
             Action::PickVideo => {
-                self.picker = Some(ctx.hardware.pick::<Video>());
+                self.picker = Some(ctx.hardware.pick::<Visual>());
                 "Choose a video to try click-to-play and seeking".into()
             }
             Action::Seek(value) => {
-                if let Some(player) = &self.media().player.1 {
-                    player.seek(player.duration().mul_f32(value));
+                if let Some(player) = &self.media().player
+                    && let Some(duration) = player.duration() {player.seek(duration.mul_f32(value));}
+                return vec![];
+            }
+            Action::TogglePlayback => {
+                if let Some(player) = &self.media().player {
+                    if player.is_playing() {player.stop();} else {player.start();}
                 }
                 return vec![];
             }
@@ -106,21 +114,26 @@ impl OnEvent<Action> for Demo {
         None => std::future::pending().await,
     }
 })]
-impl OnChange<prism::hardware::PickResult<Video>> for Demo {
-    fn on_change(&mut self, _ctx: &mut Context, result: prism::hardware::PickResult<Video>) {
+impl OnChange<prism::hardware::PickResult<Visual>> for Demo {
+    fn on_change(&mut self, ctx: &mut Context, result: prism::hardware::PickResult<Visual>) {
         self.picker = None;
         match result {
-            Ok(video) => {
-                let (width, height) = video.0.dimensions().unwrap();
+            Ok(Visual::Video(video)) => {
+                let (width, height) = video.video.dimensions().unwrap();
                 self.shell.pages.1.display("Media");
-                match Player::new(&video) {
+                match ctx.hardware.player(video.player()) {
                     Ok(player) => {
-                        self.media().player.1 = Some(player);
+                        self.media().picture.1 = Some(interactions::Button::new(
+                            player.clone(), None::<Player>, None::<Player>, None::<Player>,
+                            None::<Player>, |ctx| ctx.emit(Action::TogglePlayback), false,
+                        ));
+                        self.media().player = Some(player);
                         self.status(format!("{width} × {height} · click the video to play or pause"));
                     }
                     Err(error) => self.status(format!("Playback could not start: {error}")),
                 }
             }
+            Ok(Visual::Image(_)) => self.status("Choose a video file to try playback".into()),
             Err(_) => self.status("Video selection cancelled".into()),
         }
     }
@@ -129,15 +142,17 @@ impl OnChange<prism::hardware::PickResult<Video>> for Demo {
 #[derive(Component, Clone, Debug)]
 struct Shell {
     layout: Column,
-    header: Bin<Row, (Icon, Bin<Column, (Text, ExpandableText)>)>,
+    header: HeaderContent,
     tabs: Bin<Wrap, Vec<SecondaryButton>>,
-    status: ExpandableText,
+    status: Text,
     pages: Scrollable<Enum<Box<dyn Drawable>>>,
 }
 impl Shell {
     fn new(theme: &Theme) -> Self {
-        let heading = Text::new(theme, "Component Studio", TextSize::H3, TextStyle::Heading, Align::Left, None);
-        let subheading = ExpandableText::new(theme, "PELICAN UI  /  Built with PTSD + Prism",
+        let heading = Text::new(
+            theme, "Component Studio", TextSize::H3, TextStyle::Heading, Align::Left, None,
+        ).fit();
+        let subheading = Text::new(theme, "PELICAN UI  /  Built with PTSD + Prism",
             TextSize::Sm, TextStyle::Secondary, Align::Left, None);
         let header = Bin(Row::start(16.0), (
             Icon::new(theme, Icons::PelicanUI, Some(theme.colors().get(ptsd::Brand)), 44.0),
@@ -199,7 +214,7 @@ impl Shell {
         Self {
             layout: Column::new(20.0, Offset::Start, Size::Fill, Padding::new(28.0), None),
             header, tabs: Bin(Wrap::start(8.0, 8.0), tabs),
-            status: ExpandableText::new(theme, "Try a control — its result appears here.",
+            status: Text::new(theme, "Try a control — its result appears here.",
                 TextSize::Sm, TextStyle::Label(theme.colors().get(ptsd::Brand)), Align::Left, Some(2)),
             pages: Scrollable::new(pages),
         }
@@ -241,10 +256,11 @@ impl Controls {
 struct MediaDemo {
     layout: Column,
     introduction: Card,
-    player: Bin<Stack, Option<Player>>,
+    picture: Bin<Stack, Option<interactions::Button>>,
     seek: Slider,
     time: Text,
     qr: Card,
+    #[skip] player: Option<Player>,
     #[skip] shown: Option<(u64, u64, bool, Option<String>)>,
 }
 impl MediaDemo {
@@ -256,31 +272,35 @@ impl MediaDemo {
                     theme, "Choose a video", Stack::default(), |ctx, _| ctx.emit(Action::PickVideo),
                 )),
             ]),
-            player: Bin(Stack::new(Offset::Center, Offset::Center, Size::Fill,
+            picture: Bin(Stack::new(Offset::Center, Offset::Center, Size::Fill,
                 Size::Static(260.0), Padding::default()), None),
             seek: Slider::new(theme, 0.0, Some("Seek"), Some("Click the picture to play or pause."),
                 |ctx, _, value| ctx.emit(Action::Seek(value))),
-            time: Text::new(theme, "No video selected", TextSize::Sm, TextStyle::Secondary, Align::Left, None),
+            time: Text::new(
+                theme, "No video selected", TextSize::Sm, TextStyle::Secondary, Align::Left, None,
+            ).fit(),
             qr: Card::new(theme, "A scannable invitation", "Generated QR code with an embedded brand image", vec![
                 Box::new(QRCode::new(theme, "https://github.com/ramp-stack/pelican_ui")),
             ]),
-            shown: None,
+            player: None, shown: None,
         }
     }
 }
 #[on_change(async {
-    match &mut self.player.1 {
+    match &mut self.player {
         Some(source) => source.next().await,
         None => std::future::pending().await,
     }
 })]
 impl OnChange<Frame> for MediaDemo {
     fn on_change(&mut self, _ctx: &mut Context, event: Frame) {
-        *self.seek.value() = if event.duration.is_zero() {0.0} else {
-            (event.position.as_secs_f64() / event.duration.as_secs_f64()).clamp(0.0, 1.0) as f32
+        let duration = event.duration.unwrap_or_default();
+        *self.seek.value() = if duration.is_zero() {0.0} else {
+            (event.position.as_secs_f64() / duration.as_secs_f64()).clamp(0.0, 1.0) as f32
         };
-        let (position, duration) = (event.position.as_secs(), event.duration.as_secs());
-        let shown = (position, duration, event.playing, event.error);
+        let (position, duration) = (event.position.as_secs(), duration.as_secs());
+        let error = self.player.as_ref().and_then(Player::error);
+        let shown = (position, duration, event.playing, error);
         if self.shown.as_ref() != Some(&shown) {
             let status = shown.3.as_deref().unwrap_or(if event.playing {"Playing"} else {"Paused"});
             self.time.spans[0].text = format!("{}:{:02} / {}:{:02}  ·  {}", position / 60, position % 60,
@@ -291,14 +311,14 @@ impl OnChange<Frame> for MediaDemo {
 }
 
 #[derive(Component, Clone, Debug)]
-struct Card(Stack, Rectangle, Bin<Column, (Text, ExpandableText, Vec<Box<dyn Drawable>>)>);
+struct Card(Stack, Rectangle, CardContent);
 impl Card {
     fn new(theme: &Theme, title: &str, description: &str, children: Vec<Box<dyn Drawable>>) -> Self {
         let layout = Stack::new(Offset::Start, Offset::Start, Size::Fill,
             Size::custom(|sizes| sizes[1]), Padding::default());
         let body = Bin(Column::new(16.0, Offset::Start, Size::Fill, Padding::new(16.0), None), (
-            Text::new(theme, title, TextSize::H5, TextStyle::Heading, Align::Left, None),
-            ExpandableText::new(theme, description, TextSize::Sm, TextStyle::Secondary, Align::Left, None),
+            Text::new(theme, title, TextSize::H5, TextStyle::Heading, Align::Left, None).fit(),
+            Text::new(theme, description, TextSize::Sm, TextStyle::Secondary, Align::Left, None),
             children,
         ));
         Self(layout, Rectangle::new(Color::from_hex("#1a222d", 255), 16.0,

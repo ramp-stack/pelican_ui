@@ -1,7 +1,8 @@
 use futures::channel::oneshot;
 use prism::drawable::{Component, shape::Variant};
 use prism::events::{Timer, OnChange, on_change};
-use prism::hardware::{Media, Image, Frame, Player, PlaybackMode};
+use media::{Media, Frame, Image};
+use prism::hardware::{Player, PlaybackMode};
 use prism::Context;
 use ptsd::layout::{Stack, Offset, Size, Padding};
 use serde::{Serialize, Deserialize};
@@ -142,7 +143,7 @@ impl GifPlayer {
 
     fn new(theme: &Theme, url: &str, size: (f32, f32), radius: f32, color: Color) -> Self {
         GifPlayer {
-            layout: Stack(
+            layout: Stack::new(
                 Offset::Center, Offset::Center, Size::Static(size.0), Size::Static(size.1),
                 Padding::default(),
             ),
@@ -153,8 +154,8 @@ impl GifPlayer {
         }
     }
 
-    fn show_frame(&mut self, frame: Image) {
-        self.image = Some(MaskedImage(frame, Variant::RoundedRectangle(self.radius)));
+    fn show_frame(&mut self, image: Image) {
+        self.image = Some(MaskedImage(image, Variant::RoundedRectangle(self.radius)));
         self.placeholder = None;
     }
 }
@@ -164,8 +165,8 @@ impl GifPlayer {
         None => std::future::pending().await,
     }
 })]
-impl OnChange<Result<Arc<Vec<u8>>, Instant>> for GifPlayer {
-    fn on_change(&mut self, _ctx: &mut Context, result: Result<Arc<Vec<u8>>, Instant>) {
+impl OnChange<Result<Arc<[u8]>, Instant>> for GifPlayer {
+    fn on_change(&mut self, ctx: &mut Context, result: Result<Arc<[u8]>, Instant>) {
         self.loading = None;
         let bytes = match result {
             Ok(bytes) => bytes,
@@ -174,14 +175,14 @@ impl OnChange<Result<Arc<Vec<u8>>, Instant>> for GifPlayer {
                 return
             }
         };
-        let player = Media::read(Cursor::new(bytes.as_slice())).and_then(|media| {
-            media.dimensions().ok_or("Media has no video track")?;
-            Player::new(media)
+        let player = Media::read(Cursor::new(bytes)).and_then(|media| {
+            media.video.dimensions().ok_or("Media has no video track")?;
+            ctx.hardware.player(media.player())
         });
         match player {
             Ok(player) => {
                 player.set_mode(PlaybackMode::Loop);
-                if let Some(image) = player.frame().image {self.show_frame(image);}
+                if let Some(frame) = player.frame().video {self.show_frame(frame.image.clone());}
                 player.start();
                 self.player = Some(player);
             }
@@ -212,13 +213,13 @@ impl OnChange<()> for GifPlayer {
 })]
 impl OnChange<Frame> for GifPlayer {
     fn on_change(&mut self, _ctx: &mut Context, frame: Frame) {
-        if let Some(image) = frame.image {self.show_frame(image);}
+        if let Some(frame) = frame.video {self.show_frame(frame.image.clone());}
     }
 }
 
 enum CacheEntry {
     Loading,
-    Ready(Arc<Vec<u8>>),
+    Ready(Arc<[u8]>),
     Failed(Instant),
 }
 
@@ -238,7 +239,7 @@ struct GifLoad {
     gifs: Gifs,
 }
 impl GifLoad {
-    async fn next(&mut self) -> Result<Arc<Vec<u8>>, Instant> {
+    async fn next(&mut self) -> Result<Arc<[u8]>, Instant> {
         loop {
             let waiting = {
                 let mut gifs = self.gifs.0.lock().unwrap();
@@ -272,7 +273,7 @@ impl GifLoad {
                         match bytes {
                             Some(bytes) => {
                                 gifs.bytes += bytes.len();
-                                gifs.entries.insert(url.clone(), CacheEntry::Ready(Arc::new(bytes)));
+                                gifs.entries.insert(url.clone(), CacheEntry::Ready(bytes.into()));
                                 gifs.recent.push_back(url.clone());
                             }
                             None => {gifs.entries.insert(url.clone(), CacheEntry::Failed(Instant::now()));}

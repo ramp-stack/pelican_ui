@@ -12,7 +12,9 @@ pub struct Alert(Row, Icon, Text);
 impl Alert {
     pub fn new(theme: &Theme, message: &str) -> Self {
         let color = theme.colors().get(ptsd::Status::Warning);
-        let message = Text::new(theme, message, TextSize::Md, TextStyle::Primary, Align::Left, None);
+        let message = Text::new(
+            theme, message, TextSize::Md, TextStyle::Primary, Align::Left, None,
+        ).fit();
         let icon = Icon::new(theme, Icons::Warning, Some(color), 24.0);
         Alert(Row::new(4.0, Offset::Center, Size::Fit, Padding::new(12.0)), icon, message)
     }

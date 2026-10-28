@@ -1,14 +1,12 @@
 use prism::events::{on_change, OnChange};
 use prism::drawable::{Drawable, Svg};
 use prism::drawable::shape::Variant;
-use image::{RgbImage, RgbaImage};
 use prism::drawable::Component;
 use ptsd::layout::{Padding, Size, Offset, Stack};
 use ptsd::display::Bin;
 use prism::Context;
-use prism::hardware::Image;
+use media::{Image, Pixel};
 
-use image::buffer::ConvertBuffer;
 use qrcode::{QrCode, EcLevel};
 
 use crate::theme::{Theme, Color};
@@ -43,12 +41,12 @@ impl QRCode {
         let dummy_qr_code = theme.brand().qr_code.clone();
         let qr_size = 300.0;
         let logo_size = 64.0;
-        let layout = Stack(
+        let layout = Stack::new(
             Offset::Center, Offset::Center, Size::Static(qr_size - 16.0),
             Size::Static(qr_size - 16.0), Padding::default(),
         );
         QRCode(
-            Stack(
+            Stack::new(
                 Offset::Center, Offset::Center, Size::Static(qr_size), Size::Static(qr_size),
                 Padding::default(),
             ), Rectangle::new(Color::white(), 8.0, None),
@@ -123,8 +121,10 @@ impl QRCode {
             Self::draw_finder(&mut buf, img_size, fx * scale, fy * scale, scale, fg, bg);
         }
 
-        let image: RgbaImage = RgbImage::from_raw(img_size as u32, img_size as u32, buf)?.convert();
-        Some(Image::from_rgba(image.dimensions(), image.into_raw()))
+        let pixels = buf.as_chunks::<3>().0.iter().map(|pixel| {
+            Pixel {red: pixel[0], green: pixel[1], blue: pixel[2], alpha: 255}
+        }).collect();
+        Some(Image::new((img_size as u32, img_size as u32), pixels))
     }
 
     fn blit_dot(buf: &mut [u8], img_size: usize, px: usize, py: usize, dot_rows: &[Vec<(usize, [u8; 3])>]) {

@@ -1,10 +1,16 @@
-use prism::events::{DynEvent, ListenFuture, MouseEvent, MouseState, MouseButton};
-use prism::drawable::{Drawable, Component, Instruction, LayoutTree, RangeTree, Rect};
+use futures::future::Either;
+use prism::events::{DynEvent, ListenCallback, ListenFuture, MouseEvent, MouseState, MouseButton};
+use prism::events::{ChildEvent, Event, OnEvent, OnChange, WindowEvent, on_event, on_change};
+use prism::drawable::{Area, Drawable, Component, Instruction, Layout, LayoutTree, Rect};
 use prism::Context;
 use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding, ScrollAnchor};
-use ptsd::display::{Bin, Opt};
+use ptsd::display::Opt;
+use ptsd::emitters::{DeferredPress, Press};
+use ptsd::events::Press as PressEvent;
+use uuid::Uuid;
 
 use std::any::Any;
+use std::time::{Duration, Instant};
 
 use crate::theme::Color;
 use crate::components::text::Text;
@@ -25,8 +31,6 @@ pub use gif::{GifPanel, GifSearchEvent};
 #[derive(Debug, Clone)]
 enum CellAction { Emoji(String), Sticker(Sticker), NewSticker, Gif(Gif) }
 
-enum TouchEnd { Tap(CellAction), Turn(bool) }
-
 #[derive(Debug, Clone, PartialEq)]
 struct GridView {
     width: f32,
@@ -34,100 +38,122 @@ struct GridView {
     near_end: bool,
 }
 
-struct GridPlace<'a> {
-    view: ((f32, f32), (f32, f32)),
-    offset: (f32, f32),
-    grid: &'a LayoutTree,
+#[derive(Debug, Clone, Copy)]
+struct ScrollGesture {
+    last: Instant,
+    travel: (f32, f32),
+    needed: f32,
+    turned: bool,
 }
 
-impl<'a> GridPlace<'a> {
-    fn overlap(a: Rect, b: Rect) -> Option<Rect> {
-        let (x0, y0) = (a.0.max(b.0), a.1.max(b.1));
-        let (x1, y1) = ((a.0 + a.2).min(b.0 + b.2), (a.1 + a.3).min(b.1 + b.3));
-        (x1 > x0 && y1 > y0).then_some((x0, y0, x1 - x0, y1 - y0))
-    }
-
-    fn find(page: &'a LayoutTree, path: &[usize]) -> Option<Self> {
-        let (&first, rest) = path.split_first()?;
-        let (view_offset, view) = page.1.get(first)?;
-        let mut offset = *view_offset;
-        let mut grid = view;
-        for &i in rest {
-            let (o, child) = grid.1.get(i)?;
-            offset = (offset.0 + o.0, offset.1 + o.1);
-            grid = child;
-        }
-        Some(GridPlace { view: (*view_offset, view.0), offset, grid })
-    }
-
-    fn contains(&self, p: (f32, f32)) -> bool {
-        let ((x, y), (w, h)) = self.view;
-        p.0 >= x && p.0 < x + w && p.1 >= y && p.1 < y + h
+#[derive(Debug, Clone)]
+enum TouchEnd {Tap(Uuid, CellAction), Turn(Uuid, bool)}
+impl Event for TouchEnd {
+    fn pass(&self, _ctx: &mut Context, children: &mut [ChildEvent<'_, Self>]) {
+        for child in children {*child.event = Some(self.clone());}
     }
 }
 
 #[derive(Debug, Clone)]
-struct GrowingGrid {
-    scroll: Bin<Stack, Clip<GridScroll>>,
-    built: usize,
-    columns: usize,
+struct GridLayout {
+    bounds: Stack,
+    scroll: Column,
     side: f32,
-    pressed: Option<bool>,
     view: Option<GridView>,
     dirty: bool,
 }
+impl Layout for GridLayout {
+    fn request_width(&mut self, children: Vec<(f32, f32)>) -> (f32, f32) {
+        let width = self.scroll.request_width(children);
+        self.bounds.request_width(vec![width])
+    }
+    fn assign_width(&mut self, width: f32) -> Vec<f32> {
+        let width = self.bounds.assign_width(width)[0];
+        self.scroll.assign_width(width)
+    }
+    fn request_height(&mut self, width: f32, children: Vec<(f32, f32)>) -> (f32, f32) {
+        let height = self.scroll.request_height(width, children);
+        self.bounds.request_height(width, vec![height])
+    }
+    fn layout(&mut self, size: (f32, f32)) -> Vec<Area> {
+        let viewport = self.bounds.layout(size)[0];
+        let mut grid = self.scroll.layout(viewport.size)[0];
+        if size.0 <= 100.0 {self.view = None;}
+        else {
+            let (scrolled, showing) = (-grid.offset.1, viewport.size.1);
+            let row = self.side + 12.0;
+            let first = ((scrolled - 12.0 - self.side) / row).floor() + 1.0;
+            let last = ((scrolled + showing - 12.0) / row).ceil();
+            let view = GridView {
+                width: size.0, showing: first.max(0.0) as usize..last.max(0.0) as usize,
+                near_end: scrolled + showing + 4.0 * row >= grid.size.1,
+            };
+            if self.view.as_ref() != Some(&view) {
+                self.view = Some(view);
+                self.dirty = true;
+            }
+        }
+        grid.offset = (grid.offset.0 + viewport.offset.0, grid.offset.1 + viewport.offset.1);
+        vec![grid]
+    }
+}
 
+#[derive(Component, Debug, Clone)]
+struct GrowingGrid {
+    layout: GridLayout,
+    grid: Clip<PanelGrid>,
+    #[skip] built: usize,
+    #[skip] columns: usize,
+    #[skip] press: DeferredPress,
+}
 impl GrowingGrid {
-    fn new(height: f32, columns: usize) -> Self {
+    fn new(height: f32, columns: usize, owner: Uuid) -> Self {
         Self {
-            scroll: Bin(Stack(
-                Offset::Start, Offset::Start, Size::Fill, Size::Static(height), Padding::default(),
-            ), Clip(GridScroll::new())), built: 0, columns, side: 0.0, pressed: None,
-            view: None, dirty: false,
+            layout: GridLayout {
+                bounds: Stack::new(
+                    Offset::Start, Offset::Start, Size::Fill, Size::Static(height), Padding::default(),
+                ),
+                scroll: Column::new(
+                    0.0, Offset::Start, Size::Fit, Padding::default(), Some(ScrollAnchor::Start),
+                ),
+                side: 0.0, view: None, dirty: false,
+            },
+            grid: Clip(PanelGrid::empty(12.0, owner)), built: 0, columns,
+            press: DeferredPress::default(),
         }
     }
-
-    async fn next(&mut self) -> (Vec<usize>, Box<dyn Any>) {
-        if let Some(view) = &self.view && std::mem::take(&mut self.dirty) {
-            return (Vec::new(), Box::new(view.clone()))
+    async fn next(&mut self) -> Either<GridView, ListenCallback> {
+        if let Some(view) = &self.layout.view && std::mem::take(&mut self.layout.dirty) {
+            return Either::Left(view.clone())
         }
-        let (mut path, update) = Drawable::listen(&mut self.scroll).await;
-        path.push(0);
-        (path, update)
+        Either::Right(Drawable::changed(self).await)
     }
-
-    fn set_cells(&mut self, side: f32) { self.side = side; }
-
-    fn grid(&mut self) -> &mut PanelGrid { &mut self.scroll.1.0.1 }
-
-    fn built(&self) -> usize { self.built }
-
+    fn set_cells(&mut self, side: f32) {self.layout.side = side;}
+    fn grid(&mut self) -> &mut PanelGrid {&mut self.grid.0}
+    fn built(&self) -> usize {self.built}
     fn set_height(&mut self, height: Size) {
-        self.scroll.0.3 = height;
-        self.view = None;
+        self.layout.bounds.3 = height;
+        self.layout.view = None;
         self.invalidate();
     }
-
-    fn invalidate(&mut self) { self.dirty = true; }
-
+    fn invalidate(&mut self) {self.layout.dirty = true;}
     fn clear(&mut self) {
-        self.scroll.1 = Clip(GridScroll::new());
-        self.built = 0;
-        self.view = None;
-        self.invalidate();
+        self.layout.scroll = Column::new(
+            0.0, Offset::Start, Size::Fit, Padding::default(), Some(ScrollAnchor::Start),
+        );
+        self.empty();
     }
-
     fn empty(&mut self) {
-        self.scroll.1.0.1 = PanelGrid::empty(12.0);
+        self.grid.0 = PanelGrid::empty(12.0, self.grid.0.2);
         self.built = 0;
-        self.view = None;
+        self.press = DeferredPress::default();
+        self.layout.view = None;
         self.invalidate();
     }
-
     fn append(&mut self, mut cells: Vec<PanelCell>) {
         let columns = self.columns;
         let partial = self.built % columns;
-        if partial != 0 && let Some(row) = self.scroll.1.0.1.1.pop() {
+        if partial != 0 && let Some(row) = self.grid.0.1.pop() {
             let mut kept: Vec<PanelCell> = row.1.into_iter().take(partial).collect();
             kept.append(&mut cells);
             cells = kept;
@@ -136,177 +162,100 @@ impl GrowingGrid {
         self.built += cells.len();
         for chunk in cells.chunks(columns) {
             let mut row = chunk.to_vec();
-            while row.len() < columns { row.push(PanelCell::blank(PanelCell::square(self.side))); }
-            self.scroll.1.0.1.push_row(row, 12.0);
+            while row.len() < columns {
+                row.push(PanelCell::blank(PanelCell::square(self.layout.side), self.grid.0.2));
+            }
+            self.grid.0.push_row(row, 12.0);
         }
         // Wait for fresh layout measurements before requesting another batch.
-        self.view = None;
+        self.layout.view = None;
         self.invalidate();
     }
 }
-
-impl Drawable for GrowingGrid {
-    fn listen(&mut self) -> ListenFuture<'_> {Drawable::listen(&mut self.scroll)}
-    fn update(&mut self, ctx: &mut Context, path: Vec<usize>, update: Box<dyn Any>) {
-        Drawable::update(&mut self.scroll, ctx, path, update);
-    }
-
-    fn size_range(&self) -> RangeTree { self.scroll.size_range() }
-
-    fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
-        let sized = Drawable::layout(&mut self.scroll, size, range);
-        if sized.0.0 <= 100.0 {
-            self.view = None;
-            return sized;
-        }
-        let Some((_, scroll)) = sized.1.first() else { return sized };
-        let Some((offset, grid)) = scroll.1.first() else { return sized };
-        let (scrolled, showing) = (-offset.1, scroll.0.1);
-        let row = self.side + 12.0;
-        let first = ((scrolled - 12.0 - self.side) / row).floor() + 1.0;
-        let last = ((scrolled + showing - 12.0) / row).ceil();
-        let view = GridView {
-            width: sized.0.0, showing: first.max(0.0) as usize..last.max(0.0) as usize,
-            near_end: scrolled + showing + 4.0 * row >= grid.0.1,
-        };
-        if self.view.as_ref() != Some(&view) {
-            self.view = Some(view);
-            self.invalidate();
-        }
-        sized
-    }
-
-    fn draw(&self, sized: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
-        self.scroll.draw(sized, offset, bound)
-    }
-
-    fn event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) {
-        if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
-            match mouse.state {
-                MouseState::Pressed(MouseButton::Left) => {
-                    self.pressed = Some(mouse.position.is_some());
-                }
-                MouseState::Released(_) => self.pressed = None,
-                MouseState::Scroll(_, dy) if self.pressed.unwrap_or(mouse.position.is_some()) => {
-                    self.scroll.1.0.0.adjust_scroll(dy);
-                }
-                _ => {}
+#[on_event]
+impl OnEvent<MouseEvent> for GrowingGrid {
+    fn on(&mut self, ctx: &mut Context, mouse: MouseEvent) -> Vec<Box<dyn DynEvent>> {
+        let events = PanelGrid::pointer(ctx, &mut self.press, mouse);
+        for event in &events {
+            if let Some(MouseEvent {state: MouseState::Scroll(_, dy), position}) = event.downcast_ref()
+                && !self.press.claimed() && (position.is_some() || self.press.travel().is_some())
+            {
+                self.layout.scroll.adjust_scroll(*dy);
             }
         }
-        self.scroll.event(ctx, sized, event);
+        events
     }
+}
+
+#[on_event]
+impl OnEvent<PressEvent> for GrowingGrid {
+    fn on(&mut self, _ctx: &mut Context, event: PressEvent) -> Vec<Box<dyn DynEvent>> {
+        self.press.press(event)
+    }
+}
+
+#[on_event]
+impl OnEvent<WindowEvent> for GrowingGrid {
+    fn on(&mut self, _ctx: &mut Context, event: WindowEvent) -> Vec<Box<dyn DynEvent>> {
+        if matches!(event, WindowEvent::Focused(false)) && let Some(cancel) = self.press.cancel() {
+            return prism::events![cancel, event];
+        }
+        prism::events![event]
+    }
+}
+
+#[on_change(self.press.next())]
+impl OnChange<PressEvent> for GrowingGrid {
+    fn on_change(&mut self, ctx: &mut Context, event: PressEvent) {ctx.emit(event);}
 }
 
 #[derive(Debug, Clone)]
 struct Clip<D: Drawable + Clone>(D);
 
-impl<D: Drawable + Clone + 'static> Drawable for Clip<D> {
-    fn listen(&mut self) -> ListenFuture<'_> {Drawable::listen(&mut self.0)}
-    fn update(&mut self, ctx: &mut Context, path: Vec<usize>, update: Box<dyn Any>) {
-        Drawable::update(&mut self.0, ctx, path, update);
+impl<D: Drawable + Clone> Clip<D> {
+    fn overlap(a: Rect, b: Rect) -> Option<Rect> {
+        let (x0, y0) = (a.0.max(b.0), a.1.max(b.1));
+        let (x1, y1) = ((a.0 + a.2).min(b.0 + b.2), (a.1 + a.3).min(b.1 + b.3));
+        (x1 > x0 && y1 > y0).then_some((x0, y0, x1 - x0, y1 - y0))
     }
-    fn size_range(&self) -> RangeTree { self.0.size_range() }
+}
 
-    fn layout(&mut self, size: (f32, f32), range: &RangeTree) -> LayoutTree {
-        self.0.layout(size, range)
+impl<D: Drawable + Clone + 'static> Drawable for Clip<D> {
+    fn name(&self) -> String { self.0.name() }
+    fn request_width(&mut self) -> (f32, f32) {self.0.request_width()}
+    fn request_height(&mut self, width: f32) -> (f32, f32) {self.0.request_height(width)}
+
+    fn layout(&mut self, size: (f32, f32)) -> LayoutTree {
+        self.0.layout(size)
     }
 
     fn draw(&self, sized: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
-        let Some(edges) = GridPlace::overlap(bound, (offset.0, offset.1, sized.0.0, sized.0.1))
+        let Some(edges) = Self::overlap(bound, (offset.0, offset.1, sized.0.0, sized.0.1))
         else { return Vec::new(); };
         self.0.draw(sized, offset, edges).into_iter().filter_map(|mut instruction| {
-            instruction.bound = GridPlace::overlap(instruction.bound, edges)?;
+            instruction.bound = Self::overlap(instruction.bound, edges)?;
             Some(instruction)
         }).collect()
     }
 
-    fn name(&self) -> String { self.0.name() }
-
     fn event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) {
         self.0.event(ctx, sized, event)
     }
-}
 
-#[derive(Component, Debug, Clone)]
-struct GridScroll(Column, PanelGrid);
-
-impl GridScroll {
-    fn new() -> Self {
-        GridScroll(
-            Column::new(
-                0.0, Offset::Start, Size::Fit, Padding::default(), Some(ScrollAnchor::Start),
-            ), PanelGrid::empty(12.0),
-        )
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct PanelTouch {
-    cell: Option<(usize, usize)>,
-    last: (f32, f32),
-    travel: (f32, f32),
-}
-
-impl PanelTouch {
-    fn track(touch: &mut Option<PanelTouch>, grid: &mut PanelGrid, place: Option<GridPlace>, mouse: &MouseEvent) -> Option<TouchEnd> {
-        let mut end = None;
-        match mouse.state {
-            MouseState::Pressed(MouseButton::Left) => {
-                if let Some(old) = touch.take() { grid.highlight(old.cell, false); }
-                *touch = mouse.position.zip(place).filter(|(p, place)| place.contains(*p))
-                    .map(|(p, place)| {
-                        let local = (p.0 - place.offset.0, p.1 - place.offset.1);
-                        let cell = place.grid.1.iter().enumerate()
-                            .find_map(|(r, (row_offset, row))| {
-                                let p = (local.0 - row_offset.0, local.1 - row_offset.1);
-                                row.1.iter().position(|(o, cell)| {
-                                    p.0 >= o.0 && p.0 < o.0 + cell.0.0
-                                        && p.1 >= o.1 && p.1 < o.1 + cell.0.1
-                                }).map(|c| (r, c))
-                            }).filter(|c| grid.cell(*c).is_some_and(|cell| cell.3.is_some()));
-                        PanelTouch { cell, last: p, travel: (0.0, 0.0) }
-                    });
-                if let Some(t) = *touch {grid.highlight(t.cell, true);}
-            }
-            MouseState::Scroll(dx, dy) => {
-                if let Some(t) = touch {
-                    t.travel.0 -= dx;
-                    t.travel.1 -= dy;
-                }
-            }
-            MouseState::Moved => {
-                if let (Some(t), Some(p)) = (touch.as_mut(), mouse.position) {
-                    t.travel.0 += p.0 - t.last.0;
-                    t.travel.1 += p.1 - t.last.1;
-                    t.last = p;
-                }
-            }
-            MouseState::Released(_) => {
-                if let Some(t) = touch.take() {
-                    grid.highlight(t.cell, false);
-                    let (dx, dy) = t.travel;
-                    if dx.abs() >= 40.0 && dx.abs() > dy.abs() {
-                        end = Some(TouchEnd::Turn(dx < 0.0));
-                    } else if dx.hypot(dy) < 12.0
-                        && let Some(action) =
-                            t.cell.and_then(|c| grid.cell(c)).and_then(|cell| cell.3.clone())
-                    {
-                        end = Some(TouchEnd::Tap(action));
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        if let Some(t) = *touch && t.travel.0.hypot(t.travel.1) >= 12.0 {
-            grid.highlight(t.cell, false);
-        }
-        end
+    fn changed(&mut self) -> ListenFuture<'_> {
+        Box::pin(async move {
+            let callback = Drawable::changed(&mut self.0).await;
+            Box::new(move |target: &mut dyn Any, ctx: &mut Context| {
+                callback(&mut target.downcast_mut::<Self>().unwrap().0, ctx);
+            }) as ListenCallback
+        })
     }
 }
 
 #[derive(Component, Debug, Clone)]
-struct PanelGrid(Column, Vec<PanelRow>);
+struct PanelGrid(
+    Column, Vec<PanelRow>, #[skip] Uuid, #[skip] Option<DeferredPress>, #[skip] Option<ScrollGesture>,
+);
 
 impl PanelGrid {
     fn cell_side(width: f32, columns: usize) -> f32 {
@@ -316,20 +265,22 @@ impl PanelGrid {
 
     fn tray_height(width: f32) -> f32 { 12.0 + 2.0 * (Self::cell_side(width, 3) + 12.0) + 48.0 }
 
-    fn new(rows: usize, columns: usize, layout: Stack, spacing: f32, mut cell: impl FnMut(usize) -> Option<PanelCell>) -> Self {
-        let mut grid = Self::empty(spacing);
+    fn new(rows: usize, columns: usize, layout: Stack, spacing: f32, owner: Uuid, mut cell: impl FnMut(usize) -> Option<PanelCell>) -> Self {
+        let mut grid = Self::empty(spacing, owner);
+        grid.3 = Some(DeferredPress::default());
         for r in 0..rows {
             let cells = (0..columns)
-                .map(|c| cell(r * columns + c).unwrap_or_else(|| PanelCell::blank(layout.clone())))
+                .map(|c| cell(r * columns + c).unwrap_or_else(|| PanelCell::blank(layout.clone(), owner)))
                 .collect();
             grid.push_row(cells, spacing);
         }
         grid
     }
 
-    fn empty(spacing: f32) -> Self {
+    fn empty(spacing: f32, owner: Uuid) -> Self {
         PanelGrid(
-            Column::new(spacing, Offset::Start, Size::Fill, Padding::new(12.0), None), Vec::new(),
+            Column::new(spacing, Offset::Start, Size::Fill, Padding::new(12.0), None),
+            Vec::new(), owner, None, None,
         )
     }
 
@@ -339,13 +290,85 @@ impl PanelGrid {
         ));
     }
 
-    fn cell(&mut self, (row, col): (usize, usize)) -> Option<&mut PanelCell> {
-        self.1.get_mut(row)?.1.get_mut(col)
+    fn pointer(ctx: &mut Context, press: &mut DeferredPress, mouse: MouseEvent) -> Vec<Box<dyn DynEvent>> {
+        let events = if !ctx.window.is_mobile && mouse.position.is_some()
+            && mouse.state == MouseState::Pressed(MouseButton::Left)
+        {
+            press.press(PressEvent::Pending {id: Uuid::new_v4(), position: mouse.position})
+        } else {press.mouse(ctx.window.is_mobile, mouse)};
+        for event in &events {
+            if let Some(PressEvent::Cancel(id)) = event.downcast_ref::<PressEvent>() {
+                ctx.emit(PressEvent::Cancel(*id));
+            }
+        }
+        events
     }
+}
 
-    fn highlight(&mut self, cell: Option<(usize, usize)>, on: bool) {
-        if let Some(cell) = cell.and_then(|c| self.cell(c)) { cell.press(on); }
+#[on_event]
+impl OnEvent<MouseEvent> for PanelGrid {
+    fn on(&mut self, ctx: &mut Context, mouse: MouseEvent) -> Vec<Box<dyn DynEvent>> {
+        let Some(press) = &mut self.3 else {return prism::events![mouse]};
+        if !press.claimed() && matches!(mouse.state, MouseState::Released(_))
+            && let Some((dx, dy)) = press.travel_at(mouse.position)
+            && dx.abs() >= 40.0 && dx.abs() > dy.abs()
+        {
+            ctx.emit(TouchEnd::Turn(self.2, dx < 0.0));
+        }
+        let events = Self::pointer(ctx, press, mouse.clone());
+        if !ctx.window.is_mobile && press.travel().is_none() && mouse.position.is_some()
+            && let MouseState::Scroll(dx, dy) = mouse.state
+        {
+            let now = Instant::now();
+            let start = (dx, dy) == (0.0, 0.0);
+            let mut gesture = self.4
+                .filter(|gesture| !start && now.duration_since(gesture.last) < Duration::from_millis(200))
+                .unwrap_or(ScrollGesture {
+                    last: now, travel: (0.0, 0.0),
+                    needed: if start {40.0} else {0.0}, turned: false,
+                });
+            gesture.last = now;
+            gesture.travel = (gesture.travel.0 + dx, gesture.travel.1 + dy);
+            let (x, y) = gesture.travel;
+            if !gesture.turned && x.abs().max(y.abs()) > gesture.needed {
+                gesture.turned = true;
+                ctx.emit(TouchEnd::Turn(self.2, if x.abs() >= y.abs() {x > 0.0} else {y > 0.0}));
+            }
+            self.4 = Some(gesture);
+        }
+        events
     }
+}
+
+#[on_event]
+impl OnEvent<PressEvent> for PanelGrid {
+    fn on(&mut self, _ctx: &mut Context, event: PressEvent) -> Vec<Box<dyn DynEvent>> {
+        match &mut self.3 {
+            Some(press) => press.press(event), None => prism::events![event],
+        }
+    }
+}
+
+#[on_event]
+impl OnEvent<WindowEvent> for PanelGrid {
+    fn on(&mut self, _ctx: &mut Context, event: WindowEvent) -> Vec<Box<dyn DynEvent>> {
+        if matches!(event, WindowEvent::Focused(false))
+            && let Some(press) = &mut self.3 && let Some(cancel) = press.cancel()
+        {
+            return prism::events![cancel, event];
+        }
+        prism::events![event]
+    }
+}
+
+#[on_change(async {
+    match &mut self.3 {
+        Some(press) => press.next().await,
+        None => std::future::pending().await,
+    }
+})]
+impl OnChange<PressEvent> for PanelGrid {
+    fn on_change(&mut self, ctx: &mut Context, event: PressEvent) {ctx.emit(event);}
 }
 
 #[derive(Component, Debug, Clone)]
@@ -360,19 +383,21 @@ enum CellFace {
 }
 
 #[derive(Component, Debug, Clone)]
-struct PanelCell(Stack, Opt<Rectangle>, Option<CellFace>, #[skip] Option<CellAction>);
+struct PanelCell(
+    Stack, Opt<Rectangle>, Option<CellFace>, #[skip] Option<CellAction>, #[skip] Press, #[skip] Uuid,
+);
 
 impl PanelCell {
     fn layout(width: f32, height: f32) -> Stack {
         let width = Size::custom(move |_: Vec<(f32, f32)>| (width, f32::MAX));
-        Stack(
+        Stack::new(
             Offset::Center, Offset::Center, width, Size::Static(height),
             Padding(2.0, 2.0, 2.0, 2.0),
         )
     }
 
     fn square(side: f32) -> Stack {
-        Stack(
+        Stack::new(
             Offset::Center, Offset::Center, Size::Static(side), Size::Static(side),
             Padding::default(),
         )
@@ -394,5 +419,68 @@ impl PanelCell {
         }
     }
 
-    fn blank(layout: Stack) -> Self { PanelCell(layout, Self::highlight(0.0), None, None) }
+    fn activate(&mut self, ctx: &mut Context) {
+        if let Some(action) = self.3.clone() {
+            self.press(true);
+            ctx.emit(TouchEnd::Tap(self.5, action));
+        }
+    }
+
+    fn blank(layout: Stack, owner: Uuid) -> Self {
+        PanelCell(layout, Self::highlight(0.0), None, None, Press::default(), owner)
+    }
+}
+
+#[on_event]
+impl OnEvent<MouseEvent> for PanelCell {
+    fn on(&mut self, ctx: &mut Context, event: MouseEvent) -> Vec<Box<dyn DynEvent>> {
+        match event.state {
+            MouseState::Pressed(MouseButton::Left) => {
+                self.4.clear();
+                if event.position.is_some() {self.activate(ctx);}
+            }
+            MouseState::Released(_) => {
+                self.4.clear();
+                self.press(false);
+            }
+            _ => {}
+        }
+        prism::events![event]
+    }
+}
+
+#[on_event]
+impl OnEvent<PressEvent> for PanelCell {
+    fn on(&mut self, ctx: &mut Context, event: PressEvent) -> Vec<Box<dyn DynEvent>> {
+        match event {
+            PressEvent::Pending {id, position} => {
+                let position = position.filter(|_| self.3.is_some());
+                self.4.pending(id, position);
+                self.press(position.is_some());
+                if !ctx.window.is_mobile && matches!(self.3, Some(CellAction::Emoji(_)))
+                    && self.4.commit(id).is_some()
+                {
+                    self.activate(ctx);
+                }
+            }
+            PressEvent::Commit(id) => if self.4.commit(id).is_some() {
+                self.activate(ctx);
+                ctx.emit(PressEvent::Claim(id));
+            },
+            PressEvent::Cancel(id) => if self.4.cancel(id) {self.press(false);},
+            PressEvent::Claim(_) => {}
+        }
+        prism::events![event]
+    }
+}
+
+#[on_event]
+impl OnEvent<WindowEvent> for PanelCell {
+    fn on(&mut self, _ctx: &mut Context, event: WindowEvent) -> Vec<Box<dyn DynEvent>> {
+        if matches!(event, WindowEvent::Focused(false)) {
+            self.4.clear();
+            self.press(false);
+        }
+        prism::events![event]
+    }
 }

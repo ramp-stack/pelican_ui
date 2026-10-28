@@ -108,7 +108,7 @@ impl IconButtonGroup {
                 if index == 0 {0.0} else {12.0}, 0.0,
                 if index == last {0.0} else {12.0}, 0.0,
             );
-            let layout = Stack(Offset::Center, Offset::Center, Size::Fit, Size::Fit, padding);
+            let layout = Stack::new(Offset::Center, Offset::Center, Size::Fit, Size::Fit, padding);
             SecondaryIconButton::large(theme, icon, layout, action)
         }).collect())
     }
@@ -122,7 +122,9 @@ impl PrimaryButton {
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             let font_size = ButtonSize::Large.font();
-            let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+            let text = Text::new(
+                theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None,
+            ).fit();
             Bin(layout.clone(), Button::new(
                 vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill,
                 Offset::Center, colors.background, colors.outline,
@@ -167,7 +169,9 @@ impl SecondaryButton {
     fn _medium(theme: &Theme, icon: Icons, label: &str, colors: ButtonColorScheme) -> Button {
         let font_size = ButtonSize::Medium.font();
         let icon_size = ButtonSize::Medium.icon();
-        let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+        let text = Text::new(
+            theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None,
+        ).fit();
         let icon = Icon::new(theme, icon, Some(colors.label), icon_size);
         Button::new(
             vec![Box::new(icon), Box::new(text)], ButtonSize::Medium, ButtonWidth::Fit,
@@ -180,7 +184,9 @@ impl SecondaryButton {
         let buttons = [colors.default, colors.hover, colors.pressed, colors.disabled];
         let [default, hover, pressed, disabled] = buttons.map(|colors| {
             let font_size = ButtonSize::Large.font();
-            let text = Text::new(theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None);
+            let text = Text::new(
+                theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None,
+            ).fit();
             Bin(layout.clone(), Button::new(
                 vec![Box::new(text)], ButtonSize::Large, ButtonWidth::Fill,
                 Offset::Center, colors.background, colors.outline,
@@ -281,7 +287,7 @@ impl IconButton {
         let (size, icon_size, radius) = size.icon_button(style);
         let icon = Icon::new(theme, icon, Some(label), icon_size);
         let background = Rectangle::new(background, radius, Some((1.0, outline)));
-        let layout = Stack(
+        let layout = Stack::new(
             Offset::Center, Offset::Center, Size::Static(size), Size::Static(size), Padding::default(),
         );
         IconButton(layout, background, icon)
@@ -296,7 +302,9 @@ impl Button {
         let (spacing, height, padding) = size.get();
         let content = ButtonContent::new(content, padding, spacing);
         let background = Rectangle::new(background, height / 2.0, Some((1.0, outline)));
-        let layout = Stack(offset, Offset::Center, width.get(), Size::Static(height), Padding::default());
+        let layout = Stack::new(
+            offset, Offset::Center, width.get(), Size::Static(height), Padding::default(),
+        );
         Button(layout, background, content)
     }
 }

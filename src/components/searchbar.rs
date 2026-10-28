@@ -66,7 +66,6 @@ impl SearchBar {
 }
 
 #[derive(Debug, Component, Clone)]
-#[on_dyn_event]
 pub struct SelectedItems(Wrap, Vec<SearchPill>, #[skip] Theme, #[skip] Option<Uuid>);
 impl SelectedItems {
     pub fn new(theme: &Theme, items: Vec<SearchBarListItem>) -> Self {
@@ -80,37 +79,35 @@ impl SelectedItems {
     }
 }
 
-impl SelectedItems {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        if let Some(event) = event.downcast_ref::<SearchbarEvent>() {
-            match event {
-                SearchbarEvent::Remove(id) => {
-                    let id = *id;
-                    if let Some(pos) = self.1.iter().position(|l| l.2 == id) {
-                        let removed = self.1.remove(pos);
-                        ctx.emit(SearchbarEvent::Store(removed.3, id));
-                        if let Some(form) = self.3 {ctx.emit(FormEvent::Refresh(form));}
-                    }
-                },
-                SearchbarEvent::Relist(item, id) => {
-                    let id = *id;
-                    self.1.push(SearchPill::new(
-                        SecondaryButton::medium(
-                            &self.2, Icons::Close, &item.title().clone(), None, Stack::default(),
-                            move |ctx, _| ctx.emit(SearchbarEvent::Remove(id)),
-                        ), item.clone(), id,
-                    ));
+#[on_event]
+impl OnEvent<SearchbarEvent> for SelectedItems {
+    fn on(&mut self, ctx: &mut Context, event: SearchbarEvent) -> Vec<Box<dyn DynEvent>> {
+        match &event {
+            SearchbarEvent::Remove(id) => {
+                let id = *id;
+                if let Some(pos) = self.1.iter().position(|l| l.2 == id) {
+                    let removed = self.1.remove(pos);
+                    ctx.emit(SearchbarEvent::Store(removed.3, id));
                     if let Some(form) = self.3 {ctx.emit(FormEvent::Refresh(form));}
-                },
-                _ => {}
-            }
+                }
+            },
+            SearchbarEvent::Relist(item, id) => {
+                let id = *id;
+                self.1.push(SearchPill::new(
+                    SecondaryButton::medium(
+                        &self.2, Icons::Close, &item.title().clone(), None, Stack::default(),
+                        move |ctx, _| ctx.emit(SearchbarEvent::Remove(id)),
+                    ), item.clone(), id,
+                ));
+                if let Some(form) = self.3 {ctx.emit(FormEvent::Refresh(form));}
+            },
+            _ => {}
         }
-        vec![event]
+        prism::events![event]
     }
 }
 
 #[derive(Debug, Component, Clone)]
-#[on_dyn_event]
 pub struct SearchableItems(Column, Vec<SearchBarListItem>, #[skip] Theme);
 impl SearchableItems {
     pub fn new(theme: &Theme, items: Vec<(ListItem, Name)>) -> Self {
@@ -142,45 +139,44 @@ impl SearchableItems {
     }
 }
 
-impl SearchableItems {
-    fn on_event(&mut self, ctx: &mut Context, event: Box<dyn DynEvent>) -> Vec<Box<dyn DynEvent>> {
-        if let Some(event) = event.downcast_ref::<SearchbarEvent>() {
-            match event {
-                SearchbarEvent::Select(id) => {
-                    let id = *id;
-                    if let Some(pos) = self.1.iter().position(|l| l.2 == id) {
-                        let removed = self.1.remove(pos);
-                        ctx.emit(SearchbarEvent::Relist(removed.4, id));
-                    } else {
-                        let mut title = id.to_string();
-                        let len = title.chars().count();
+#[on_event]
+impl OnEvent<SearchbarEvent> for SearchableItems {
+    fn on(&mut self, ctx: &mut Context, event: SearchbarEvent) -> Vec<Box<dyn DynEvent>> {
+        match &event {
+            SearchbarEvent::Select(id) => {
+                let id = *id;
+                if let Some(pos) = self.1.iter().position(|l| l.2 == id) {
+                    let removed = self.1.remove(pos);
+                    ctx.emit(SearchbarEvent::Relist(removed.4, id));
+                } else {
+                    let mut title = id.to_string();
+                    let len = title.chars().count();
 
-                        if len >= 20 {
-                            let chars: Vec<char> = title.chars().collect();
+                    if len >= 20 {
+                        let chars: Vec<char> = title.chars().collect();
 
-                            let start: String = chars.iter().take(7).collect();
-                            let end: String = chars.iter().rev().take(3).collect::<Vec<_>>()
-                                .iter().rev().copied().collect();
+                        let start: String = chars.iter().take(7).collect();
+                        let end: String = chars.iter().rev().take(3).collect::<Vec<_>>()
+                            .iter().rev().copied().collect();
 
-                            title = format!("{}...{}", start, end);
-                        }
-
-                        let fallback_item = ListItem::default(&self.2, title.clone());
-                        ctx.emit(SearchbarEvent::Relist(fallback_item, id));
+                        title = format!("{}...{}", start, end);
                     }
+
+                    let fallback_item = ListItem::default(&self.2, title.clone());
+                    ctx.emit(SearchbarEvent::Relist(fallback_item, id));
                 }
-                SearchbarEvent::Store(item, id) => {
-                    let id = *id;
-                    self.1.push(SearchBarListItem::new(
-                        &self.2, item.clone(), Box::new(move |ctx: &mut Context, _theme: &Theme| {
-                            ctx.emit(SearchbarEvent::Select(id))
-                        }), id,
-                    ))
-                },
-                _ => {}
             }
+            SearchbarEvent::Store(item, id) => {
+                let id = *id;
+                self.1.push(SearchBarListItem::new(
+                    &self.2, item.clone(), Box::new(move |ctx: &mut Context, _theme: &Theme| {
+                        ctx.emit(SearchbarEvent::Select(id))
+                    }), id,
+                ))
+            },
+            _ => {}
         }
-        vec![event]
+        prism::events![event]
     }
 }
 

@@ -1,6 +1,6 @@
 use include_dir::{include_dir, Dir};
 use prism::drawable::Svg;
-use prism::hardware::Image;
+use media::Image;
 use ptsd::{ColorResources, IconResources, FontResources, utils::Assets};
 pub use ptsd::Color;
 use serde::{Serialize, Deserialize};

@@ -93,7 +93,7 @@ use pelican_ui::components::TextInput;
 use pelican_ui::components::RadioSelector;
 use pelican_ui::components::Icon;
 use pelican_ui::components::list_item::{ListItem, ListItemInfoLeft};
-use pelican_ui::components::text::{ExpandableText, TextSize, TextStyle};
+use pelican_ui::components::text::{Text, TextSize, TextStyle};
 use pelican_ui::theme::{Theme, Color};
 use pelican_ui::utils::TitleSubtitle;
 use pelican_ui::components::avatar::{AvatarContent, AvatarIconStyle};
@@ -590,7 +590,7 @@ impl PurchasedTicket {
             Offset::Center,
             drawables![
                 Icon::new(theme, "checkmark", Some(theme.colors().get(colors::Brand)), 128.0),
-                ExpandableText::new(
+                Text::new(
                     theme,
                     "You purchased a ticket",
                     TextSize::H4,
@@ -616,7 +616,7 @@ This is the final success screen.
 - `Bumper::stack_end(...)` is the closing bottom area
 - `Offset::Center` centers the content vertically
 - `Icon::new(...)` shows a large checkmark
-- `ExpandableText::new(...)` shows the purchase confirmation text
+- `Text::new(...)` shows the purchase confirmation text
 
 ---
 
@@ -675,7 +675,7 @@ impl ViewTicket {
             Offset::Center,
             drawables![
                 QRCode::default(theme),
-                ExpandableText::new(
+                Text::new(
                     theme,
                     &format!("Scan {}'s ticket at entry.", ticket.name),
                     TextSize::Sm,
@@ -717,9 +717,7 @@ Near the bottom of the file, add:
 ramp::run!{|ctx: &mut Context, assets: Assets| {
     let theme = Theme::dark(assets.all(), Color::from_hex("#8efe33", 255));
     let home = RootInfo::icon("explore", "My Tickets", Box::new(Home::new(ctx, &theme)));
-    Interface::new(&theme, vec![home], Box::new(|_page: &mut Box<dyn Drawable>, _ctx: &mut Context, e: Box<dyn Event>| {
-        vec![e]
-    }))
+    Interface::new(ctx, &theme, vec![home], None)
 }}
 ```
 
@@ -752,16 +750,14 @@ This registers `Home` as the root entry in the interface.
 #### 4. Build the interface
 
 ```rust
-Interface::new(&theme, vec![home], Box::new(|_page: &mut Box<dyn Drawable>, _ctx: &mut Context, e: Box<dyn Event>| {
-    vec![e]
-}))
+Interface::new(ctx, &theme, vec![home], None)
 ```
 
 This creates the app interface with:
 
-- your theme
+- the current context and your theme
 - a list of root pages
-- an event pass-through closure
+- the native keyboard on mobile (`None` for the custom keyboard)
 
 ---
 

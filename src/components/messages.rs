@@ -2,7 +2,7 @@
 use prism::air::Name;
 use prism::events::Event;
 use prism::drawable::Component;
-use prism::drawable::text::{Align, Text as CanvasText, Font};
+use prism::drawable::text::{Align, Font};
 use prism::Context;
 use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding};
 use ptsd::display::Bin;
@@ -124,7 +124,7 @@ impl MessageGroup {
         let (layout, avatar) = match room {
             Room::Room => (Row::start(12.0), Some(Bin(Stack::default(), avatar))),
             Room::Group(Direction::Received) => {
-                let layout = Stack(
+                let layout = Stack::new(
                     Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding(0.0, 0.0, 0.0, 18.0),
                 );
                 (Row::end(8.0), Some(Bin(layout, avatar)))
@@ -174,22 +174,24 @@ pub struct MessageInfo(Row, Option<Text>, Option<Text>, Text);
 impl MessageInfo {
     pub fn new(theme: &Theme, name: String, timestamp: Timestamp, room: Room) -> Self {
         let name = match room {
-            Room::Room => Some(Text::new(theme, &name, TextSize::H5, TextStyle::Heading, Align::Left, None)),
+            Room::Room => Some(Text::new(
+                theme, &name, TextSize::H5, TextStyle::Heading, Align::Left, None,
+            ).fit()),
             Room::Group(Direction::Received) => Some(Text::new(
                 theme, &name, TextSize::Sm, TextStyle::Secondary, Align::Left, None,
-            )),
+            ).fit()),
             Room::Group(Direction::Sent) => Some(Text::new(
                 theme, "You", TextSize::Sm, TextStyle::Secondary, Align::Left, None,
-            )),
+            ).fit()),
             Room::Direct(_) => None,
         };
 
         let timestamp = Text::new(
             theme, &timestamp.precise(), TextSize::Sm, TextStyle::Secondary, Align::Left, None,
-        );
+        ).fit();
         let divider = name.is_some().then_some(Text::new(
             theme, "·", TextSize::Sm, TextStyle::Secondary, Align::Left, None,
-        ));
+        ).fit());
 
         MessageInfo(Row::center(4.0), name, divider, timestamp)
     }
@@ -227,7 +229,7 @@ pub enum _TextMessage {
     Text {
         layout: Stack,
         background: Option<Rectangle>,
-        text: Bin<Stack, CanvasText>
+        text: Bin<Stack, Text>
     },
     Emoji {layout: Stack, text: Text},
     Sticker { layout: Stack, sticker: StickerView },
@@ -241,13 +243,14 @@ impl _TextMessage {
         match message {
             MessageContent::Text(message) => {
                 if message.graphemes(true).count() == 1 && Font::is_emoji_grapheme(message) {
-                    let text = Text::new(theme, message, TextSize::H1, TextStyle::Primary, Align::Left, None);
+                    let text = Text::new(
+                        theme, message, TextSize::H1, TextStyle::Primary, Align::Left, None,
+                    ).fit();
                     _TextMessage::Emoji{layout: Stack::center(), text}
                 } else {
-                    let mut text = (*Text::new(
+                    let text = Text::new(
                         theme, message, TextSize::Md, TextStyle::Primary, Align::Left, None,
-                    )).clone();
-                    text.width = Some(254.0);
+                    ).fit();
                     let background = match style {
                         Room::Group(Direction::Sent) | Room::Direct(Direction::Sent) => {
                             Some(theme.colors().get(colors::Brand))
@@ -271,7 +274,7 @@ impl _TextMessage {
                         let width = widths[0].1.min(250.0) + 4.0;
                         (width, width)
                     });
-                    let text = Bin(Stack(
+                    let text = Bin(Stack::new(
                         Offset::Center, Offset::Center, width, Size::Fit, Padding(0.0, 8.0, 0.0, 8.0),
                     ), text);
                     _TextMessage::Text {
