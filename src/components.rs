@@ -44,6 +44,8 @@ pub use keypad::Keypad;
 
 mod messages;
 pub use messages::*;
+mod typing;
+pub use typing::TypingIndicator;
 
 mod searchbar;
 pub use searchbar::{SearchBar, SearchbarEvent};

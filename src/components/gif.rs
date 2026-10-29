@@ -113,7 +113,7 @@ pub struct GifPlayer {
     #[skip] retry: Timer,
     #[skip] radius: f32,
     #[skip] color: Color,
-    #[skip] player: Option<Player>,
+    #[skip] player: Option<GifPlayback>,
     #[skip] active: bool,
 }
 impl GifPlayer {
@@ -177,14 +177,19 @@ impl OnChange<Result<Arc<[u8]>, Instant>> for GifPlayer {
         };
         let player = Media::read(Cursor::new(bytes)).and_then(|media| {
             media.video.dimensions().ok_or("Media has no video track")?;
-            ctx.hardware.player(media.player())
+            // GIF URLs may resolve to containers with audio. Keep only the
+            // video track so previews and messages never create audio output.
+            let mut player = media.video.player();
+            player.set_volume(0.0);
+            ctx.hardware.player(player)
         });
         match player {
             Ok(player) => {
                 player.set_mode(PlaybackMode::Loop);
-                if let Some(frame) = player.frame().video {self.show_frame(frame.image.clone());}
+                let frame = player.frame();
+                if let Some(frame) = &frame.video {self.show_frame(frame.image.clone());}
                 player.start();
-                self.player = Some(player);
+                self.player = Some(GifPlayback::new(player, frame.video));
             }
             Err(_) => {
                 let at = Instant::now();
@@ -214,6 +219,39 @@ impl OnChange<()> for GifPlayer {
 impl OnChange<Frame> for GifPlayer {
     fn on_change(&mut self, _ctx: &mut Context, frame: Frame) {
         if let Some(frame) = frame.video {self.show_frame(frame.image.clone());}
+    }
+}
+
+// GIF rendering needs the latest image, not every intermediate playback update.
+// Sampling snapshots tolerates overflow in the backend's bounded notification queue
+// when decoding other GIFs or presenting a frame stalls the UI. Never await
+// Player::next here: its lossless subscription can panic after such a stall.
+#[derive(Debug, Clone)]
+struct GifPlayback {
+    player: Player,
+    refresh: Timer,
+    shown: Option<Arc<media::VideoFrame>>,
+}
+impl GifPlayback {
+    const INTERVAL: Duration = Duration::from_nanos(1_000_000_000 / 60);
+
+    fn new(player: Player, shown: Option<Arc<media::VideoFrame>>) -> Self {
+        Self {player, refresh: Timer::new(Self::INTERVAL), shown}
+    }
+
+    async fn next(&mut self) -> Frame {
+        loop {
+            self.refresh.next().await;
+            // Re-arm from now, so a late poll never tries to catch up on old ticks.
+            self.refresh.reset(Self::INTERVAL);
+            let frame = self.player.frame();
+            if let Some(video) = &frame.video {
+                if self.shown.as_ref().is_none_or(|shown| !Arc::ptr_eq(shown, video)) {
+                    self.shown = Some(video.clone());
+                    return frame;
+                }
+            }
+        }
     }
 }
 
@@ -305,5 +343,106 @@ impl GifLoad {
             };
             waiting.await.unwrap();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::{FutureExt, executor::block_on};
+    use prism::traits;
+
+    // A snapshot-only backend: reading the notification stream is deliberately
+    // fatal, as it is for the real backend after its eight-update queue overflows.
+    #[derive(Clone, Debug)]
+    struct SnapshotPlayer(Arc<Mutex<VecDeque<Frame>>>);
+    impl traits::Player for SnapshotPlayer {
+        fn has_video(&self) -> bool {true}
+        fn set_mode(&self, _: PlaybackMode) {}
+        fn mode(&self) -> PlaybackMode {PlaybackMode::Loop}
+        fn start(&self) {}
+        fn stop(&self) {}
+        fn set_speed(&self, _: f64) {}
+        fn speed(&self) -> f64 {1.0}
+        fn set_volume(&self, _: f64) {}
+        fn volume(&self) -> f64 {0.0}
+        fn seek(&self, _: Duration) {}
+        fn position(&self) -> Duration {Duration::ZERO}
+        fn duration(&self) -> Option<Duration> {None}
+        fn is_playing(&self) -> bool {true}
+        fn error(&self) -> Option<String> {None}
+        fn frame(&self) -> Frame {
+            let mut frames = self.0.lock().unwrap();
+            if frames.len() > 1 {frames.pop_front().unwrap()} else {frames[0].clone()}
+        }
+        fn next(&mut self) -> traits::BoxFuture<'_, Frame> {
+            panic!("GIF rendering must not read the overflowed notification queue")
+        }
+    }
+
+    fn frame(index: u64) -> Frame {
+        Frame {
+            video: Some(Arc::new(media::VideoFrame {
+                timestamp: Duration::from_millis(index * 20), ..Default::default()
+            })),
+            position: Duration::from_millis(index * 20), duration: None,
+            speed: 1.0, volume: 0.0, playing: true,
+        }
+    }
+
+    fn playback(frames: Vec<Frame>, shown: &Frame) -> GifPlayback {
+        GifPlayback::new(
+            Player::new(SnapshotPlayer(Arc::new(Mutex::new(frames.into())))),
+            shown.video.clone(),
+        )
+    }
+
+    fn next_frame(playback: &mut GifPlayback) -> Frame {
+        block_on(async {
+            let mut timeout = Timer::new(Duration::from_secs(2));
+            futures::select! {
+                frame = playback.next().fuse() => frame,
+                _ = timeout.next().fuse() => panic!("GIF did not resume playback"),
+            }
+        })
+    }
+
+    #[test]
+    fn resumes_at_latest_frame_after_missing_more_than_the_queue_capacity() {
+        let shown = frame(5);
+        let latest = frame(163);
+        let mut playback = playback(vec![latest.clone()], &shown);
+        let resumed = next_frame(&mut playback);
+        assert!(Arc::ptr_eq(resumed.video.as_ref().unwrap(), latest.video.as_ref().unwrap()));
+        assert_eq!(resumed.position, latest.position);
+        // No burst of stale frames or repeated redraw of this same snapshot.
+        assert!(playback.next().now_or_never().is_none());
+    }
+
+    #[test]
+    fn skips_empty_and_unchanged_snapshots_until_the_image_changes() {
+        let shown = frame(5);
+        let mut empty = shown.clone();
+        empty.video = None;
+        let mut progress_only = shown.clone();
+        progress_only.position += Duration::from_millis(5);
+        let latest = frame(6);
+        let mut playback = playback(vec![empty, shown.clone(), progress_only, latest.clone()], &shown);
+        assert_eq!(next_frame(&mut playback), latest);
+    }
+
+    #[test]
+    fn deactivation_drops_playback_and_reactivation_starts_loading() {
+        let mut gif = GifPlayer::new(&Theme::default(), "unused", (100.0, 100.0), 8.0, Color::white());
+        let shown = frame(5);
+        gif.loading = None;
+        gif.player = Some(playback(vec![frame(163)], &shown));
+        gif.set_active(false);
+        assert!(gif.player.is_none());
+        assert!(gif.loading.is_none());
+        assert!(!gif.retry.is_active());
+        gif.set_active(true);
+        assert!(gif.player.is_none());
+        assert!(gif.loading.is_some());
     }
 }

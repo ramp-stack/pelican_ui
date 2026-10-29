@@ -185,8 +185,9 @@ pub struct AvatarGroup(Row, Vec<Avatar>);
 impl AvatarGroup {
     pub fn new(theme: &Theme, contents: Vec<AvatarContent>) -> Self {
         let contents = if contents.is_empty() { vec![AvatarContent::default()] } else { contents };
+        let outline = contents.len() > 1;
         AvatarGroup(Row::center(-8.0), contents.into_iter().map(|content| {
-            Avatar::new(theme, content, None, true, AvatarSize::Sm, None)
+            Avatar::new(theme, content, None, outline, AvatarSize::Sm, None)
         }).collect())
     }
 }

@@ -44,9 +44,8 @@ impl TextStyle {
     }
 }
 
-#[derive(Component, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Text {
-    layout: Stack,
     inner: PrismText,
 }
 
@@ -57,7 +56,7 @@ impl Text {
         let mut inner = PrismText::new(text, font.into(), size, color.into(), align);
         inner.spans[0].line_height = Some(size * 1.25);
         inner.max_lines = max_lines;
-        Text { layout: Stack::default(), inner }
+        Text { inner }
     }
 
     pub fn default(theme: &Theme, text: &str) -> Self {
@@ -66,6 +65,29 @@ impl Text {
 
     pub fn fit(mut self) -> Self {self.inner = self.inner.fit(); self}
 }
+
+impl Drawable for Text {
+    fn request_width(&mut self) -> (f32, f32) {
+        let (min, max) = self.inner.request_width();
+        // Fitted text needs a full logical pixel for its fractional final advance.
+        // Padding arithmetic and word measurement otherwise round it below the
+        // width needed to keep the final glyph or word on the same line.
+        (min, max.ceil())
+    }
+
+    fn request_height(&mut self, width: f32) -> (f32, f32) {
+        self.inner.request_height(width)
+    }
+
+    fn draw(&self, layout: &LayoutTree, offset: (f32, f32), bound: Rect) -> Vec<Instruction> {
+        self.inner.draw(layout, offset, bound)
+    }
+
+    fn event(&mut self, ctx: &mut Context, layout: &LayoutTree, event: Box<dyn DynEvent>) {
+        self.inner.event(ctx, layout, event);
+    }
+}
+
 impl Deref for Text {
     type Target = BasicText;
     fn deref(&self) -> &Self::Target { &self.inner }
@@ -80,6 +102,10 @@ pub struct TextEditor {
     scrub: Scrub,
     default_span: Span,
     dirty: Timer,
+    blink: Timer,
+    caret_visible: bool,
+    caret_state: (bool, Option<usize>, Option<usize>),
+    window_focused: bool,
 }
 impl TextEditor {
     pub fn new(theme: &Theme, id: Uuid, text: &str, size: TextSize, style: TextStyle, align: Align) -> Self {
@@ -92,6 +118,8 @@ impl TextEditor {
         Self {
             content: Bin(Stack::start(), (built, TextCursor::new(theme, style, size), magnifier)),
             scrub: Scrub::default(), default_span, dirty: Timer::default(),
+            blink: Timer::default(), caret_visible: true,
+            caret_state: (false, None, None), window_focused: true,
         }
     }
 
@@ -211,6 +239,7 @@ impl TextEditor {
 
     fn changed(&mut self, ctx: &mut Context) {
         self.dirty.cancel();
+        self.blink.cancel();
         self.sync();
         ctx.emit(TextInputEvent::Changed { id: self.id(), value: self.value().into_owned() });
     }
@@ -246,11 +275,25 @@ impl TextEditor {
 
         let (text, caret, magnifier) = &mut self.content.1;
         let inner = &*text.inner;
-        // Re-enable the custom caret and magnifier when native text overlays are removed.
-        let custom_cursor = false;
-        caret.1.display(custom_cursor && inner.focused
-            && inner.anchor.is_none_or(|anchor| inner.cursor == Some(anchor)));
-        magnifier.active = custom_cursor && self.scrub.active;
+        // AppKit draws selection but its insertion point is transparent. Mobile
+        // overlays draw their own caret, so only macOS needs the custom one.
+        let custom_cursor = cfg!(target_os = "macos");
+        let enabled = custom_cursor && self.window_focused && inner.focused && inner.cursor.is_some()
+            && inner.anchor.is_none_or(|anchor| inner.cursor == Some(anchor));
+        let state = (enabled, inner.cursor, inner.anchor);
+        if enabled {
+            if state != self.caret_state || !self.blink.is_active() {
+                self.caret_visible = true;
+                self.blink.reset(Duration::from_millis(500));
+            }
+        } else {
+            self.blink.cancel();
+            self.caret_visible = false;
+        }
+        self.caret_state = state;
+        caret.1.display(enabled && self.caret_visible);
+        // Native overlays still own the selection magnifier.
+        magnifier.active = false;
         magnifier.text = inner.clone();
     }
 }
@@ -272,8 +315,9 @@ impl Drawable for TextEditor {
     }
 
     fn event(&mut self, ctx: &mut Context, sized: &LayoutTree, event: Box<dyn DynEvent>) {
-        if matches!(event.downcast_ref::<WindowEvent>(), Some(WindowEvent::Focused(false))) {
-            self.scrub = Scrub::default();
+        if let Some(WindowEvent::Focused(focused)) = event.downcast_ref::<WindowEvent>() {
+            self.window_focused = *focused;
+            if !focused {self.scrub = Scrub::default();}
             self.sync();
         } else if let Some(mouse) = event.downcast_ref::<MouseEvent>() {
             match mouse.state {
@@ -317,7 +361,9 @@ impl Drawable for TextEditor {
     }
 
     fn changed(&mut self) -> ListenFuture<'_> {
-        let (content, dirty, scrub) = (&mut self.content, &mut self.dirty, &mut self.scrub);
+        let (content, dirty, scrub, blink) = (
+            &mut self.content, &mut self.dirty, &mut self.scrub, &mut self.blink,
+        );
         Box::pin(ChangeHandler::select(vec![
             Box::pin(async move {
                 let callback = Component::listen(content).await;
@@ -337,6 +383,15 @@ impl Drawable for TextEditor {
                     let target = target.downcast_mut::<Self>().unwrap();
                     target.scrub.active = true;
                     target.place_cursor(target.scrub.pointer);
+                    target.sync();
+                }) as ListenCallback
+            }),
+            Box::pin(async move {
+                blink.next().await;
+                Box::new(|target: &mut dyn Any, _: &mut Context| {
+                    let target = target.downcast_mut::<Self>().unwrap();
+                    target.caret_visible = !target.caret_visible;
+                    target.blink.reset(Duration::from_millis(500));
                     target.sync();
                 }) as ListenCallback
             }),

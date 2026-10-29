@@ -10,7 +10,6 @@ use ptsd::events::Press as PressEvent;
 use uuid::Uuid;
 
 use std::any::Any;
-use std::time::{Duration, Instant};
 
 use crate::theme::Color;
 use crate::components::text::Text;
@@ -38,16 +37,8 @@ struct GridView {
     near_end: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct ScrollGesture {
-    last: Instant,
-    travel: (f32, f32),
-    needed: f32,
-    turned: bool,
-}
-
 #[derive(Debug, Clone)]
-enum TouchEnd {Tap(Uuid, CellAction), Turn(Uuid, bool)}
+enum TouchEnd {Tap(Uuid, CellAction)}
 impl Event for TouchEnd {
     fn pass(&self, _ctx: &mut Context, children: &mut [ChildEvent<'_, Self>]) {
         for child in children {*child.event = Some(self.clone());}
@@ -254,7 +245,7 @@ impl<D: Drawable + Clone + 'static> Drawable for Clip<D> {
 
 #[derive(Component, Debug, Clone)]
 struct PanelGrid(
-    Column, Vec<PanelRow>, #[skip] Uuid, #[skip] Option<DeferredPress>, #[skip] Option<ScrollGesture>,
+    Column, Vec<PanelRow>, #[skip] Uuid,
 );
 
 impl PanelGrid {
@@ -265,22 +256,10 @@ impl PanelGrid {
 
     fn tray_height(width: f32) -> f32 { 12.0 + 2.0 * (Self::cell_side(width, 3) + 12.0) + 48.0 }
 
-    fn new(rows: usize, columns: usize, layout: Stack, spacing: f32, owner: Uuid, mut cell: impl FnMut(usize) -> Option<PanelCell>) -> Self {
-        let mut grid = Self::empty(spacing, owner);
-        grid.3 = Some(DeferredPress::default());
-        for r in 0..rows {
-            let cells = (0..columns)
-                .map(|c| cell(r * columns + c).unwrap_or_else(|| PanelCell::blank(layout.clone(), owner)))
-                .collect();
-            grid.push_row(cells, spacing);
-        }
-        grid
-    }
-
     fn empty(spacing: f32, owner: Uuid) -> Self {
         PanelGrid(
             Column::new(spacing, Offset::Start, Size::Fill, Padding::new(12.0), None),
-            Vec::new(), owner, None, None,
+            Vec::new(), owner,
         )
     }
 
@@ -305,72 +284,6 @@ impl PanelGrid {
     }
 }
 
-#[on_event]
-impl OnEvent<MouseEvent> for PanelGrid {
-    fn on(&mut self, ctx: &mut Context, mouse: MouseEvent) -> Vec<Box<dyn DynEvent>> {
-        let Some(press) = &mut self.3 else {return prism::events![mouse]};
-        if !press.claimed() && matches!(mouse.state, MouseState::Released(_))
-            && let Some((dx, dy)) = press.travel_at(mouse.position)
-            && dx.abs() >= 40.0 && dx.abs() > dy.abs()
-        {
-            ctx.emit(TouchEnd::Turn(self.2, dx < 0.0));
-        }
-        let events = Self::pointer(ctx, press, mouse.clone());
-        if !ctx.window.is_mobile && press.travel().is_none() && mouse.position.is_some()
-            && let MouseState::Scroll(dx, dy) = mouse.state
-        {
-            let now = Instant::now();
-            let start = (dx, dy) == (0.0, 0.0);
-            let mut gesture = self.4
-                .filter(|gesture| !start && now.duration_since(gesture.last) < Duration::from_millis(200))
-                .unwrap_or(ScrollGesture {
-                    last: now, travel: (0.0, 0.0),
-                    needed: if start {40.0} else {0.0}, turned: false,
-                });
-            gesture.last = now;
-            gesture.travel = (gesture.travel.0 + dx, gesture.travel.1 + dy);
-            let (x, y) = gesture.travel;
-            if !gesture.turned && x.abs().max(y.abs()) > gesture.needed {
-                gesture.turned = true;
-                ctx.emit(TouchEnd::Turn(self.2, if x.abs() >= y.abs() {x > 0.0} else {y > 0.0}));
-            }
-            self.4 = Some(gesture);
-        }
-        events
-    }
-}
-
-#[on_event]
-impl OnEvent<PressEvent> for PanelGrid {
-    fn on(&mut self, _ctx: &mut Context, event: PressEvent) -> Vec<Box<dyn DynEvent>> {
-        match &mut self.3 {
-            Some(press) => press.press(event), None => prism::events![event],
-        }
-    }
-}
-
-#[on_event]
-impl OnEvent<WindowEvent> for PanelGrid {
-    fn on(&mut self, _ctx: &mut Context, event: WindowEvent) -> Vec<Box<dyn DynEvent>> {
-        if matches!(event, WindowEvent::Focused(false))
-            && let Some(press) = &mut self.3 && let Some(cancel) = press.cancel()
-        {
-            return prism::events![cancel, event];
-        }
-        prism::events![event]
-    }
-}
-
-#[on_change(async {
-    match &mut self.3 {
-        Some(press) => press.next().await,
-        None => std::future::pending().await,
-    }
-})]
-impl OnChange<PressEvent> for PanelGrid {
-    fn on_change(&mut self, ctx: &mut Context, event: PressEvent) {ctx.emit(event);}
-}
-
 #[derive(Component, Debug, Clone)]
 struct PanelRow(Row, Vec<PanelCell>);
 
@@ -388,14 +301,6 @@ struct PanelCell(
 );
 
 impl PanelCell {
-    fn layout(width: f32, height: f32) -> Stack {
-        let width = Size::custom(move |_: Vec<(f32, f32)>| (width, f32::MAX));
-        Stack::new(
-            Offset::Center, Offset::Center, width, Size::Static(height),
-            Padding(2.0, 2.0, 2.0, 2.0),
-        )
-    }
-
     fn square(side: f32) -> Stack {
         Stack::new(
             Offset::Center, Offset::Center, Size::Static(side), Size::Static(side),

@@ -96,16 +96,24 @@ impl NavigatorSelectable {
 
     pub fn mobile(
         theme: &Theme, icon: Icons, padding: Padding,
+        on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static,
+        is_selected: bool, group_id: uuid::Uuid,
+    ) -> Self {
+        let layout = Stack::new(
+            Offset::Center, Offset::Center, Size::custom(|_| (48.0, f32::MAX)),
+            Size::Fit, padding,
+        );
+        Self::mobile_with_layout(theme, icon, layout, on_click, is_selected, group_id)
+    }
+
+    fn mobile_with_layout(
+        theme: &Theme, icon: Icons, layout: Stack,
         mut on_click: impl FnMut(&mut Context, &Theme) + Clone + 'static,
         is_selected: bool, group_id: uuid::Uuid,
     ) -> Self {
         let colors = theme::Button::get(theme.colors(), Variant::Ghost);
         let [default, selected] = [colors.disabled, colors.default].map(|colors| {
-            let layout = Stack::new(
-                Offset::Center, Offset::Center, Size::custom(|_| (48.0, f32::MAX)),
-                Size::Fit, padding,
-            );
-            Bin(layout, IconButton::new(
+            Bin(layout.clone(), IconButton::new(
                 theme, icon, ButtonStyle::Ghost, ButtonSize::Medium,
                 colors.background, colors.outline, colors.label,
             ))
@@ -199,12 +207,28 @@ impl Navigator {
 
         let group_id = uuid::Uuid::new_v4();
         let mut tabs = Vec::new();
+        let count = navigation.len();
+        let button_width = ButtonSize::Medium.icon_button(ButtonStyle::Ghost).0;
+        let side_padding = (100.0 - button_width) / 2.0;
         for (i, info) in navigation.into_iter().enumerate() {
             let closure = move |ctx: &mut Context, _: &Theme| {
                 ctx.emit(NavigationEvent::root(&info.label))
             };
-            tabs.push(NavigatorSelectable::mobile(
-                theme, info.icon, Padding(0.0, 8.0, 0.0, 8.0), closure, 0 == i, group_id,
+            // Only the outer tap areas expand. Align their icons toward the
+            // middle so the visible group stays centered at 100-point intervals.
+            let offset = if count == 1 {Offset::Center}
+                else if i == 0 {Offset::End}
+                else if i == count - 1 {Offset::Start}
+                else {Offset::Center};
+            let width = if i == 0 || i == count - 1 {
+                Size::custom(move |_| (button_width, f32::MAX))
+            } else {Size::Static(button_width)};
+            let layout = Stack::new(
+                offset, Offset::Center, width, Size::Fit,
+                Padding(side_padding, 8.0, side_padding, 8.0),
+            );
+            tabs.push(NavigatorSelectable::mobile_with_layout(
+                theme, info.icon, layout, closure, 0 == i, group_id,
             ));
         }
 

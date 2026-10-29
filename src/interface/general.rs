@@ -158,8 +158,117 @@ impl Event for FormEvent {
     }
 }
 
-#[derive(Debug, Component, Clone)]
+/// Scrollable form content that reveals the focused field.
+#[derive(Debug, Clone)]
 pub struct Content {
+    inner: ContentInner,
+    focused: Option<Uuid>,
+    last_size: (f32, f32),
+    top: std::cell::Cell<f32>,
+    last_top: f32,
+    reveal: bool,
+}
+
+impl Content {
+    pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>, validation: Box<dyn ValidationFn>) -> Self {
+        Self {
+            inner: ContentInner::new(offset, children, validation),
+            focused: None, last_size: (0.0, 0.0), top: std::cell::Cell::new(0.0), last_top: 0.0,
+            reveal: false,
+        }
+    }
+
+    fn focused_input(&self, layout: &prism::drawable::LayoutTree) -> Option<(Uuid, f32, f32)> {
+        let (scroll_offset, scroll_tree) = layout.1.first()?;
+        let (body_offset, body_tree) = scroll_tree.1.first()?;
+        let offset = (scroll_offset.0 + body_offset.0, scroll_offset.1 + body_offset.1);
+        // Include off-screen inputs so programmatic focus can reveal them too.
+        self.inner.children.1.draw(body_tree, offset, (-1e6, -1e6, 2e6, 2e6))
+            .into_iter().find_map(|instruction| match instruction.item {
+                prism::drawable::Item::Text(text) if text.focused && text.cursor.is_some() => {
+                    Some((text.id, instruction.offset.1, text.size().1))
+                }
+                _ => None,
+            })
+    }
+}
+
+impl std::ops::Deref for Content {
+    type Target = ContentInner;
+    fn deref(&self) -> &Self::Target {&self.inner}
+}
+impl std::ops::DerefMut for Content {
+    fn deref_mut(&mut self) -> &mut Self::Target {&mut self.inner}
+}
+
+impl Drawable for Content {
+    fn request_width(&mut self) -> (f32, f32) {self.inner.request_width()}
+    fn request_height(&mut self, width: f32) -> (f32, f32) {self.inner.request_height(width)}
+
+    fn layout(&mut self, size: (f32, f32)) -> prism::drawable::LayoutTree {
+        let layout = Drawable::layout(&mut self.inner, size);
+        let id = self.focused_input(&layout).map(|(id, ..)| id);
+        let reposition = id != self.focused || size != self.last_size || self.top.get() != self.last_top;
+        self.focused = id;
+        self.last_size = size;
+        self.last_top = self.top.get();
+        if reposition {self.reveal = id.is_some();}
+        layout
+    }
+
+    fn draw(&self, layout: &prism::drawable::LayoutTree, offset: (f32, f32), bound: prism::drawable::Rect) -> Vec<prism::drawable::Instruction> {
+        self.top.set(offset.1);
+        self.inner.draw(layout, offset, bound)
+    }
+    fn event(&mut self, ctx: &mut Context, layout: &prism::drawable::LayoutTree, event: Box<dyn DynEvent>) {
+        if let Some(RevealFocusedInput(id)) = event.downcast_ref() && *id == self.id() {
+            if let Some((_, y, height)) = self.focused_input(layout) {
+                let target = (128.0 - self.top.get())
+                    .clamp(16.0, (layout.0.1 - height - 16.0).max(16.0));
+                self.event(ctx, layout, Box::new(AdjustScrollEvent::Vertical(y - target)));
+            }
+            return;
+        }
+        if let Some(AdjustScrollEvent::Vertical(delta)) = event.downcast_ref() {
+            // The scroll layout clamps this to the real content bounds. Never
+            // enlarge the content just to reach the preferred focus position.
+            if delta.is_finite() {self.inner.children.adjust_scroll(*delta);}
+            return;
+        }
+        self.inner.event(ctx, layout, event);
+    }
+    fn changed(&mut self) -> prism::events::ListenFuture<'_> {
+        Box::pin(async move {
+            if self.reveal {
+                return Box::new(|target: &mut dyn std::any::Any, ctx: &mut Context| {
+                    let target = target.downcast_mut::<Self>().unwrap();
+                    target.reveal = false;
+                    // Scope focus adjustments to this form, rather than
+                    // scrolling every content area receiving a global event.
+                    ctx.emit(RevealFocusedInput(target.id()));
+                }) as prism::events::ListenCallback;
+            }
+            let callback = self.inner.changed().await;
+            Box::new(move |target: &mut dyn std::any::Any, ctx: &mut Context| {
+                let target = target.downcast_mut::<Self>().unwrap();
+                callback(&mut target.inner, ctx);
+            }) as prism::events::ListenCallback
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct RevealFocusedInput(Uuid);
+
+impl Event for RevealFocusedInput {
+    fn pass(&self, _ctx: &mut Context, children: &mut [ChildEvent<'_, Self>]) {
+        for child in children {*child.event = Some(self.clone());}
+    }
+}
+
+/// Public as the dereference target of `Content`.
+#[derive(Debug, Component, Clone)]
+pub struct ContentInner {
     layout: Stack,
     pub children: Scrollable<ContentChildren>,
     #[skip]
@@ -172,7 +281,7 @@ pub struct Content {
     dirty: Timer,
 }
 
-impl Content {
+impl ContentInner {
     pub fn new(offset: Offset, children: Vec<Box<dyn Drawable>>, validation: Box<dyn ValidationFn>) -> Self {
         let width = Size::custom(move |widths: Vec<(f32, f32)>| (widths[0].0.min(375.0), 375.0));
         let children = if offset == Offset::End {
@@ -180,7 +289,7 @@ impl Content {
         } else {
             Scrollable::new(ContentChildren::new(children))
         };
-        Content {
+        ContentInner {
             layout: Stack::new(
                 Offset::Center, offset, width, Size::Fill, Padding(24.0, 0.0, 24.0, 0.0),
             ), children, validation,
@@ -232,7 +341,7 @@ impl Content {
 }
 
 #[on_event]
-impl OnEvent<FormEvent> for Content {
+impl OnEvent<FormEvent> for ContentInner {
     fn on(&mut self, ctx: &mut Context, event: FormEvent) -> Vec<Box<dyn DynEvent>> {
         if let FormEvent::Refresh(id) = event && id == self.id {
             self.dirty.cancel();
@@ -252,7 +361,7 @@ impl OnEvent<FormEvent> for Content {
 }
 
 #[on_event]
-impl OnEvent<NavigationChanged> for Content {
+impl OnEvent<NavigationChanged> for ContentInner {
     fn on(&mut self, _ctx: &mut Context, event: NavigationChanged) -> Vec<Box<dyn DynEvent>> {
         self.invalidate();
         prism::events![event]
@@ -260,13 +369,13 @@ impl OnEvent<NavigationChanged> for Content {
 }
 
 #[on_change(self.dirty.next())]
-impl OnChange<()> for Content {
+impl OnChange<()> for ContentInner {
     fn on_change(&mut self, ctx: &mut Context, _: ()) { self.refresh(ctx); }
 }
 #[on_change(async {
     if self.validation.change().await.is_none() {std::future::pending::<()>().await;}
 })]
-impl OnChange<()> for Content {
+impl OnChange<()> for ContentInner {
     fn on_change(&mut self, ctx: &mut Context, _: ()) { self.refresh(ctx); }
 }
 

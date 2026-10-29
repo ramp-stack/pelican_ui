@@ -1,13 +1,14 @@
 use prism::drawable::text::Align;
 use ptsd::layout::{Column, Stack, Row, Padding, Offset, Size};
-use prism::drawable::Component;
+use prism::drawable::{Component, Shape};
+use ptsd::display::Bin;
 use prism::Context;
 use ptsd::interactions;
 use ptsd::utils::{TitleSubtitle};
 
 use crate::theme::{Theme, Color, Icons};
 use crate::components::text::{Text, TextSize, TextStyle};
-use crate::components::Icon;
+use crate::components::{Icon, Circle};
 use crate::components::avatar::Avatar;
 
 #[derive(Clone, Debug)]
@@ -15,6 +16,7 @@ pub struct ListItemInfoLeft {
     pub title: TitleSubtitle,
     pub flair: Option<(Icons, Color)>,
     pub description: Option<String>,
+    pub badge: bool,
 }
 
 impl ListItemInfoLeft {
@@ -22,9 +24,11 @@ impl ListItemInfoLeft {
         ListItemInfoLeft {
             title: TitleSubtitle::new(title, subtitle),
             description: description.map(|text| text.to_string()),
-            flair,
+            flair, badge: false,
         }
     }
+
+    pub fn with_badge(mut self, badge: bool) -> Self {self.badge = badge; self}
 }
 
 #[derive(Debug, Component, Clone)]
@@ -148,19 +152,19 @@ impl LeftData {
         let description = info.description.map(|text| {
             Text::new(theme, &text, TextSize::Xs, TextStyle::Secondary, Align::Left, Some(2))
         });
-        LeftData(layout, TitleRow::new(theme, &info.title.title, info.flair), subtitle, description)
+        LeftData(layout, TitleRow::new(theme, &info.title.title, info.flair, info.badge), subtitle, description)
     }
 }
 
 #[derive(Debug, Component, Clone)]
-struct TitleRow(Row, Text, Option<Icon>);
+struct TitleRow(Row, Text, Option<Icon>, Option<Bin<Stack, Shape>>);
 
 impl TitleRow {
-    fn new(theme: &Theme, title: &str, flair: Option<(Icons, Color)>) -> Self {
+    fn new(theme: &Theme, title: &str, flair: Option<(Icons, Color)>, badge: bool) -> Self {
         let layout = Row::new(4.0, Offset::Center, Size::Fit, Padding::default());
-        let text = Text::new(theme, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1));
+        let text = Text::new(theme, title, TextSize::H5, TextStyle::Heading, Align::Left, Some(1)).fit();
         let flair = flair.map(|(name, color)| Icon::new(theme, name, Some(color), 16.0));
-        TitleRow(layout, text, flair)
+        TitleRow(layout, text, flair, badge.then(|| Circle::new(8.0, theme.colors().get(ptsd::Brand), false)))
     }
 }
 

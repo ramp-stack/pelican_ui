@@ -62,11 +62,22 @@ CHK's `App::keyboard` defaults to `None`; override that method to select a custo
 Handle application events with typed `#[on_event] impl OnEvent<E>` implementations on the
 page or root component that owns the behavior.
 
+Form focus on mobile, desktop, and web uses `AdjustScrollEvent::Vertical` to move the content's existing
+scroll offset. The preferred input position is 128 logical pixels from the screen top,
+limited by the natural scroll range; focusing an input never adds bottom padding.
+Focus and viewport changes request an adjustment after layout, scoped to the owning form.
+Editing text does not reset the user's scroll position.
+
 `CustomKeyboard`, `EmojiPanel`, `StickerPanel`, and `GifPanel` are separate exports from
 `interface::system`. The custom keyboard contains only typing controls. Emoji selection and
 backspace emit standard Prism keyboard events; sticker and GIF selection retain their existing
 `SendEvent` messages. GIF search uses a normal text input and independent `GifSearchEvent`
 commands (`Open`, `Submit`, `Close`). `TextInput::new` no longer takes `KeyboardPages`.
+
+Emoji use a continuous horizontal strip with four rows and category shortcuts, without
+page snapping. Only nearby emoji text is built as the viewport moves. The custom macOS
+caret blinks every 500 ms and becomes visible immediately when typing or refocusing;
+mobile keeps its native caret.
 
 `MessageBar` owns its toolbar and a dismissible `Panels` tray on every platform. It uses
 `ctx.window.is_mobile` to assume a native keyboard on mobile and show stickers, GIFs, and
@@ -92,6 +103,9 @@ keyboard height.
 GIF credentials, HTTP requests, and bounded download caches belong to `Theme::gifs()`.
 Configure a theme with `theme.gifs().set_api_key(key)`. Cloning a theme shares that service;
 constructing another theme creates an independent service.
+GIF playback samples the latest frame at up to 60 Hz instead of consuming every backend
+notification. Delayed rendering skips stale frames, unchanged images do not request a redraw,
+and deactivating a GIF drops its player and refresh timer.
 
 Photos retain their existing JPEG, width, and height wire representation. Deserialization
 validates the encoded image before exposing it to views; malformed incoming photo messages
