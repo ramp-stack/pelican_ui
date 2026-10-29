@@ -61,9 +61,8 @@ impl OnEvent<MouseEvent> for InputKey {
 #[on_event]
 impl OnEvent<WindowEvent> for InputKey {
     fn on(&mut self, _ctx: &mut Context, event: WindowEvent) -> Vec<Box<dyn DynEvent>> {
-        if matches!(event, WindowEvent::Focused(false)) {
-            if let Some(hold) = &mut self.2 {hold.timer.cancel();}
-        }
+        if matches!(event, WindowEvent::Focused(false))
+            && let Some(hold) = &mut self.2 {hold.timer.cancel();}
         vec![Box::new(event)]
     }
 }

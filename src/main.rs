@@ -18,6 +18,9 @@ use ptsd::emitters::Scrollable;
 use ptsd::interactions;
 use ptsd::layout::{Column, Offset, Padding, Row, Size, Stack, Wrap};
 
+type HeaderContent = Bin<Row, (Icon, Bin<Column, (Text, Text)>)>;
+type CardContent = Bin<Column, (Text, Text, Vec<Box<dyn Drawable>>)>;
+
 #[derive(Clone, Debug)]
 enum Action {
     Page(&'static str), Button(&'static str), Slider(f32), Toggle(bool), Checkbox(bool),
@@ -64,9 +67,8 @@ impl OnEvent<Action> for Demo {
     fn on(&mut self, ctx: &mut Context, action: Action) -> Vec<Box<dyn DynEvent>> {
         let message = match action {
             Action::Page(name) => {
-                if self.shell.pages.1.current() == "Media" {
-                    if let Some(player) = &self.media().player {player.stop();}
-                }
+                if self.shell.pages.1.current() == "Media"
+                    && let Some(player) = &self.media().player {player.stop();}
                 self.shell.pages.1.display(name);
                 ctx.emit(ptsd::events::Scrollable::ScrollTo(0.0));
                 format!("{name} · controls keep their state when you switch pages")
@@ -85,9 +87,8 @@ impl OnEvent<Action> for Demo {
                 "Choose a video to try click-to-play and seeking".into()
             }
             Action::Seek(value) => {
-                if let Some(player) = &self.media().player {
-                    if let Some(duration) = player.duration() {player.seek(duration.mul_f32(value));}
-                }
+                if let Some(player) = &self.media().player
+                    && let Some(duration) = player.duration() {player.seek(duration.mul_f32(value));}
                 return vec![];
             }
             Action::TogglePlayback => {
@@ -141,7 +142,7 @@ impl OnChange<prism::hardware::PickResult<Visual>> for Demo {
 #[derive(Component, Clone, Debug)]
 struct Shell {
     layout: Column,
-    header: Bin<Row, (Icon, Bin<Column, (Text, Text)>)>,
+    header: HeaderContent,
     tabs: Bin<Wrap, Vec<SecondaryButton>>,
     status: Text,
     pages: Scrollable<Enum<Box<dyn Drawable>>>,
@@ -310,7 +311,7 @@ impl OnChange<Frame> for MediaDemo {
 }
 
 #[derive(Component, Clone, Debug)]
-struct Card(Stack, Rectangle, Bin<Column, (Text, Text, Vec<Box<dyn Drawable>>)>);
+struct Card(Stack, Rectangle, CardContent);
 impl Card {
     fn new(theme: &Theme, title: &str, description: &str, children: Vec<Box<dyn Drawable>>) -> Self {
         let layout = Stack::new(Offset::Start, Offset::Start, Size::Fill,

@@ -121,7 +121,7 @@ impl QRCode {
             Self::draw_finder(&mut buf, img_size, fx * scale, fy * scale, scale, fg, bg);
         }
 
-        let pixels = buf.chunks_exact(3).map(|pixel| {
+        let pixels = buf.as_chunks::<3>().0.iter().map(|pixel| {
             Pixel {red: pixel[0], green: pixel[1], blue: pixel[2], alpha: 255}
         }).collect();
         Some(Image::new((img_size as u32, img_size as u32), pixels))

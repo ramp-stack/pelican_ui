@@ -25,10 +25,12 @@ use crate::components::button::GhostIconButton;
 use crate::components::images::MaskedImage;
 use crate::components::text::{Text, TextSize, TextStyle};
 
+type JpegData = (Arc<[u8]>, (u32, u32));
+
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Photo {
     #[serde(serialize_with = "Photo::save_jpeg", deserialize_with = "Photo::read_jpeg")]
-    jpeg: (Arc<[u8]>, (u32, u32)),
+    jpeg: JpegData,
     // Preserve transmitted metadata for existing serialized messages and AIR signatures.
     width: u32,
     height: u32,
@@ -51,7 +53,7 @@ impl Photo {
             resized = image::imageops::resize(&image, width, height, FilterType::Triangle);
             resized.as_raw()
         };
-        let rgb: Vec<u8> = pixels.chunks_exact(4).flat_map(|pixel| {
+        let rgb: Vec<u8> = pixels.as_chunks::<4>().0.iter().flat_map(|pixel| {
             let alpha = pixel[3] as u32;
             [0, 1, 2].map(|i| ((pixel[i] as u32 * alpha + 255 * (255 - alpha)) / 255) as u8)
         }).collect();
@@ -65,11 +67,11 @@ impl Photo {
     pub fn size(&self) -> (u32, u32) {self.jpeg.1}
     pub fn jpeg(&self) -> &[u8] { &self.jpeg.0 }
 
-    fn save_jpeg<S: Serializer>(jpeg: &(Arc<[u8]>, (u32, u32)), serializer: S) -> Result<S::Ok, S::Error> {
+    fn save_jpeg<S: Serializer>(jpeg: &JpegData, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&STANDARD.encode(&jpeg.0))
     }
 
-    fn read_jpeg<'de, D: Deserializer<'de>>(deserializer: D) -> Result<(Arc<[u8]>, (u32, u32)), D::Error> {
+    fn read_jpeg<'de, D: Deserializer<'de>>(deserializer: D) -> Result<JpegData, D::Error> {
         let text = String::deserialize(deserializer)?;
         let bytes = STANDARD.decode(text).map_err(serde::de::Error::custom)?;
         let image = image::load_from_memory(&bytes).map_err(serde::de::Error::custom)?;

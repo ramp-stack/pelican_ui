@@ -55,7 +55,7 @@ impl Sticker {
         let square = imageops::crop_imm(&photo, (w - side) / 2, (h - side) / 2, side, side);
         let size = side.min(320);
         let square = imageops::resize(&*square, size, size, imageops::FilterType::Triangle);
-        let rgb: Vec<u8> = square.as_raw().chunks_exact(4).flat_map(|pixel| {
+        let rgb: Vec<u8> = square.as_raw().as_chunks::<4>().0.iter().flat_map(|pixel| {
             let alpha = pixel[3] as u32;
             [0, 1, 2].map(|i| ((pixel[i] as u32 * alpha + 255 * (255 - alpha)) / 255) as u8)
         }).collect();

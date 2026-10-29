@@ -244,7 +244,7 @@ enum _Key {
     Character {layout: Stack, background: Option<Rectangle>, text: Bin<Stack, Text>},
     Spacebar {layout: Stack, background: Rectangle, text: Text},
     Capslock {layout: Stack, background: Rectangle, icon: Icon},
-    Paginator {layout: Stack, background: Rectangle, content: PaginatorContent},
+    Paginator {layout: Stack, background: Rectangle, content: Box<dyn Drawable>},
     Newline {layout: Stack, background: Rectangle, text: Text},
 }
 
@@ -332,7 +332,7 @@ impl _Key {
                 Size::Static(48.0), Padding(3.0, 6.0, 3.0, 6.0),
             ),
             background: Rectangle::new(Color::from_hex("ffffff", 40), 4.0, None),
-            content: PaginatorContent::new(theme, page)
+            content: Box::new(PaginatorContent::new(theme, page))
         }
     }
 }

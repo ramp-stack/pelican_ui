@@ -254,7 +254,7 @@ impl MessageBarContent {
             if !searching {self.show_panel(ctx, None);}
         } else if let Some(CustomKeyboardVisibilityChanged(visible)) = event.downcast_ref() {
             self.custom_keyboard_visible = *visible;
-        } else if matches!(event.downcast_ref::<ptsd::navigation::NavigationEvent>(), Some(_)) {
+        } else if event.downcast_ref::<ptsd::navigation::NavigationEvent>().is_some() {
             self.show_panel(ctx, None);
         } else if self.active == Some(Panel::Emoji)
             && let Some(KeyboardEvent {key, state: KeyboardState::Pressed | KeyboardState::Repeated, ..}) = event.downcast_ref() {

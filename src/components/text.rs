@@ -53,7 +53,7 @@ impl Text {
     pub fn new(theme: &Theme, text: &str, text_size: TextSize, style: TextStyle, align: Align, max_lines: Option<u32>) -> Self {
         let (color, font) = style.get(theme);
         let size = theme.fonts().get_size(text_size);
-        let mut inner = PrismText::new(text, font.into(), size, color.into(), align);
+        let mut inner = PrismText::new(text, font, size, color.into(), align);
         inner.spans[0].line_height = Some(size * 1.25);
         inner.max_lines = max_lines;
         Text { inner }

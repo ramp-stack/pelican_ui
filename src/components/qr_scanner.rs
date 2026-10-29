@@ -1,3 +1,4 @@
+use futures::FutureExt;
 use prism::events::{DynEvent, OnEvent, on_event, OnChange, on_change, Timer};
 use prism::drawable::text::Align;
 use media::{Image, VideoFrame};
@@ -116,10 +117,11 @@ impl OnChange<()> for QRCodeScanner {
     }
 }
 #[on_change(async {
-    match &mut self.camera {
-        Some(camera) => camera.next().await,
-        None => std::future::pending().await,
-    }
+    let Some(camera) = &mut self.camera else {return std::future::pending().await};
+    let mut frame = camera.next().await?;
+    // Preview the newest available image after a UI delay; recording keeps its ordered subscription.
+    while let Some(Some(next)) = camera.next().now_or_never() {frame = next;}
+    Some(frame)
 })]
 impl OnChange<Option<VideoFrame>> for QRCodeScanner {
     fn on_change(&mut self, _ctx: &mut Context, frame: Option<VideoFrame>) {
