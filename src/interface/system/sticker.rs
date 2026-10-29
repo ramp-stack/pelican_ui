@@ -145,7 +145,8 @@ impl StickerPanel {
 #[on_event]
 impl OnEvent<TouchEnd> for StickerPanel {
     fn on(&mut self, ctx: &mut Context, event: TouchEnd) -> Vec<Box<dyn DynEvent>> {
-        if let TouchEnd::Tap(owner, action) = &event && *owner == self.owner {
+        let TouchEnd::Tap(owner, action) = &event;
+        if *owner == self.owner {
             match action {
                 CellAction::Sticker(sticker) => {
                     ctx.hardware.trigger_haptic();

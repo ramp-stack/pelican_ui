@@ -245,11 +245,10 @@ impl GifPlayback {
             // Re-arm from now, so a late poll never tries to catch up on old ticks.
             self.refresh.reset(Self::INTERVAL);
             let frame = self.player.frame();
-            if let Some(video) = &frame.video {
-                if self.shown.as_ref().is_none_or(|shown| !Arc::ptr_eq(shown, video)) {
-                    self.shown = Some(video.clone());
-                    return frame;
-                }
+            if let Some(video) = &frame.video
+                && self.shown.as_ref().is_none_or(|shown| !Arc::ptr_eq(shown, video)) {
+                self.shown = Some(video.clone());
+                return frame;
             }
         }
     }

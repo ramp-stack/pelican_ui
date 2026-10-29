@@ -2,9 +2,10 @@
 
 ## Frontend development setup
 
-This development checkout uses the sibling `ptsd` 0.2.0 repository to retain the local
-scrolling and focus changes. Cargo retrieves backend dependencies from crates.io.
-Keep that sibling checkout available while using this local dependency configuration.
+Cargo retrieves PTSD 0.2.0 from the pinned Git revision and backend dependencies from
+crates.io. The component demo uses Ramp 3.0.4 with native text autocorrection. Keep the
+committed lockfile; sibling checkouts are optional. Use local Cargo overrides when editing
+multiple frontend crates together, and keep those overrides out of release manifests.
 Follow the [Orange setup instructions](https://github.com/ramp-stack/orange#frontend-setup)
 for Cargo Piston, the shared team identity, and build troubleshooting.
 

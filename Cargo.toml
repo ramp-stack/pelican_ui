@@ -27,9 +27,9 @@ bardecoder = "0.5"
 qrcode = {version = "0.14.1", default-features = false}
 image = "0.24.9"
 base64 = "0.22"
-ptsd = {package = "ptsd2", version = "0.2.0", path = "../ptsd"}
+ptsd = {package = "ptsd2", version = "0.2.0", git = "https://github.com/ramp-stack/ptsd", rev = "965e94c3094e0e871381b34d9b0ba9976232b10e"}
 prism = {package = "prism2", version = "3.1.0"}
-ramp = {package = "ramp2", version = "3.0.2", optional = true}
+ramp = {package = "ramp2", version = "3.0.4", optional = true}
 serde = "1.0.228"
 unicode-segmentation = "1.13.3"
 ureq = { version = "2", features = ["json"] }
