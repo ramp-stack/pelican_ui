@@ -81,7 +81,7 @@ impl NavigatorSelectable {
             let text = Text::new(
                 theme, label, font_size, TextStyle::Label(colors.label), Align::Left, None,
             ).fit();
-            let avatar = Avatar::new(theme, avatar.clone(), None, false, AvatarSize::Xs, None);
+            let avatar = Avatar::new(theme, avatar.clone(), None, AvatarSize::Xs, None);
             Bin(layout.clone(), Button::new(
                 vec![Box::new(avatar), Box::new(text)], ButtonSize::Large, ButtonWidth::Fill,
                 Offset::Start, colors.background, colors.outline,

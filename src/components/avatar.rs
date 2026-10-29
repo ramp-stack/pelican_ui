@@ -30,6 +30,9 @@ impl Hash for AvatarContent {
         match self {
             Self::Icon(icon, style) => {icon.hash(state); style.hash(state);}
             Self::Image(image) => {
+                // AIR signs before serialization and verifies after decoding.
+                // Hash the same thumbnail we transmit, not the original photo.
+                let image = Self::thumbnail(image);
                 image.dimensions.hash(state);
                 image.as_ref().hash(state);
             }
@@ -44,30 +47,32 @@ impl Default for AvatarContent {
 impl AvatarContent {
     pub fn icon(icon: Icons, style: AvatarIconStyle) -> Self {AvatarContent::Icon(icon, style)}
 
-    pub fn image(image: Image) -> Self {AvatarContent::Image(image)}
+    pub fn image(image: Image) -> Self {AvatarContent::Image(Self::thumbnail(&image))}
 
     pub fn from_string(s: &str) -> Self {
         general_purpose::STANDARD.decode(s).ok()
             .and_then(|bytes| Image::read(bytes.as_slice()).ok())
-            .map(AvatarContent::Image)
+            .map(Self::image)
             .unwrap_or_default()
     }
 
     pub fn get_image(&self) -> Option<String> {
         let AvatarContent::Image(image) = self else { return None };
-        let (width, height) = image.dimensions;
-        let pixels = image.as_ref();
         let mut bytes = Vec::new();
-        if width > 256 || height > 256 {
-            let image = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, pixels).unwrap();
-            let image = image::imageops::thumbnail(&image, 256, 256);
-            let pixels = image.pixels().map(|pixel| {
-                let [red, green, blue, alpha] = pixel.0;
-                Pixel {red, green, blue, alpha}
-            }).collect();
-            Image::new(image.dimensions(), pixels).write(&mut bytes, ImageFormat::Png).unwrap();
-        } else {image.write(&mut bytes, ImageFormat::Png).unwrap();}
+        Self::thumbnail(image).write(&mut bytes, ImageFormat::Png).unwrap();
         Some(general_purpose::STANDARD.encode(bytes))
+    }
+
+    fn thumbnail(image: &Image) -> Image {
+        let (width, height) = image.dimensions;
+        if width <= 256 && height <= 256 {return image.clone();}
+        let image = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, image.as_ref()).unwrap();
+        let image = image::imageops::thumbnail(&image, 256, 256);
+        let pixels = image.pixels().map(|pixel| {
+            let [red, green, blue, alpha] = pixel.0;
+            Pixel {red, green, blue, alpha}
+        }).collect();
+        Image::new(image.dimensions(), pixels)
     }
 }
 
@@ -128,18 +133,17 @@ pub struct Avatar {
     #[skip] _on_click: Option<Box<dyn Callback>>,
     #[skip] content: AvatarContent,
     #[skip] pub flair: Option<(Icons, AvatarIconStyle)>,
-    #[skip] pub outline: bool,
     #[skip] theme: Theme,
 }
 
 impl Avatar {
     pub fn new(
         theme: &Theme, content: AvatarContent, flair: Option<(Icons, AvatarIconStyle)>,
-        outline: bool, size: AvatarSize, on_click: Option<Box<dyn Callback>>,
+        size: AvatarSize, on_click: Option<Box<dyn Callback>>,
     ) -> Self {
         let face = AvatarFace(
             Stack::new(Offset::End, Offset::End, Size::Fit, Size::Fit, Padding::default()),
-            PrimaryAvatar::new(theme, content.clone(), outline, size),
+            PrimaryAvatar::new(theme, content.clone(), size),
             flair.map(|(name, style)| Flair::new(theme, name, style, size)),
         );
         let face: Box<dyn Drawable> = match on_click.clone() {
@@ -155,12 +159,12 @@ impl Avatar {
         };
         Avatar {
             _layout: Stack::default(), face, _size: size, _on_click: on_click,
-            content, flair, outline, theme: theme.clone(),
+            content, flair, theme: theme.clone(),
         }
     }
 
     pub fn default(theme: &Theme) -> Self {
-        Self::new(theme, AvatarContent::default(), None, false, AvatarSize::Lg, None)
+        Self::new(theme, AvatarContent::default(), None, AvatarSize::Lg, None)
     }
 
     pub fn content(&self) -> &AvatarContent {&self.content}
@@ -172,7 +176,7 @@ impl Avatar {
         };
         if changed {
             *self = Self::new(
-                &self.theme, content, self.flair, self.outline, self._size,
+                &self.theme, content, self.flair, self._size,
                 self._on_click.clone(),
             );
         }
@@ -185,9 +189,8 @@ pub struct AvatarGroup(Row, Vec<Avatar>);
 impl AvatarGroup {
     pub fn new(theme: &Theme, contents: Vec<AvatarContent>) -> Self {
         let contents = if contents.is_empty() { vec![AvatarContent::default()] } else { contents };
-        let outline = contents.len() > 1;
         AvatarGroup(Row::center(-8.0), contents.into_iter().map(|content| {
-            Avatar::new(theme, content, None, outline, AvatarSize::Sm, None)
+            Avatar::new(theme, content, None, AvatarSize::Sm, None)
         }).collect())
     }
 }
@@ -223,22 +226,20 @@ impl<'de> Visitor<'de> for AvatarContentVisitor {
 struct AvatarFace(Stack, PrimaryAvatar, Option<Flair>);
 
 #[derive(Clone, Component, Debug)]
-struct PrimaryAvatar(Stack, Box<dyn Drawable>, Option<Bin<Stack, Shape>>);
+struct PrimaryAvatar(Stack, Box<dyn Drawable>);
 
 impl PrimaryAvatar {
-    fn new(theme: &Theme, content: AvatarContent, outline: bool, size: AvatarSize) -> Self {
+    fn new(theme: &Theme, content: AvatarContent, size: AvatarSize) -> Self {
         let content: Box<dyn Drawable> = match content {
             AvatarContent::Image(image) => Box::new(MaskedImage(image, Variant::Ellipse)),
             AvatarContent::Icon(icon, style) => Box::new(AvatarIcon::new(theme, icon, style, size.get())),
         };
-        let background = theme.colors().get(ptsd::Background::Primary);
         PrimaryAvatar(
             Stack::new(
                 Offset::Center, Offset::Center, Size::Static(size.get()),
                 Size::Static(size.get()), Padding::default(),
             ),
             content,
-            outline.then(|| Circle::new(size.get(), background, true)),
         )
     }
 }
@@ -270,15 +271,13 @@ impl AvatarIcon {
 }
 
 #[derive(Debug, Component, Clone)]
-struct Flair(Stack, AvatarIcon, Bin<Stack, Shape>);
+struct Flair(Stack, AvatarIcon);
 
 impl Flair {
     fn new(theme: &Theme, name: Icons, style: AvatarIconStyle, size: AvatarSize) -> Self {
-        let background = theme.colors().get(ptsd::Background::Primary);
         Flair(
             Stack::center(),
             AvatarIcon::new(theme, name, style, size.get() / 3.0),
-            Circle::new(size.get() / 3.0, background, true),
         )
     }
 }

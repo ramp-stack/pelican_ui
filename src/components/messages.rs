@@ -1,7 +1,7 @@
 #![allow(clippy::large_enum_variant)]
 use prism::air::Name;
 use prism::events::Event;
-use prism::drawable::Component;
+use prism::drawable::{Component, Drawable};
 use prism::drawable::text::{Align, Font};
 use prism::Context;
 use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding};
@@ -26,7 +26,28 @@ pub enum Direction {Received, Sent}
 pub enum Room {Group(Direction), Direct(Direction), Room}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Eq, Hash)]
-pub enum MessageContent {Text(String), Sticker(Sticker), Gif(Gif), Photo(Photo), Video(Video)}
+pub enum MessageContent {Text(String), Sticker(Sticker), Gif(Gif), Photo(Photo), Video(Video), System(SystemMessage)}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Eq, Hash)]
+pub enum SystemMessage {MemberAdded(Name), MemberLeft(Name)}
+impl SystemMessage {
+    pub fn member(&self) -> Name {
+        match self {Self::MemberAdded(name) | Self::MemberLeft(name) => *name}
+    }
+    pub fn text(&self, username: &str) -> String {
+        match self {
+            Self::MemberAdded(_) => format!("{username} was added to the group"),
+            Self::MemberLeft(_) => format!("{username} left the group"),
+        }
+    }
+    pub fn text_for(&self, viewer: Name, username: &str) -> String {
+        if self.member() != viewer {return self.text(username);}
+        match self {
+            Self::MemberAdded(_) => "You were added to the group".into(),
+            Self::MemberLeft(_) => "You left the group".into(),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum SendEvent {Sticker(Sticker), Gif(Gif), Photo(Photo), Video(NewVideo)}
@@ -61,57 +82,52 @@ pub struct Message {
 }
 
 #[derive(Debug, Clone, Component)]
-pub struct MessageGroups(Column, Vec<MessageGroup>);
+pub struct MessageGroups(Column, Vec<Box<dyn Drawable>>);
 impl MessageGroups {
     pub fn new(ctx: &mut Context, theme: &Theme, messages: Vec<Message>, is_group: bool, is_room: bool) -> Self {
         if messages.is_empty() { return MessageGroups(Column::center(0.0), vec![]); }
 
-        let mut new: Vec<MessageGroup> = vec![];
+        let mut new: Vec<Box<dyn Drawable>> = vec![];
         let mut collection: Vec<Message> = vec![];
-        let mut prev = messages[0].clone();
-        let mut prev_auth = prev.author.clone();
-
-        for message in messages {
-            let timestamp = message.timestamp.clone();
-            let author = message.author.clone();
-            let close_enough = prev.timestamp.as_local().unwrap()
-                .signed_duration_since(timestamp.as_local().unwrap()).num_seconds().abs() <= 60;
-
-            if !collection.is_empty() && (!close_enough || author != prev_auth) {
+        let me = ctx.air.me();
+        let flush = |collection: &mut Vec<Message>, new: &mut Vec<Box<dyn Drawable>>| {
+            if !collection.is_empty() {
                 let a = collection[0].author.clone();
                 let t = collection.last().unwrap().timestamp.clone();
-                let direction = if a.is_me(ctx) { Direction::Sent } else { Direction::Received };
-
+                let direction = if a.name == me { Direction::Sent } else { Direction::Received };
                 let room_type = match is_room {
                     true => Room::Room,
                     false if is_group => Room::Group(direction),
                     false => Room::Direct(direction),
                 };
-
-                new.push(MessageGroup::new(theme, collection.clone(), t, a, room_type));
-
-                collection.clear();
+                new.push(Box::new(MessageGroup::new(theme, std::mem::take(collection), t, a, room_type)));
             }
-
-            collection.push(message.clone());
-
-            prev = message;
-            prev_auth = prev.author.clone();
+        };
+        for message in messages {
+            if let MessageContent::System(notice) = &message.body {
+                flush(&mut collection, &mut new);
+                // System entries are plain, noninteractive text, separate from
+                // sender groups. CHK supplies the affected member's profile.
+                new.push(Box::new(SystemMessageView::new(theme, &notice.text_for(me, &message.author.username))));
+                continue;
+            }
+            if collection.last().is_some_and(|prev| {
+                prev.author != message.author || prev.timestamp.as_local().unwrap()
+                    .signed_duration_since(message.timestamp.as_local().unwrap()).num_seconds().abs() > 60
+            }) {flush(&mut collection, &mut new);}
+            collection.push(message);
         }
-
-        if !collection.is_empty() {
-            let a = collection[0].author.clone();
-            let t = collection.last().unwrap().timestamp.clone();
-            let direction = if a.is_me(ctx) { Direction::Sent } else { Direction::Received };
-
-            new.push(MessageGroup::new(theme, collection.clone(), t, a, match is_room {
-                true => Room::Room,
-                false if is_group => Room::Group(direction),
-                false => Room::Direct(direction),
-            }));
-        }
+        flush(&mut collection, &mut new);
 
         MessageGroups(Column::center(24.0), new)
+    }
+}
+
+#[derive(Debug, Clone, Component)]
+pub struct SystemMessageView(Column, Text);
+impl SystemMessageView {
+    pub fn new(theme: &Theme, text: &str) -> Self {
+        Self(Column::center(0.0), Text::new(theme, text, TextSize::Sm, TextStyle::Secondary, Align::Center, None))
     }
 }
 
@@ -119,18 +135,12 @@ impl MessageGroups {
 pub struct MessageGroup(Row, Option<Bin<Stack, Avatar>>, _MessageGroup);
 impl MessageGroup {
     pub fn new(theme: &Theme, messages: Vec<Message>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
-        let avatar = Avatar::new(theme, profile.pfp.clone(), None, false, AvatarSize::Xs, None);
+        let avatar = Avatar::new(theme, profile.pfp.clone(), None, AvatarSize::Xs, None);
 
         let (layout, avatar) = match room {
             Room::Room => (Row::start(12.0), Some(Bin(Stack::default(), avatar))),
-            Room::Group(Direction::Received) => {
-                let layout = Stack::new(
-                    Offset::Start, Offset::Start, Size::Fit, Size::Fit, Padding(0.0, 0.0, 0.0, 18.0),
-                );
-                (Row::end(8.0), Some(Bin(layout, avatar)))
-            },
             Room::Direct(Direction::Received) | Room::Direct(Direction::Sent)
-                | Room::Group(Direction::Sent) => (Row::default(), None),
+                | Room::Group(_) => (Row::default(), None),
         };
 
         MessageGroup(
@@ -142,12 +152,14 @@ impl MessageGroup {
 #[derive(Debug, Clone, Component)]
 pub enum _MessageGroup {
     Group {layout: Column, msg: _TextMessages, info: MessageInfo},
+    ReceivedGroup {layout: Column, msg: _TextMessages, info: Bin<Row, (Avatar, MessageInfo)>},
     Direct {layout: Column, msg: _TextMessages, info: MessageInfo},
     Room {layout: Column, info: MessageInfo, msg: _TextMessages},
 }
 
 impl _MessageGroup {
     pub fn new(theme: &Theme, messages: Vec<Message>, timestamp: Timestamp, profile: Profile, room: Room) -> Self {
+        let photo = profile.pfp.clone();
         let info = MessageInfo::new(theme, profile.username, timestamp, room);
         let msg = _TextMessages::new(theme, messages, room);
         match room {
@@ -157,14 +169,20 @@ impl _MessageGroup {
                 _MessageGroup::Direct {layout: Column::start(8.0), msg, info}
             }
             Room::Group(Direction::Sent) => _MessageGroup::Group {layout: Column::end(8.0), msg, info},
-            Room::Group(Direction::Received) => _MessageGroup::Group {layout: Column::start(8.0), msg, info},
+            Room::Group(Direction::Received) => {
+                let avatar = Avatar::new(theme, photo, None, AvatarSize::Xs, None);
+                _MessageGroup::ReceivedGroup {
+                    layout: Column::start(8.0), msg,
+                    info: Bin(Row::center(8.0), (avatar, info)),
+                }
+            },
         }
     }
 
     pub fn messages(&mut self) -> &mut _TextMessages {
         match self {
             _MessageGroup::Room{msg, ..} | _MessageGroup::Direct{msg, ..}
-                | _MessageGroup::Group{msg, ..} => msg,
+                | _MessageGroup::Group{msg, ..} | _MessageGroup::ReceivedGroup{msg, ..} => msg,
         }
     }
 }
@@ -203,7 +221,12 @@ impl _TextMessages {
     pub fn new(theme: &Theme, messages: Vec<Message>, room: Room) -> Self {
         let layout = match room {
             Room::Group(Direction::Sent) | Room::Direct(Direction::Sent) => Column::end(8.0),
-            Room::Group(Direction::Received) | Room::Direct(Direction::Received) => Column::start(8.0),
+            Room::Group(Direction::Received) => {
+                let mut layout = Column::start(8.0);
+                layout.padding().0 = AvatarSize::Xs.get() + 8.0;
+                layout
+            },
+            Room::Direct(Direction::Received) => Column::start(8.0),
             Room::Room => Column::start(0.0),
         };
 
@@ -235,7 +258,8 @@ pub enum _TextMessage {
     Sticker { layout: Stack, sticker: StickerView },
     Gif { layout: Stack, gif: GifPlayer },
     Photo { layout: Stack, photo: PhotoView },
-    Video { layout: Stack, video: VideoView }
+    Video { layout: Stack, video: VideoView },
+    System {layout: Stack, text: SystemMessageView},
 }
 
 impl _TextMessage {
@@ -293,6 +317,9 @@ impl _TextMessage {
             },
             MessageContent::Video(video) => _TextMessage::Video {
                 layout: Stack::default(), video: VideoView::message(theme, video),
+            },
+            MessageContent::System(notice) => _TextMessage::System {
+                layout: Stack::default(), text: SystemMessageView::new(theme, &notice.text(&notice.member().to_string())),
             },
         }
     }

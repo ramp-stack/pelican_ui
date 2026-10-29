@@ -171,7 +171,7 @@ impl Shell {
             Box::new(ListItem::new(
                 theme, Some(Avatar::new(
                     theme, AvatarContent::icon(Icons::Profile, AvatarIconStyle::Brand),
-                    None, false, AvatarSize::Md, None,
+                    None, AvatarSize::Md, None,
                 )),
                 ListItemInfoLeft::new(
                     "Alex Rivera", Some("Product designer"), Some("Shared a new collection"), None,
@@ -180,7 +180,7 @@ impl Shell {
             Box::new(ListItem::new(
                 theme, Some(Avatar::new(
                     theme, AvatarContent::icon(Icons::Monitor, AvatarIconStyle::Success),
-                    None, false, AvatarSize::Md, None,
+                    None, AvatarSize::Md, None,
                 )),
                 ListItemInfoLeft::new(
                     "Sam Chen", Some("Developer"), Some("Your components are ready to explore"), None,

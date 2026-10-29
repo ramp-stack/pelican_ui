@@ -2,7 +2,7 @@
 
 ## Frontend development setup
 
-This development checkout uses the sibling `ptsd` 0.1.3 repository to retain the local
+This development checkout uses the sibling `ptsd` 0.2.0 repository to retain the local
 scrolling and focus changes. Cargo retrieves backend dependencies from crates.io.
 Keep that sibling checkout available while using this local dependency configuration.
 Follow the [Orange setup instructions](https://github.com/ramp-stack/orange#frontend-setup)
