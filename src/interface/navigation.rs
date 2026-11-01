@@ -1,5 +1,5 @@
 use prism::Context;
-use prism::drawable::Component;
+use prism::drawable::{Area, Component, Layout};
 use prism::drawable::text::Align;
 use prism::drawable::Svg;
 use ptsd::display::Bin;
@@ -208,24 +208,24 @@ impl Navigator {
         let group_id = uuid::Uuid::new_v4();
         let mut tabs = Vec::new();
         let count = navigation.len();
-        let button_width = ButtonSize::Medium.icon_button(ButtonStyle::Ghost).0;
-        let side_padding = (100.0 - button_width) / 2.0;
+        let (button_width, icon_width, _) = ButtonSize::Medium.icon_button(ButtonStyle::Ghost);
+        let outer_spacing = 72.0;
+        let side_padding = outer_spacing - (button_width - icon_width) / 2.0;
         for (i, info) in navigation.into_iter().enumerate() {
             let closure = move |ctx: &mut Context, _: &Theme| {
                 ctx.emit(NavigationEvent::root(&info.label))
             };
-            // Only the outer tap areas expand. Align their icons toward the
-            // middle so the visible group stays centered at 100-point intervals.
+            // Keep the visible outer icon edges 48 points from the screen edges.
+            // Padding belongs to the selectable, so the full edge remains tappable.
             let offset = if count == 1 {Offset::Center}
-                else if i == 0 {Offset::End}
-                else if i == count - 1 {Offset::Start}
+                else if i == 0 {Offset::Start}
+                else if i == count - 1 {Offset::End}
                 else {Offset::Center};
-            let width = if i == 0 || i == count - 1 {
-                Size::custom(move |_| (button_width, f32::MAX))
-            } else {Size::Static(button_width)};
+            let left = if count > 1 && i == 0 {side_padding} else {0.0};
+            let right = if count > 1 && i == count - 1 {side_padding} else {0.0};
             let layout = Stack::new(
-                offset, Offset::Center, width, Size::Fit,
-                Padding(side_padding, 8.0, side_padding, 8.0),
+                offset, Offset::Center, Size::custom(move |_| (button_width, f32::MAX)), Size::Fit,
+                Padding(left, 8.0, right, 8.0),
             );
             tabs.push(NavigatorSelectable::mobile_with_layout(
                 theme, info.icon, layout, closure, 0 == i, group_id,
@@ -235,7 +235,7 @@ impl Navigator {
         Navigator::Mobile {
             layout: Stack::new(Offset::Center, Offset::Start, Size::Fill, height, Padding::default()),
             background: Rectangle::new(background, 0.0, None),
-            content: MobileNavigatorContent::new(tabs)
+            content: MobileNavigatorContent::new(tabs, outer_spacing + icon_width / 2.0)
         }
     }
 
@@ -270,12 +270,55 @@ impl Navigator {
 
 /// Public because it is the content of the `Navigator::Mobile` variant.
 #[derive(Debug, Component, Clone)]
-pub struct MobileNavigatorContent(Row, Vec<NavigatorSelectable>);
+pub struct MobileNavigatorContent(MobileTabLayout, Vec<NavigatorSelectable>);
 
 impl MobileNavigatorContent {
-    fn new(tabs: Vec<NavigatorSelectable>) -> Self {
-        let layout = Row::new(0.0, Offset::Center, Size::Fit, Padding::default());
+    fn new(tabs: Vec<NavigatorSelectable>, edge_center: f32) -> Self {
+        let layout = MobileTabLayout {widths: Vec::new(), edge_center};
         MobileNavigatorContent(layout, tabs)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct MobileTabLayout {
+    widths: Vec<f32>,
+    edge_center: f32,
+}
+
+impl Layout for MobileTabLayout {
+    fn request_width(&mut self, children: Vec<(f32, f32)>) -> (f32, f32) {
+        self.widths.resize(children.len(), 0.0);
+        (children.iter().map(|child| child.0).sum(), f32::MAX)
+    }
+
+    fn assign_width(&mut self, width: f32) -> Vec<f32> {
+        let count = self.widths.len();
+        if count == 1 {self.widths[0] = width;}
+        else if count > 1 {
+            let spacing = (width - 2.0 * self.edge_center) / (count - 1) as f32;
+            // Hit regions meet halfway between icon centers, reaching both edges.
+            let mut left = 0.0;
+            for (i, tab) in self.widths.iter_mut().enumerate() {
+                let right = if i == count - 1 {width}
+                    else {self.edge_center + (i as f32 + 0.5) * spacing};
+                *tab = right - left;
+                left = right;
+            }
+        }
+        self.widths.clone()
+    }
+
+    fn request_height(&mut self, _: f32, children: Vec<(f32, f32)>) -> (f32, f32) {
+        Size::max(children)
+    }
+
+    fn layout(&mut self, size: (f32, f32)) -> Vec<Area> {
+        let mut x = 0.0;
+        self.assign_width(size.0).into_iter().map(|width| {
+            let area = Area {offset: (x, 0.0), size: (width, size.1)};
+            x += width;
+            area
+        }).collect()
     }
 }
 

@@ -37,7 +37,7 @@ impl GifSearchHeader {
             theme, uuid::Uuid::new_v4(), (!query.is_empty()).then_some(query), None,
             Some("Search GIPHY"), None, None,
         );
-        let mut close = GhostIconButton::new(
+        let close = GhostIconButton::new(
             theme, Icons::Close,
             Stack::new(
                 Offset::Center, Offset::Center, Size::Fit, Size::Fill,
@@ -45,7 +45,6 @@ impl GifSearchHeader {
             ),
             |ctx, _| ctx.emit(GifSearchEvent::Close),
         );
-        close.1.set_trigger_on_release();
         let field = Bin(
             Stack::new(
                 Offset::Center, Offset::Center, Size::Fit, Size::Fit,
@@ -291,7 +290,7 @@ impl GifBar {
         GifBar(
             Row::center(0.0),
             (!searching).then(|| {
-                let mut button = GhostIconButton::new(
+                let button = GhostIconButton::new(
                     theme, Icons::Search,
                     Stack::new(
                         Offset::Center, Offset::Center, Size::Fit, Size::Fit,
@@ -299,7 +298,6 @@ impl GifBar {
                     ),
                     |ctx, _| ctx.emit(GifSearchEvent::Open),
                 );
-                button.1.set_trigger_on_release();
                 button
             }),
             Bin(

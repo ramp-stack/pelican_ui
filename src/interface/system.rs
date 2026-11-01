@@ -1,6 +1,6 @@
 use futures::future::Either;
 use prism::events::{DynEvent, ListenCallback, ListenFuture, MouseEvent, MouseState, MouseButton};
-use prism::events::{ChildEvent, Event, OnEvent, OnChange, WindowEvent, on_event, on_change};
+use prism::events::{ChildEvent, Event, OnEvent, WindowEvent, on_event};
 use prism::drawable::{Area, Drawable, Component, Instruction, Layout, LayoutTree, Rect};
 use prism::Context;
 use ptsd::layout::{Stack, Column, Row, Offset, Size, Padding, ScrollAnchor};
@@ -166,13 +166,17 @@ impl GrowingGrid {
 #[on_event]
 impl OnEvent<MouseEvent> for GrowingGrid {
     fn on(&mut self, ctx: &mut Context, mouse: MouseEvent) -> Vec<Box<dyn DynEvent>> {
-        let events = PanelGrid::pointer(ctx, &mut self.press, mouse);
+        let mut events = PanelGrid::pointer(ctx, &mut self.press, mouse);
         for event in &events {
             if let Some(MouseEvent {state: MouseState::Scroll(_, dy), position}) = event.downcast_ref()
                 && !self.press.claimed() && (position.is_some() || self.press.travel().is_some())
             {
                 self.layout.scroll.adjust_scroll(*dy);
             }
+        }
+        if !self.press.claimed() {
+            events.retain(|event| !matches!(event.downcast_ref::<MouseEvent>(),
+                Some(MouseEvent {state: MouseState::Scroll(..), ..})));
         }
         events
     }
@@ -195,10 +199,6 @@ impl OnEvent<WindowEvent> for GrowingGrid {
     }
 }
 
-#[on_change(self.press.next())]
-impl OnChange<PressEvent> for GrowingGrid {
-    fn on_change(&mut self, ctx: &mut Context, event: PressEvent) {ctx.emit(event);}
-}
 
 #[derive(Debug, Clone)]
 struct Clip<D: Drawable + Clone>(D);
@@ -270,11 +270,7 @@ impl PanelGrid {
     }
 
     fn pointer(ctx: &mut Context, press: &mut DeferredPress, mouse: MouseEvent) -> Vec<Box<dyn DynEvent>> {
-        let events = if !ctx.window.is_mobile && mouse.position.is_some()
-            && mouse.state == MouseState::Pressed(MouseButton::Left)
-        {
-            press.press(PressEvent::Pending {id: Uuid::new_v4(), position: mouse.position})
-        } else {press.mouse(ctx.window.is_mobile, mouse)};
+        let events = press.mouse(ctx.window.is_mobile, mouse);
         for event in &events {
             if let Some(PressEvent::Cancel(id)) = event.downcast_ref::<PressEvent>() {
                 ctx.emit(PressEvent::Cancel(*id));
@@ -356,22 +352,14 @@ impl OnEvent<MouseEvent> for PanelCell {
 
 #[on_event]
 impl OnEvent<PressEvent> for PanelCell {
-    fn on(&mut self, ctx: &mut Context, event: PressEvent) -> Vec<Box<dyn DynEvent>> {
+    fn on(&mut self, _ctx: &mut Context, event: PressEvent) -> Vec<Box<dyn DynEvent>> {
         match event {
             PressEvent::Pending {id, position} => {
                 let position = position.filter(|_| self.3.is_some());
                 self.4.pending(id, position);
                 self.press(position.is_some());
-                if !ctx.window.is_mobile && matches!(self.3, Some(CellAction::Emoji(_)))
-                    && self.4.commit(id).is_some()
-                {
-                    self.activate(ctx);
-                }
             }
-            PressEvent::Commit(id) => if self.4.commit(id).is_some() {
-                self.activate(ctx);
-                ctx.emit(PressEvent::Claim(id));
-            },
+            PressEvent::Commit(_) => {},
             PressEvent::Cancel(id) => if self.4.cancel(id) {self.press(false);},
             PressEvent::Claim(_) => {}
         }

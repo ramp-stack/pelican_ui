@@ -235,11 +235,10 @@ impl _TextMessages {
             let theme = theme.clone();
             let mut on_click = message.on_click;
             let callback = Box::new(move |ctx: &mut Context| (on_click)(ctx, &theme));
-            let mut button = interactions::Button::new(
+            let button = interactions::Button::new(
                 bubble, None::<_TextMessage>, None::<_TextMessage>, None::<_TextMessage>,
                 None::<_TextMessage>, callback, false,
             );
-            button.set_trigger_on_release();
             button
         }).collect::<Vec<_>>();
 

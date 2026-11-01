@@ -196,7 +196,7 @@ impl SearchBarListItem {
     pub fn new(theme: &Theme, item: ListItem, mut callback: Box<dyn Callback>, id: Name) -> Self {
         let theme = theme.clone();
         let callback = Box::new(move |ctx: &mut Context| (callback)(ctx, &theme));
-        let button = interactions::Button::new_triggers_on_release(
+        let button = interactions::Button::new(
             item.clone(), None::<ListItem>, None::<ListItem>, None::<ListItem>, None::<ListItem>,
             callback, false,
         );

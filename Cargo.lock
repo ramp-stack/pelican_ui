@@ -4154,7 +4154,6 @@ checksum = "3d595e54a326bc53c1c197b32d295e14b169e3cfeaa8dc82b529f947fba6bcf5"
 [[package]]
 name = "ptsd2"
 version = "0.2.0"
-source = "git+https://github.com/ramp-stack/ptsd?rev=965e94c3094e0e871381b34d9b0ba9976232b10e#965e94c3094e0e871381b34d9b0ba9976232b10e"
 dependencies = [
  "chrono",
  "downcast-rs 2.0.2",
@@ -7015,3 +7014,7 @@ dependencies = [
  "syn 3.0.6",
  "winnow 1.0.4",
 ]
+
+[[patch.unused]]
+name = "chk"
+version = "2.0.0"

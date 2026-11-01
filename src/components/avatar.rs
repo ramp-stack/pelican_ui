@@ -150,7 +150,7 @@ impl Avatar {
             Some(mut on_click) => {
                 let theme = theme.clone();
                 let callback = move |ctx: &mut Context| on_click(ctx, &theme);
-                Box::new(interactions::Button::new_triggers_on_release(
+                Box::new(interactions::Button::new(
                     face, None::<AvatarFace>, None::<AvatarFace>, None::<AvatarFace>,
                     None::<AvatarFace>, callback, false,
                 ))

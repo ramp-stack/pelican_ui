@@ -24,8 +24,8 @@ fn mobile_navigation_centers_icons_and_keeps_the_entire_row_selectable() {
             Icons::Profile, &index.to_string(), Box::new(InputPage::new(&app.theme)),
         )).collect();
         let mut navigator = Navigator::mobile(&app.theme, roots);
-        for width in [320.0, 375.0, 430.0, 768.0] {
-            if width < count as f32 * 100.0 {continue;}
+        // Match the current 72-point outer spacing while checking full-row hit regions.
+        for width in [375.0, 390.0, 430.0, 768.0] {
             let (min, max) = navigator.request_width();
             assert!(min <= width && max >= width);
             let (_, height) = navigator.request_height(width);
@@ -37,9 +37,11 @@ fn mobile_navigation_centers_icons_and_keeps_the_entire_row_selectable() {
                 } else {None}
             }).collect();
             assert_eq!(centers.len(), count);
-            let first_center = (width - (count - 1) as f32 * 100.0) / 2.0;
+            let first_center = if count == 1 {width / 2.0} else {72.0 + 32.0 / 2.0};
+            let spacing = if count == 1 {0.0} else {(width - 2.0 * first_center) / (count - 1) as f32};
             for (index, center) in centers.iter().enumerate() {
-                assert!((center - (first_center + index as f32 * 100.0)).abs() < 0.01);
+                assert!((center - (first_center + index as f32 * spacing)).abs() < 0.01);
+                assert!(*center >= 16.0 && *center <= width - 16.0);
             }
 
             // Check actual event routing across the whole row, including the
@@ -60,8 +62,10 @@ fn mobile_navigation_centers_icons_and_keeps_the_entire_row_selectable() {
                         }
                         pending.extend(app.context.events());
                     }
-                    let expected = ((x - first_center) / 100.0).round()
-                        .clamp(0.0, (count - 1) as f32) as usize;
+                    let expected = if count == 1 {0} else {
+                        ((x - first_center) / spacing).round()
+                            .clamp(0.0, (count - 1) as f32) as usize
+                    };
                     assert_eq!(selected, vec![expected.to_string()], "tap at ({x}, {y}), width {width}");
                 }
             }
@@ -538,4 +542,208 @@ fn focus_adjusts_scroll_without_adding_blank_content(platform: Platform) {
     settle(&mut content, &mut app.context, 600.0);
     assert_eq!(content.children.1.column().padding().3, 0.0);
     assert!(content.children.scroll() <= (content.children.1.request_height(327.0).1 - 600.0).max(0.0));
+}
+
+mod list_taps {
+    use super::*;
+    use pelican_ui::components::{DataItem, list_item::{ListItem, ListItemInfoLeft}};
+    use prism::events::{MouseButton, MouseEvent, MouseState};
+    use std::sync::atomic::AtomicUsize;
+
+    fn list(theme: &Theme, clicks: Arc<AtomicUsize>) -> DataItem {
+        let rows = (0..12).map(|i| {
+            let clicks = clicks.clone();
+            ListItem::new(theme, None, ListItemInfoLeft::new(&format!("Member {i}"), None, None, None),
+                None, None, None, move |_, _| {clicks.fetch_add(1, Ordering::Relaxed);})
+        }).collect();
+        DataItem::list(theme, "Members", None, rows, None)
+    }
+
+    fn send(view: &mut impl Drawable, ctx: &mut Context, event: impl Event) {
+        ctx.emit(event);
+        drain(view, ctx);
+    }
+
+    fn drain(view: &mut impl Drawable, ctx: &mut Context) {
+        let mut events = ctx.events();
+        while let Some(event) = events.pop_front() {
+            view.request_width();
+            view.request_height(375.0);
+            let layout = view.layout((375.0, 300.0));
+            view.event(ctx, &layout, event);
+            events.extend(ctx.events());
+        }
+    }
+
+    fn pointer(y: f32, state: MouseState) -> MouseEvent {MouseEvent {position: Some((80.0, y)), state}}
+
+    fn hold_without_activating(view: &mut impl Drawable, ctx: &mut Context) {
+        use futures::FutureExt;
+        // Longer than the old 150ms timer: a hold still is not proof of a tap.
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        assert!(view.changed().now_or_never().is_none(), "a hold must not commit a press");
+        drain(view, ctx);
+    }
+
+    #[test]
+    fn quick_and_delayed_taps_in_a_scrolling_list_open_exactly_once() {
+        for delayed in [false, true] {
+            let mut app = App::new(Platform::Mobile);
+            let clicks = Arc::new(AtomicUsize::new(0));
+            let mut view = ptsd::emitters::Scrollable::new(list(&app.theme, clicks.clone()));
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+            if delayed {hold_without_activating(&mut view, &mut app.context);}
+            send(&mut view, &mut app.context, pointer(67.0, MouseState::Scroll(0.0, -2.0)));
+            assert_eq!(clicks.load(Ordering::Relaxed), 0);
+            send(&mut view, &mut app.context, pointer(67.0, MouseState::Released(MouseButton::Left)));
+            assert_eq!(clicks.load(Ordering::Relaxed), 1);
+            assert_eq!(view.scroll(), 0.0);
+        }
+    }
+
+    #[test]
+    fn list_rows_cancel_movement_on_release_and_recover_for_the_next_tap() {
+        for platform in [Platform::Mobile, Platform::Desktop] {
+            let mut app = App::new(platform);
+            let clicks = Arc::new(AtomicUsize::new(0));
+            let mut view = ptsd::emitters::Scrollable::new(list(&app.theme, clicks.clone()));
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+            // A fast drag may deliver its final position only on release.
+            send(&mut view, &mut app.context, pointer(73.0, MouseState::Released(MouseButton::Left)));
+            assert_eq!(clicks.load(Ordering::Relaxed), 0, "a drag must not open a row");
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+            send(&mut view, &mut app.context, pointer(67.0, MouseState::Moved));
+            assert_eq!(clicks.load(Ordering::Relaxed), 0);
+            send(&mut view, &mut app.context, pointer(67.0, MouseState::Released(MouseButton::Left)));
+            assert_eq!(clicks.load(Ordering::Relaxed), 1, "small tap jitter should still work");
+        }
+    }
+
+    #[test]
+    fn list_rows_cancel_scroll_even_when_the_pointer_stays_over_the_same_row() {
+        for platform in [Platform::Mobile, Platform::Desktop] {
+            let mut app = App::new(platform);
+            let clicks = Arc::new(AtomicUsize::new(0));
+            let mut view = ptsd::emitters::Scrollable::new(list(&app.theme, clicks.clone()));
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Scroll(0.0, 20.0)));
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Released(MouseButton::Left)));
+            assert_eq!(clicks.load(Ordering::Relaxed), 0);
+        }
+    }
+
+    #[test]
+    fn a_small_scroll_that_returns_to_its_start_is_not_a_tap() {
+        let mut app = App::new(Platform::Mobile);
+        let clicks = Arc::new(AtomicUsize::new(0));
+        let mut view = ptsd::emitters::Scrollable::new(list(&app.theme, clicks.clone()));
+        send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+        send(&mut view, &mut app.context, pointer(73.0, MouseState::Scroll(0.0, -8.0)));
+        send(&mut view, &mut app.context, pointer(65.0, MouseState::Scroll(0.0, 8.0)));
+        send(&mut view, &mut app.context, pointer(65.0, MouseState::Released(MouseButton::Left)));
+        assert_eq!(clicks.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn pausing_before_a_drag_does_not_let_the_row_capture_scrolling() {
+        let mut app = App::new(Platform::Mobile);
+        let clicks = Arc::new(AtomicUsize::new(0));
+        let mut view = ptsd::emitters::Scrollable::new(list(&app.theme, clicks.clone()));
+        send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+        hold_without_activating(&mut view, &mut app.context);
+        assert_eq!(clicks.load(Ordering::Relaxed), 0);
+        send(&mut view, &mut app.context, pointer(40.0, MouseState::Scroll(0.0, 25.0)));
+        assert!(view.scroll() > 0.0, "a row must let its parent scroll after the press delay");
+        send(&mut view, &mut app.context, pointer(40.0, MouseState::Released(MouseButton::Left)));
+        assert_eq!(clicks.load(Ordering::Relaxed), 0);
+    }
+    #[derive(Clone, Debug, Component)]
+    struct PointerProbe(Stack, pelican_ui::components::Rectangle, #[skip] Arc<std::sync::Mutex<Vec<MouseState>>>);
+    impl PointerProbe {
+        fn new(events: Arc<std::sync::Mutex<Vec<MouseState>>>) -> Self {
+            use ptsd::layout::{Offset, Size, Padding};
+            Self(Stack::new(Offset::Start, Offset::Start, Size::Fill, Size::Static(300.0), Padding::default()),
+                pelican_ui::components::Rectangle::new(pelican_ui::theme::Color::transparent(), 0.0, None), events)
+        }
+    }
+
+    #[prism::events::on_event]
+    impl prism::events::OnEvent<MouseEvent> for PointerProbe {
+        fn on(&mut self, _: &mut Context, mouse: MouseEvent) -> Vec<Box<dyn prism::events::DynEvent>> {
+            self.2.lock().unwrap().push(mouse.state);
+            vec![]
+        }
+    }
+
+    #[test]
+    fn scrolling_gates_raw_mouse_events_and_nested_containers_replay_a_tap_once() {
+        for platform in [Platform::Mobile, Platform::Desktop] {
+            let mut app = App::new(platform);
+            let received = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let probe = PointerProbe::new(received.clone());
+            let mut view = ptsd::emitters::Scrollable::new(ptsd::emitters::Scrollable::new(probe));
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+            send(&mut view, &mut app.context, pointer(67.0, MouseState::Moved));
+            assert!(received.lock().unwrap().is_empty());
+            send(&mut view, &mut app.context, pointer(67.0, MouseState::Released(MouseButton::Left)));
+            assert_eq!(*received.lock().unwrap(), [MouseState::Pressed(MouseButton::Left), MouseState::Released(MouseButton::Left)]);
+            received.lock().unwrap().clear();
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+            send(&mut view, &mut app.context, pointer(40.0, MouseState::Scroll(0.0, 25.0)));
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Released(MouseButton::Left)));
+            assert!(received.lock().unwrap().is_empty(), "drag mouse events must stay in the scroll container");
+        }
+    }
+
+    #[test]
+    fn ordinary_buttons_activate_on_press_and_not_again_on_release() {
+        for platform in [Platform::Mobile, Platform::Desktop] {
+            let mut app = App::new(platform);
+            let clicks = Arc::new(AtomicUsize::new(0));
+            let counter = clicks.clone();
+            let blank = || PointerProbe::new(Default::default());
+            let mut view = ptsd::interactions::Button::new(blank(), Some(blank()), Some(blank()),
+                Some(blank()), None::<PointerProbe>, move |_| {counter.fetch_add(1, Ordering::Relaxed);}, true);
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+            assert_eq!(clicks.load(Ordering::Relaxed), 1);
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Released(MouseButton::Left)));
+            assert_eq!(clicks.load(Ordering::Relaxed), 1);
+            view.disable(true);
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+            send(&mut view, &mut app.context, pointer(65.0, MouseState::Released(MouseButton::Left)));
+            assert_eq!(clicks.load(Ordering::Relaxed), 1);
+        }
+    }
+
+    #[test]
+    fn window_blur_cancels_a_pending_tap_and_the_next_tap_recovers() {
+        let mut app = App::new(Platform::Mobile);
+        let clicks = Arc::new(AtomicUsize::new(0));
+        let mut view = ptsd::emitters::Scrollable::new(list(&app.theme, clicks.clone()));
+        send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+        send(&mut view, &mut app.context, prism::events::WindowEvent::Focused(false));
+        send(&mut view, &mut app.context, pointer(65.0, MouseState::Released(MouseButton::Left)));
+        assert_eq!(clicks.load(Ordering::Relaxed), 0);
+        send(&mut view, &mut app.context, pointer(65.0, MouseState::Pressed(MouseButton::Left)));
+        send(&mut view, &mut app.context, pointer(65.0, MouseState::Released(MouseButton::Left)));
+        assert_eq!(clicks.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn sliders_can_claim_a_drag_inside_scrollable_content() {
+        let mut app = App::new(Platform::Mobile);
+        let values = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let observed = values.clone();
+        let slider = pelican_ui::components::Slider::new(&app.theme, 0.5, None, None,
+            move |_, _, value| {observed.lock().unwrap().push(value);});
+        let mut view = ptsd::emitters::Scrollable::new(slider);
+        send(&mut view, &mut app.context, MouseEvent {position: Some((80.0, 9.0)), state: MouseState::Pressed(MouseButton::Left)});
+        send(&mut view, &mut app.context, MouseEvent {position: Some((180.0, 9.0)), state: MouseState::Moved});
+        send(&mut view, &mut app.context, MouseEvent {position: Some((180.0, 9.0)), state: MouseState::Released(MouseButton::Left)});
+        let values = values.lock().unwrap();
+        assert!(values.len() >= 2, "slider must receive its drag");
+        assert!(values.last().unwrap() > values.first().unwrap());
+        assert_eq!(view.scroll(), 0.0);
+    }
+
 }

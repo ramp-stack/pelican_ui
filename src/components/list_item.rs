@@ -73,8 +73,7 @@ impl Group {
 pub struct ListItemGroup(Stack, Option<Text>, Option<Group>);
 
 impl ListItemGroup {
-    pub fn new(theme: &Theme, instructions: Option<String>, mut items: Vec<ListItem>, has_label: bool) -> Self {
-        items.iter_mut().for_each(|i| i.1.set_trigger_on_release());
+    pub fn new(theme: &Theme, instructions: Option<String>, items: Vec<ListItem>, has_label: bool) -> Self {
 
         let layout = match items.is_empty() {
             true if has_label => Stack::new(

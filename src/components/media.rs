@@ -257,7 +257,7 @@ impl VideoView {
                 Offset::Center, Offset::Center, Size::Static(size.0), Size::Static(size.1),
                 Padding::default(),
             ),
-            button: Some(interactions::Button::new_triggers_on_release(
+            button: Some(interactions::Button::new(
                 face, None::<VideoFace>, None::<VideoFace>, None::<VideoFace>, None::<VideoFace>,
                 callback, false,
             )), player: None, loading: None, id, video: video.clone(), clips: None,
@@ -337,10 +337,9 @@ pub struct AttachButton {
 impl AttachButton {
     pub fn new(theme: &Theme, layout: Stack) -> Self {
         let id = uuid::Uuid::new_v4();
-        let mut button = GhostIconButton::new(theme, Icons::Photos, layout, move |ctx, _| {
+        let button = GhostIconButton::new(theme, Icons::Photos, layout, move |ctx, _| {
             ctx.emit(AttachButtonEvent::Pick(id))
         });
-        button.1.set_trigger_on_release();
         AttachButton {
             layout: Stack::default(), button, id, picked: None, preparing: VecDeque::new(),
         }

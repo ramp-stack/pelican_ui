@@ -99,7 +99,7 @@ impl MessageBarContent {
                     theme, icon, ButtonStyle::Ghost, ButtonSize::Medium,
                     c.background, c.outline, c.label,
                 ));
-                interactions::Button::new_triggers_on_release(
+                interactions::Button::new(
                     face, None::<IconButton>, None::<IconButton>, None::<IconButton>,
                     None::<IconButton>, move |ctx: &mut Context| ctx.emit(action), false,
                 )
@@ -109,12 +109,11 @@ impl MessageBarContent {
                 layout: Stack::default(), button: looks[0].clone(), action, looks, selected: false,
             }, visible)
         }).collect();
-        let mut hide = GhostIconButton::new(
+        let hide = GhostIconButton::new(
             theme, Icons::DownArrow,
             Stack::new(Offset::End, Offset::Center, Size::Fit, Size::Fit, Padding(4.0, 6.0, 0.0, 8.0)),
             |ctx, _| ctx.emit(MessageBarEvent::Hide),
         );
-        hide.1.set_trigger_on_release();
         Self {
             layout: Column::new(0.0, Offset::Start, Size::Fill, Padding::default(), None),
             field: Bin(

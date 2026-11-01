@@ -192,7 +192,7 @@ impl EmojiStrip {
 #[on_event]
 impl OnEvent<MouseEvent> for EmojiStrip {
     fn on(&mut self, ctx: &mut Context, mouse: MouseEvent) -> Vec<Box<dyn DynEvent>> {
-        let events = PanelGrid::pointer(ctx, &mut self.press, mouse);
+        let mut events = PanelGrid::pointer(ctx, &mut self.press, mouse);
         for event in &events {
             if let Some(MouseEvent {state: MouseState::Scroll(dx, dy), position}) = event.downcast_ref()
                 && !self.press.claimed() && (position.is_some() || self.press.travel().is_some())
@@ -202,6 +202,10 @@ impl OnEvent<MouseEvent> for EmojiStrip {
                 let delta = if !ctx.window.is_mobile && dx.abs() < dy.abs() {*dy} else {*dx};
                 self.layout.scroll = (self.layout.scroll + delta).clamp(0.0, self.layout.limit());
             }
+        }
+        if !self.press.claimed() {
+            events.retain(|event| !matches!(event.downcast_ref::<MouseEvent>(),
+                Some(MouseEvent {state: MouseState::Scroll(..), ..})));
         }
         events
     }
@@ -220,10 +224,6 @@ impl OnEvent<WindowEvent> for EmojiStrip {
         }
         prism::events![event]
     }
-}
-#[on_change(self.press.next())]
-impl OnChange<PressEvent> for EmojiStrip {
-    fn on_change(&mut self, ctx: &mut Context, event: PressEvent) {ctx.emit(event);}
 }
 
 #[derive(Debug, Clone)]
