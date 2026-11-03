@@ -18,6 +18,65 @@ use crate::Callback;
 use crate::theme::{Theme, Color, Icons};
 use crate::components::{Icon, Circle, MaskedImage};
 
+/// An avatar snapshot or an avatar supplied by a changing source.
+#[derive(Clone)]
+pub struct AvatarValue {
+    content: AvatarContent,
+    source: Option<Box<dyn AvatarSource>>,
+}
+
+impl AvatarValue {
+    pub fn watch<S, L, F>(source: S, listen: L, value: F) -> Self
+    where S: Clone + 'static, L: AsyncFnMut(&mut S) + Clone + 'static,
+        F: FnMut(&S) -> AvatarContent + Clone + 'static,
+    {
+        let mut source = WatchedAvatar {source, listen, value};
+        Self {content: source.value(), source: Some(Box::new(source))}
+    }
+
+    fn current(&mut self) -> AvatarContent {
+        if let Some(source) = &mut self.source {self.content = source.value();}
+        self.content.clone()
+    }
+
+    async fn changed(&mut self) -> AvatarContent {
+        let Some(source) = &mut self.source else {return std::future::pending().await};
+        loop {
+            let content = source.value();
+            if content != self.content {return content;}
+            source.next().await;
+        }
+    }
+}
+impl From<AvatarContent> for AvatarValue {
+    fn from(content: AvatarContent) -> Self {Self {content, source: None}}
+}
+impl fmt::Debug for AvatarValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AvatarValue").field("content", &self.content).finish_non_exhaustive()
+    }
+}
+trait AvatarSource {
+    fn value(&mut self) -> AvatarContent;
+    fn next(&mut self) -> std::pin::Pin<Box<dyn Future<Output = ()> + '_>>;
+    fn clone_box(&self) -> Box<dyn AvatarSource>;
+}
+impl Clone for Box<dyn AvatarSource> {
+    fn clone(&self) -> Self {self.as_ref().clone_box()}
+}
+#[derive(Clone)]
+struct WatchedAvatar<S, L, F> {source: S, listen: L, value: F}
+impl<S, L, F> AvatarSource for WatchedAvatar<S, L, F>
+where S: Clone + 'static, L: AsyncFnMut(&mut S) + Clone + 'static,
+    F: FnMut(&S) -> AvatarContent + Clone + 'static,
+{
+    fn value(&mut self) -> AvatarContent {(self.value)(&self.source)}
+    fn next(&mut self) -> std::pin::Pin<Box<dyn Future<Output = ()> + '_>> {
+        Box::pin((self.listen)(&mut self.source))
+    }
+    fn clone_box(&self) -> Box<dyn AvatarSource> {Box::new(self.clone())}
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AvatarContent {
     Icon(Icons, AvatarIconStyle),
@@ -132,15 +191,18 @@ pub struct Avatar {
     #[skip] _size: AvatarSize,
     #[skip] _on_click: Option<Box<dyn Callback>>,
     #[skip] content: AvatarContent,
+    #[skip] value: AvatarValue,
     #[skip] pub flair: Option<(Icons, AvatarIconStyle)>,
     #[skip] theme: Theme,
 }
 
 impl Avatar {
     pub fn new(
-        theme: &Theme, content: AvatarContent, flair: Option<(Icons, AvatarIconStyle)>,
+        theme: &Theme, content: impl Into<AvatarValue>, flair: Option<(Icons, AvatarIconStyle)>,
         size: AvatarSize, on_click: Option<Box<dyn Callback>>,
     ) -> Self {
+        let mut value = content.into();
+        let content = value.current();
         let face = AvatarFace(
             Stack::new(Offset::End, Offset::End, Size::Fit, Size::Fit, Padding::default()),
             PrimaryAvatar::new(theme, content.clone(), size),
@@ -159,7 +221,7 @@ impl Avatar {
         };
         Avatar {
             _layout: Stack::default(), face, _size: size, _on_click: on_click,
-            content, flair, theme: theme.clone(),
+            content, value, flair, theme: theme.clone(),
         }
     }
 
@@ -175,12 +237,19 @@ impl Avatar {
             (a, b) => a != b,
         };
         if changed {
+            let source = self.value.source.take();
             *self = Self::new(
                 &self.theme, content, self.flair, self._size,
                 self._on_click.clone(),
             );
+            self.value.source = source;
         }
     }
+}
+
+#[prism::events::on_change(self.value.changed())]
+impl prism::events::OnChange<AvatarContent> for Avatar {
+    fn on_change(&mut self, _: &mut Context, content: AvatarContent) {self.set_content(content);}
 }
 
 #[derive(Debug, Component, Clone)]
@@ -271,13 +340,14 @@ impl AvatarIcon {
 }
 
 #[derive(Debug, Component, Clone)]
-struct Flair(Stack, AvatarIcon);
+struct Flair(Stack, AvatarIcon, Bin<Stack, Shape>);
 
 impl Flair {
     fn new(theme: &Theme, name: Icons, style: AvatarIconStyle, size: AvatarSize) -> Self {
         Flair(
             Stack::center(),
             AvatarIcon::new(theme, name, style, size.get() / 3.0),
+            Circle::new(size.get() / 3.0, theme.colors().get(ptsd::Background::Primary), true),
         )
     }
 }
